@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Datos: se REGENERAN con actualizar_bd.bat / bajar_datos_ufcstats.bat.
+# No se versionan: son ~32 MB, cambian en cada corrida y no son fuente,
+# son derivados. Quien clona el repo los reconstruye en un par de comandos.
+data/raw/
+data/processed/
+
+# Modelos entrenados: también derivados (los produce train_model.py).
+models/
+
+# Reportes generados por cartelera
+outputs/
+
+# Carteleras propias del usuario (el CSV de ejemplo sí se versiona)
+cards/*
+!cards/ejemplo_con_cuotas.csv
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Backup local de un modelo viejo, no es fuente
+backup_modelo_kaggle/
+
+# PDF generado del manual (se regenera)
+MINIMANUAL.pdf
+
+# Config local de Claude Code (permisos personales, no va al repo)
+.claude/

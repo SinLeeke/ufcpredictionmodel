@@ -1,0 +1,14 @@
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+xgboost>=2.0
+plotly>=5.18
+beautifulsoup4>=4.12
+requests>=2.31
+lxml>=4.9
+kagglehub>=0.3
+# Opcionales:
+# lightgbm>=4.0        # alternativa a XGBoost
+# kaleido>=0.2         # exportar los gráficos Plotly a PNG
+# cloudscraper>=1.2    # para saltar Cloudflare en Sherdog/Tapology
+# selenium>=4.0        # scraping de sitios con anti-bot fuerte
