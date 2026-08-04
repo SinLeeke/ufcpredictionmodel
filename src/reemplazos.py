@@ -47,7 +47,7 @@ API = "https://en.wikipedia.org/w/api.php"
 # Wikipedia pide identificarse; sin User-Agent propio contestan 403. Su política
 # pide un modo de contacto: si vas a scrapear en volumen, pon el tuyo en
 # CONTACTO (o en la variable de entorno WIKI_CONTACT).
-CONTACTO = os.environ.get("WIKI_CONTACT", "https://github.com/tu-usuario/ufc-predictor")
+CONTACTO = os.environ.get("WIKI_CONTACT", "https://github.com/SinLeeke/ufcpredictionmodel")
 HEADERS = {"User-Agent": f"ufc-predictor/1.0 (personal research; {CONTACTO})"}
 
 # "replaced by [promotional newcomer] Nombre Apellido"
