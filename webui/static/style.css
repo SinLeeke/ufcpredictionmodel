@@ -86,18 +86,33 @@ header{
   :root:not([data-tema="claro"]) .mercado-cab{border-bottom-color:var(--acento)}
   :root:not([data-tema="claro"]) button.primario{background:var(--acento);border-color:var(--acento)}
 }
-.marca{display:flex;align-items:center;gap:11px}
-/* El logo es un SELLO, no un botón: rectángulo negro, sin redondeo y sin
-   degradado. Cambia solo el color de la letra según el tema —blanca en claro,
-   roja en oscuro— porque el relleno negro se mantiene en los dos. */
+.marca{display:flex;align-items:center;gap:12px}
+.marca h1{position:relative;top:2px}   /* baja un pelo para centrar con el sello */
+/* EL SELLO
+   El logo real de UFC son letras INCLINADAS con cortes rectos. Acá se imita el
+   corte con un `skewX`, no con una tipografía condensada: Impact deja la U y la
+   C casi cerradas y a ese tamaño no se leen. Se usa el peso 900 de la fuente del
+   sistema, que es ancha y abre los contraformas, y se compensa el skew del
+   contenedor con el inverso en el <span> para que las letras queden derechas
+   dentro de la caja inclinada. */
 .logo{
-  padding:6px 11px 5px;border-radius:0;display:grid;place-items:center;
-  background:var(--tinta);color:var(--logo-txt);
-  font-family:var(--display);font-size:21px;line-height:1;
-  letter-spacing:.06em;text-transform:uppercase;
+  width:44px;height:44px;                 /* cuadrado, como pidió el usuario */
+  border-radius:7px;                      /* apenas redondeado, no un bloque duro */
+  display:grid;place-items:center;
+  background:var(--tinta);
   border:2px solid var(--tinta);
+  overflow:hidden;
 }
-/* En oscuro el sello necesita un borde que lo despegue del fondo casi negro. */
+/* La caja queda CUADRADA y el corte inclinado va solo en las letras: así se
+   lee como el logo de UFC sin que el contenedor se deforme en paralelogramo. */
+.logo>span{
+  display:block;
+  transform:skewX(-11deg);
+  color:var(--logo-txt);
+  font:900 15px/1 "Segoe UI",system-ui,-apple-system,sans-serif;
+  letter-spacing:.055em;                  /* aire entre letras = legibilidad */
+  padding-left:.05em;
+}
 @media (prefers-color-scheme: dark){ .logo{border-color:#2c2c30} }
 :root[data-tema="oscuro"] .logo{border-color:#2c2c30}
 :root[data-tema="claro"] .logo{border-color:var(--tinta)}
@@ -471,10 +486,10 @@ h3{text-transform:uppercase;letter-spacing:.08em;font-size:11.5px;font-weight:70
 
 /* Franja diagonal roja sobre el sello del logo — el guiño al cartel. Es un
    ::after y no una imagen para no cargar assets. */
-.marca{position:relative}
-.logo{position:relative;overflow:hidden}
-.logo::after{content:"";position:absolute;inset:auto -20% -3px -20%;height:3px;
-  background:var(--acento);transform:rotate(-4deg)}
+/* Franja roja al pie del sello, siguiendo la misma inclinación del corte. */
+.logo::after{content:"";position:absolute;inset:auto 0 0 0;height:4px;
+  background:var(--acento)}
+.logo{position:relative}
 
 /* Las tarjetas pierden la sombra difusa y ganan una regla superior: agrupan por
    estructura, no por profundidad falsa. */
@@ -491,3 +506,29 @@ button.primario{border-radius:0;text-transform:uppercase;letter-spacing:.06em;
   border:2px solid var(--tinta)}
 button.primario:hover:not(:disabled){background:var(--acento);border-color:var(--acento)}
 :root[data-tema="oscuro"] button.primario{background:var(--acento);border-color:var(--acento)}
+
+/* --- Transición al cambiar de tema ---------------------------------------
+   Sin esto el salto claro↔oscuro es un parpadeo brusco. Se anima solo color y
+   fondo (nunca layout) y se excluye a quien pidió menos movimiento. */
+body,header,nav.tabs,.panel,.tarjeta,.pata,.logo,.logo>span,.mercado-cab,
+button,input,select,textarea,.pill,.barra,.reloj-caja,.vivo-caja,
+.cartelera-activa,.tabla-scroll,td,th{
+  transition:background-color .28s ease, color .28s ease,
+             border-color .28s ease, fill .28s ease;
+}
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important; animation:none !important}
+}
+
+/* --- Cartelera activa, ahora en la barra de pestañas ----------------------
+   Es un dato de ESTADO, no de marca: en la cabecera competía con el logo y
+   dejaba el bloque de la izquierda desbalanceado. */
+nav.tabs{position:relative}
+.cartelera-activa{
+  margin-left:auto;padding-right:24px;align-self:center;
+  font-size:12px;color:var(--tenue);
+  text-transform:uppercase;letter-spacing:.07em;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38ch;
+}
+.cartelera-activa::before{content:"▸ ";color:var(--acento)}
+@media (max-width:820px){ .cartelera-activa{display:none} }
