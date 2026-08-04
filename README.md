@@ -408,6 +408,8 @@ exacto** de finalización, un mercado que este proyecto no toca todavía.
 | **Glicko-2** en vez de ELO | no implementado: FightMatrix lo probó y reportó que la *rating deviation* aporta poco en MMA | No vale la complejidad |
 | **Balancear las clases del modelo de método** | log loss 1,033 vs 0,950 sin balancear; anunciaba **el doble** de sumisiones de las que ocurren (32,0 % contra 16,4 % real) | Revertido. Era peor que no tener modelo |
 | **Subir a 12 los rivales de la calidad de oposición** | ganaba en **7 de 8 semillas** sobre el test… y perdía **2 de 3** al validar en otros períodos | Revertido a 5 |
+| **Tapar el hueco de 4 meses de Kaggle** con filas armadas desde UFCStats + BestFightOdds (150 peleas, 82 % con cuota) | 4 cortes: acc +0,0044 / +0,0127 / +0,0094 / **−0,0588**. **El AUC no mejora en ninguno.** Media: acc −0,0081, AUC −0,0039 | No entra. Son el 2-5 % de una ventana de 5 años |
+| **Poner `NaN` en vez de `0`** en los stats de peleadores sin datos | la premisa era falsa: las peleas con alguien de pocos datos se aciertan **71 %** y las de datos completos **58 %** (140 peleas) | El cero funciona como proxy de "no probado" |
 
 **Las dos últimas son las que más enseñaron.**
 
