@@ -497,7 +497,11 @@ pre#log{
 .info-card{background:var(--sup);border:1px solid var(--linea);border-radius:var(--r);
            padding:14px;box-shadow:var(--sombra)}
 .info-card.ancha{grid-column:1/-1}
-.info-card b{display:block;margin:8px 0 4px;font-size:14px}
+/* El `>` es lo que importa: solo el <b> que hace de TÍTULO de la tarjeta —hijo
+   directo— va en bloque. Con `.info-card b` a secas también caían las negritas
+   de dentro de los párrafos, y cada una partía la frase en tres: "Habla del" /
+   "precio" / ", no de la pelea…", con la línea siguiente empezando por coma. */
+.info-card>b{display:block;margin:8px 0 4px;font-size:14px}
 .info-card p{margin:0;font-size:13px;color:var(--txt2)}
 .lista-no{color:var(--txt2);font-size:14px;padding-left:20px}
 .lista-no li{margin:8px 0}
