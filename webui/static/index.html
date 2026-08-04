@@ -205,6 +205,10 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
     <h2>Tareas</h2>
     <p class="nota">Se ejecuta <b>una a la vez</b>: casi todas escriben en los mismos
       archivos de datos y dos en paralelo se pisarían.</p>
+    <p class="nota"><b>¿No sabes cuál lanzar?</b> Para el día a día <b>no necesitas
+      ninguna</b> — basta cargar la cartelera y mirar los pronósticos. Estas tareas son
+      para instalar la base la primera vez y para actualizarla cada tanto.
+      <button class="enlace" data-ir="guia">Ver el flujo completo en la Guía</button></p>
   </div>
   <div id="lista-tareas" class="cols"></div>
 
@@ -218,6 +222,69 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
 <!-- ========================== GUÍA ========================= -->
 <section id="tab-guia" class="panel">
   <div class="guia">
+
+    <h2>Cómo se usa, según en qué momento estés</h2>
+    <p>El sistema tiene tres modos de uso muy distintos y la confusión más común es
+      mezclarlos. Casi siempre estás en el tercero.</p>
+
+    <div class="flujo">
+      <article class="paso">
+        <span class="paso-n">1</span>
+        <h3>La primera vez</h3>
+        <p class="paso-sub">Una hora larga, se hace <b>una sola vez</b>.</p>
+        <p>Hay que construir la base desde cero. En <b>Mantenimiento</b>, en este orden:</p>
+        <ol>
+          <li><b>Resultados de UFCStats</b> — el historial de peleas (~2 min).</li>
+          <li><b>Biometría</b> — altura, alcance y edad de cada peleador (~3 min).
+            Sin esto esas columnas quedan en cero y el modelo predice peor.</li>
+          <li><b>Estadísticas por pelea</b> — golpes, derribos y control (~20 min).</li>
+          <li><b>Reemplazos</b> — quién entró con poco aviso (~25 min).</li>
+          <li><b>Dataset y features</b> — descarga Kaggle y arma la tabla de entrenamiento.</li>
+          <li><b>Entrenar modelos</b> — genera el de ganador y el de método.</li>
+          <li><b>Calibrador</b> y <b>mercado de método</b> — sin estos dos el sistema
+            predice igual pero <b>no</b> calcula valor ni recomienda apuestas.</li>
+        </ol>
+        <p class="nota">Todo es reanudable: si se corta, vuelve a lanzarlo y sigue donde
+          quedó.</p>
+      </article>
+
+      <article class="paso">
+        <span class="paso-n">2</span>
+        <h3>Para mantenerla al día</h3>
+        <p class="paso-sub">Unos minutos, <b>una vez al mes</b> o tras varias carteleras.</p>
+        <p>Incorpora las peleas nuevas y reentrena con ellas. En <b>Mantenimiento</b>:</p>
+        <ol>
+          <li><b>Actualizar todo</b> — hace resultados, reemplazos, features y
+            reentrenamiento de corrido.</li>
+        </ol>
+        <p>Es <b>incremental</b>: si ya está al día consulta uno o dos eventos, no los 780.
+          Al terminar, mira las métricas en <b>Estado del sistema</b>:</p>
+        <ul>
+          <li>Acierto entre <b>0,64 y 0,67</b> es lo normal.</li>
+          <li>Si el AUC pasa de <b>0,85</b>, algo se rompió: el modelo está viendo
+            resultados que no debería. No lo uses hasta revisarlo.</li>
+        </ul>
+        <p class="nota">Las estadísticas por pelea y los reemplazos completos solo hace
+          falta rebajarlos si pasaron varios meses.</p>
+      </article>
+
+      <article class="paso">
+        <span class="paso-n">3</span>
+        <h3>El uso normal, antes de cada evento</h3>
+        <p class="paso-sub">Dos minutos. Es lo que harás el 95% de las veces.</p>
+        <ol>
+          <li>Pestaña <b>Cargar</b> → elige la cartelera en Betano. Trae las cuotas solas.</li>
+          <li>Pestaña <b>Cartelera</b> → mira los pronósticos. Fíjate en la columna de
+            <b>confianza</b>: por debajo de 65% el sistema acierta como una moneda.</li>
+          <li>Pestaña <b>Combinada</b> → solo si quieres apostar. Que no recomiende nada
+            es el resultado normal, no un error.</li>
+        </ol>
+        <p><b>No toques Mantenimiento para esto.</b> Reentrenar antes de cada cartelera no
+          mejora nada: el modelo aprende de miles de peleas, y una más no lo cambia.</p>
+        <p class="nota">Si el evento es hoy, enciende <b>EN VIVO</b> en la cabecera: la
+          cuota de ganador se refresca cada 10 s. Apágalo cuando dejes de mirar.</p>
+      </article>
+    </div>
 
     <h2>Qué hace este sistema</h2>
     <p>Aprende de <b>más de 8.000 peleas reales de UFC</b> qué características tienden a
