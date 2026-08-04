@@ -30,7 +30,18 @@ import config as C                                    # noqa: E402
 from webui import parlay as P                          # noqa: E402
 
 CARDS_DIR = C.ROOT / "cards"
-INTERVALO_AUTO_SEG = 600        # 10 minutos, lo que pidió el usuario
+# Dos ritmos distintos, y la diferencia importa:
+#
+#   COMPLETO  -> vuelve a bajar TODO (cuotas de método incluidas, que necesitan
+#                una petición por pelea) y RE-PREDICE. Son 1+N peticiones y
+#                varios segundos de modelo. Va espaciado.
+#   EN VIVO   -> UNA sola petición a la página de la cartelera, que ya trae el
+#                mercado de ganador de todas las peleas. No re-predice: la
+#                probabilidad del MODELO no cambia porque se mueva la cuota,
+#                solo cambian la mezcla con el mercado y el EV, que se
+#                recalculan en memoria. Por eso puede ir a segundos.
+INTERVALO_AUTO_SEG = 600        # refresco COMPLETO
+INTERVALO_VIVO_SEG = 10         # refresco de la LÍNEA de ganador
 
 
 def _slug(s: str) -> str:
@@ -71,6 +82,11 @@ class Estado:
 
         self.auto = True
         self.proximo_auto: float | None = None
+        # Modo "en vivo": refresca solo la línea de ganador cada pocos segundos.
+        # Arranca apagado a propósito — son ~6 peticiones por minuto a Betano y
+        # eso solo tiene sentido cuando estás mirando la cartelera en pantalla.
+        self.vivo = False
+        self.vivo_en: float | None = None
 
     # -- lectura para la UI ------------------------------------------------ #
     def snapshot(self) -> dict:
@@ -89,6 +105,9 @@ class Estado:
                 "auto": self.auto,
                 "proximo_auto": self.proximo_auto,
                 "intervalo_seg": INTERVALO_AUTO_SEG,
+                "intervalo_vivo_seg": INTERVALO_VIVO_SEG,
+                "vivo": self.vivo,
+                "vivo_en": self.vivo_en,
                 "movimiento": self.movimiento,
                 "datos": self.datos,
             }
@@ -404,8 +423,93 @@ def refrescar() -> str:
     return ""
 
 
+def refrescar_linea() -> str:
+    """
+    Refresco EN VIVO: baja solo el mercado de ganador (1 petición) y recalcula
+    lo que depende de la cuota, SIN volver a predecir.
+
+    Qué cambia y qué no, que es la parte que importa entender:
+      * `p_modelo_a` NO cambia. Es lo que el modelo saca de los stats; que Betano
+        mueva la línea no altera el historial de nadie.
+      * SÍ cambian `p_mercado_a`, la mezcla `p_final_a`, el EV y Kelly, porque
+        todos se calculan CON la cuota.
+    Por eso este refresco es barato: una petición y aritmética en memoria.
+
+    Las cuotas de MÉTODO no se tocan acá — viven en otra API, una llamada por
+    pelea. Las refresca el ciclo completo.
+    """
+    with ESTADO.lock:
+        if ESTADO.cargando or ESTADO.origen != "betano" or not ESTADO.datos:
+            return "no aplica"
+        consulta = ESTADO.consulta
+        datos = ESTADO.datos
+
+    try:
+        from src import betano_scraper as B
+        from src import value
+        card = B.find_card(consulta)
+        if card is None:
+            return "no encontré la cartelera"
+        frescas = B.cuotas_rapidas(card["url"])
+        if not frescas:
+            return "sin respuesta de Betano"
+
+        # Índice por apellidos: el id de pelea de Betano no viaja en `datos`.
+        def clave(a: str, b: str) -> frozenset:
+            return frozenset({_slug(a.split()[-1]), _slug(b.split()[-1])})
+
+        por_par = {clave(a, b): (ca, cb) for (a, b, ca, cb) in frescas.values()}
+        cal = value.cargar_calibrador()
+
+        movidas = 0
+        with ESTADO.lock:
+            for pl in datos["peleas"]:
+                m = pl.get("mercado")
+                if not m:
+                    continue
+                par = por_par.get(clave(pl["a"], pl["b"]))
+                if not par:
+                    continue
+                ca, cb = par
+                if m.get("cuota_a") == ca and m.get("cuota_b") == cb:
+                    continue
+
+                antes_a = m.get("cuota_a")
+                v = value.analizar(m["p_modelo_a"], ca, cb, cal=cal)
+                m.update({
+                    "cuota_a": ca, "cuota_b": cb,
+                    "p_mercado_a": _num(v.p_mercado_a),
+                    "p_final_a": _num(v.p_final_a),
+                    "disc": _num(v.discrepancia), "disc_cruda": _num(v.discrepancia_cruda),
+                    "vig": _num(v.vig), "lado": v.lado,
+                    "cuota": _num(v.cuota_decimal), "ev": _num(v.ev),
+                    "kelly": _num(v.kelly), "veredicto": v.veredicto,
+                })
+                if antes_a:
+                    ESTADO.movimiento[f"{pl['id']}:ML:A"] = {"antes": antes_a, "ahora": ca}
+                movidas += 1
+
+            # Las patas del parlay del mercado de ganador cotizan con esa línea.
+            for pata in ESTADO.patas:
+                if pata.mercado != "ganador":
+                    continue
+                pl = next((x for x in datos["peleas"]
+                           if clave(x["a"], x["b"]) == clave(*pata.pelea.split(" vs "))), None)
+                if not pl or not pl.get("mercado"):
+                    continue
+                c = pl["mercado"]["cuota_a" if pata.clase == "A" else "cuota_b"]
+                if c:
+                    pata.cuota = c
+            datos["patas"] = [x.dict() for x in ESTADO.patas]
+            ESTADO.cuotas_en = time.time()
+            ESTADO.vivo_en = time.time()
+        return f"{movidas} cuotas movidas" if movidas else "sin cambios"
+    except Exception as e:                            # noqa: BLE001
+        return f"falló: {e}"
+
+
 # --------------------------------------------------------------------------- #
-# Auto-refresh cada 10 minutos
+# Auto-refresh: ciclo completo cada 10 min, línea en vivo cada 10 s
 # --------------------------------------------------------------------------- #
 def _bucle_auto() -> None:
     """
@@ -414,12 +518,21 @@ def _bucle_auto() -> None:
     es scraping educado; barrer el sitio entero no lo sería.
     """
     while True:
-        time.sleep(15)
+        time.sleep(2)
+        ahora = time.time()
         with ESTADO.lock:
-            listo = (ESTADO.auto and not ESTADO.cargando and ESTADO.origen == "betano"
-                     and ESTADO.proximo_auto and time.time() >= ESTADO.proximo_auto)
-        if listo:
+            completo = (ESTADO.auto and not ESTADO.cargando and ESTADO.origen == "betano"
+                        and ESTADO.proximo_auto and ahora >= ESTADO.proximo_auto)
+            # El modo en vivo cede el paso al completo: si toca el grande, no se
+            # pisan dos peticiones a la vez.
+            vivo = (not completo and ESTADO.vivo and not ESTADO.cargando
+                    and ESTADO.origen == "betano" and ESTADO.datos is not None
+                    and (ESTADO.vivo_en is None
+                         or ahora - ESTADO.vivo_en >= INTERVALO_VIVO_SEG))
+        if completo:
             refrescar()
+        elif vivo:
+            refrescar_linea()
 
 
 def arrancar_auto() -> None:

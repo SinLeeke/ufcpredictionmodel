@@ -82,7 +82,7 @@ function barra(txt, tipo) {
 async function tick() {
   try {
     const e = await api('/api/estado');
-    S.proximoAuto = e.proximo_auto; S.origen = e.origen;
+    S.proximoAuto = e.proximo_auto; S.origen = e.origen; S.vivo = e.vivo;
     $('#titulo-cartelera').textContent = e.titulo || e.csv || 'sin cartelera cargada';
     $('#btn-refresh').disabled = e.cargando || !e.origen;
 
@@ -102,10 +102,28 @@ async function tick() {
   } catch (err) { barra('No pude hablar con el servidor: ' + err.message, 'error'); }
 }
 
+// Modo EN VIVO: solo la línea de ganador, 1 petición cada 10 s. Va aparte del
+// refresco completo porque ese re-baja el mercado de método (1 petición POR
+// pelea) y vuelve a correr el modelo — eso no se puede hacer cada 10 segundos
+// sin que Betano te bloquee.
+$('#chk-vivo').onchange = async (e) => {
+  const on = e.target.checked;
+  try {
+    await post(`/api/vivo?encender=${on}`);
+    barra(on
+      ? '🔴 En vivo: la cuota de ganador se refresca cada 10 s. Apágalo cuando no estés mirando.'
+      : '⏸ Modo en vivo apagado.');
+  } catch { e.target.checked = !on; barra('No pude cambiar el modo en vivo.'); }
+};
+
 function reloj() {
   const r = $('#reloj');
-  if (!S.origen) { $('#reloj-caja').classList.add('oculto'); return; }
+  if (!S.origen) { $('#reloj-caja').classList.add('oculto'); $('#vivo-caja').classList.add('oculto'); return; }
   $('#reloj-caja').classList.remove('oculto');
+  // El interruptor solo aparece con origen Betano: un CSV en disco no cambia.
+  $('#vivo-caja').classList.toggle('oculto', S.origen !== 'betano');
+  if ($('#chk-vivo').checked !== !!S.vivo) $('#chk-vivo').checked = !!S.vivo;
+  $('#vivo-caja').classList.toggle('activo', !!S.vivo);
   // El auto-refresco solo tiene sentido con origen Betano: un archivo en disco
   // no cambia solo, y mostrar una cuenta regresiva ahí haría creer lo contrario.
   if (S.origen !== 'betano') { r.textContent = '📄 archivo — sin cuotas en vivo'; return; }

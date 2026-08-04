@@ -763,6 +763,27 @@ cuota, así que una cuota inflada produce "valor" que no existe.
 Por defecto la lista muestra solo *Probado* y *Sin ventaja clara*. El filtro
 **Ruido** existe para que veas lo que estás dejando fuera, no para que lo uses.
 
+### Cuotas en vivo (solo en tu PC)
+
+En la cabecera hay un interruptor **EN VIVO**. Con él encendido, la cuota de ganador se
+refresca **cada 10 segundos**; apagado, las cuotas se actualizan cada 10 minutos como
+siempre.
+
+Funciona porque la página de Betano trae las cuotas de ganador de toda la cartelera de una
+vez: es **una petición** por refresco, no una por pelea. Y no vuelve a predecir — solo
+recalcula lo que depende de la cuota (la mezcla con el mercado, el EV y cuánto apostar).
+
+| | Completo (10 min) | En vivo (10 s) |
+|---|---|---|
+| Peticiones a Betano | 1 + una por pelea | **1** |
+| Cuotas de ganador | sí | sí |
+| Cuotas de método | sí | no |
+| Vuelve a correr el modelo | sí | no |
+
+**Apágalo cuando no estés mirando.** Son ~6 peticiones por minuto: sostenido durante horas
+es la forma típica de que una casa te bloquee la IP. Por eso arranca apagado y el
+interruptor solo aparece si la cartelera vino de Betano — un CSV en disco no cambia solo.
+
 ### Las tres secciones
 
 Las selecciones vienen **agrupadas por mercado**, porque en Betano son mercados

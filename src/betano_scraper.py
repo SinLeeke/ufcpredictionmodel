@@ -181,6 +181,47 @@ def list_fights(card_url: str) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
+# 2b) Refresco RÁPIDO: solo el mercado de ganador, en UN request
+# --------------------------------------------------------------------------- #
+# La página de la cartelera ya trae embebido el mercado "Ganador" de TODAS sus
+# peleas. Eso permite refrescar la línea con una sola petición en vez de 1+N,
+# que es lo que hace viable un auto-refresh de segundos sin que Betano te
+# bloquee la IP. El mercado de MÉTODO no viene acá: para eso hace falta la API
+# por pelea (get_fight_odds), que se refresca mucho más espaciado.
+_RE_PRECIO = re.compile(r'"name":"([^"]+)","shortName":"[^"]*","price":([\d.]+)')
+
+
+def cuotas_rapidas(card_url: str) -> dict[str, tuple[str, str, float, float]]:
+    """
+    {id_pelea: (peleador_a, peleador_b, cuota_a, cuota_b)} con UNA sola petición.
+
+    Devuelve {} si la página no responde: el llamador debe quedarse con las
+    cuotas que ya tenía en vez de borrarlas.
+    """
+    url = card_url if card_url.startswith("http") else f"{C.BETANO_BASE}{card_url}"
+    html = _get_text(url)
+    if html is None:
+        return {}
+
+    out: dict[str, tuple[str, str, float, float]] = {}
+    marcas = [(m.start(), m) for m in _FIGHT_RE.finditer(html)]
+    for i, (pos, m) in enumerate(marcas):
+        fin = marcas[i + 1][0] if i + 1 < len(marcas) else len(html)
+        bloque = html[pos:fin]
+        # Dentro del bloque de ESTA pelea, el primer mercado es siempre Ganador
+        # (displayOrder -10000). Se recortan sus dos primeros precios.
+        j = bloque.find('"name":"Ganador"')
+        if j < 0:
+            continue
+        precios = _RE_PRECIO.findall(bloque[j:j + 1200])
+        if len(precios) < 2:
+            continue
+        (na, pa), (nb, pb) = precios[0], precios[1]
+        out[m.group(1)] = (na, nb, float(pa), float(pb))
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # 3) Cuotas de una pelea puntual
 # --------------------------------------------------------------------------- #
 def _lado(nombre_sel: str, fa: str, fb: str) -> Optional[str]:

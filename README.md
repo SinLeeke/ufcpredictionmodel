@@ -379,6 +379,24 @@ propio veredicto cuando la combinada es larga, aunque las 13 patas vengan del me
 probado. Además clasifica cada pata por el respaldo medido del mercado (decisión en método
 t=3,1 / moneyline t=0,3 / finalización t=0,5).
 
+### Modo EN VIVO
+
+Un interruptor en la cabecera refresca la **línea de ganador cada 10 segundos**. Es viable
+porque la página de la cartelera de Betano ya trae embebido el mercado de ganador de todas
+sus peleas: **una sola petición** actualiza el evento completo.
+
+Y no vuelve a predecir. La probabilidad del modelo no cambia porque se mueva la cuota —
+sale de los stats del peleador. Lo que sí cambia es la mezcla con el mercado, el EV y
+Kelly, y eso es aritmética en memoria. Por eso puede ir a segundos.
+
+El refresco **completo** (que incluye el mercado de método, con una petición *por pelea*, y
+sí re-corre el modelo) sigue en 10 minutos. El modo en vivo le cede el paso cuando toca,
+para no solapar peticiones.
+
+Arranca **apagado a propósito**: son ~6 peticiones por minuto a Betano y eso solo se
+justifica mientras miras la cartelera en pantalla. Dejarlo prendido de fondo es la forma de
+que te bloqueen la IP.
+
 Las selecciones se agrupan en las **tres secciones que Betano ofrece de verdad** — *Quién
 gana*, *Cómo gana 7 vías* (KO, sumisión y decisión separados) y *Cómo gana 5 vías* (cuando
 no separa KO de sumisión) — porque son mercados distintos, con comisiones distintas (~4% vs

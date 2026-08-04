@@ -101,6 +101,23 @@ async def subir_csv(archivo: UploadFile = File(...)):
     return {"ok": True, "nombre": nombre}
 
 
+@app.post("/api/vivo")
+def modo_vivo(encender: bool = True):
+    """
+    Enciende o apaga el refresco EN VIVO de la línea de ganador.
+
+    Arranca apagado a propósito: son ~6 peticiones por minuto a Betano, y eso
+    solo se justifica mientras estás mirando la cartelera. Dejarlo prendido de
+    fondo es la forma de que te bloqueen la IP.
+    """
+    with engine.ESTADO.lock:
+        engine.ESTADO.vivo = bool(encender)
+        if not encender:
+            engine.ESTADO.vivo_en = None
+    return {"ok": True, "vivo": engine.ESTADO.vivo,
+            "intervalo_seg": engine.INTERVALO_VIVO_SEG}
+
+
 @app.post("/api/refrescar")
 def refrescar():
     err = engine.refrescar()

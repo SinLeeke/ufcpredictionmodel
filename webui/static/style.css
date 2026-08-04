@@ -411,3 +411,15 @@ pre#log{
 .pata .choque{margin-top:8px;padding:7px 9px;border-radius:6px;font-size:12px;
   line-height:1.45;background:var(--aviso-sup,rgba(200,80,60,.09));
   border:1px solid var(--aviso,rgba(200,80,60,.28));color:var(--tenue)}
+
+/* --- Interruptor EN VIVO ------------------------------------------------- */
+/* Refresca solo la línea de ganador (1 petición cada 10 s). Va apagado por
+   defecto: dejarlo prendido de fondo es la forma de que Betano te bloquee. */
+.vivo-caja{display:flex;align-items:center;gap:6px;padding:5px 10px;cursor:pointer;
+  border:1px solid var(--linea);border-radius:99px;font-size:11.5px;font-weight:700;
+  letter-spacing:.03em;color:var(--tenue);user-select:none;white-space:nowrap}
+.vivo-caja:hover{border-color:var(--acento)}
+.vivo-caja input{margin:0;cursor:pointer}
+.vivo-caja.activo{color:#c0392b;border-color:#c0392b}
+.vivo-caja.activo span::before{content:"● ";animation:latido 1.4s ease-in-out infinite}
+@keyframes latido{0%,100%{opacity:1}50%{opacity:.25}}
