@@ -55,6 +55,10 @@ credentials.json
 .claude/
 .cursor/
 .aider*
+# El contexto para asistentes se queda en local: es una nota de trabajo, no
+# documentación del proyecto. Lo que vale de ahí (qué se midió y qué falló)
+# vive en README.md, que sí se versiona.
+CLAUDE.md
 
 # Editores / IDE
 .vscode/
