@@ -1,5 +1,5 @@
 """
-backtest_carteleras.py
+modelado/backtest_carteleras.py
 Prueba el modelo contra carteleras REALES completas, reconstruyendo el estado de
 cada peleador tal como estaba EL DÍA DEL EVENTO.
 
@@ -11,9 +11,9 @@ Acá cada stat — golpeo, derribos, récord, racha, edad y control — se recal
 usando SOLO las peleas anteriores a la fecha del evento.
 
 Uso:
-    python backtest_carteleras.py            # las últimas 4 carteleras
-    python backtest_carteleras.py 8          # las últimas 8
-    python backtest_carteleras.py 4 --cuotas # compara modelo vs mercado vs mezcla
+    python -m modelado.backtest_carteleras            # las últimas 4 carteleras
+    python -m modelado.backtest_carteleras 8          # las últimas 8
+    python -m modelado.backtest_carteleras 4 --cuotas # compara modelo vs mercado vs mezcla
 
 Con --cuotas solo entran carteleras que tengan cuotas reales en el dataset (que
 llega hasta marzo 2026, o sea NO las más recientes) y se comparan tres formas de
@@ -136,7 +136,7 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
         if not cuotas:
             raise SystemExit("No hay data/raw/kaggle_ufc.csv para sacar las cuotas.")
         if calibrador is None:
-            raise SystemExit("Falta el calibrador. Corre:  python backtest_valor.py")
+            raise SystemExit("Falta el calibrador. Corre:  python -m modelado.backtest_valor")
         # Solo carteleras donde TODAS las peleas tengan cuota, para que las tres
         # columnas se comparen sobre exactamente el mismo conjunto de peleas.
         def _cubierta(e, f):
@@ -264,7 +264,7 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
         print(f"  Con {tot} peleas el margen de error es de ±{100/np.sqrt(tot)*0.5:.0f} puntos,")
         print("  así que diferencias de 2-3 peleas entre columnas no significan nada.")
         print("  El número que vale es el del backtest grande: 65.3% / 69.8% / 70.1%")
-        print("  sobre 613 peleas (python backtest_valor.py).")
+        print("  sobre 613 peleas (python -m modelado.backtest_valor).")
     else:
         print(f"  {'cartelera':46}{'acierto':>12}{'>=60% conf':>14}")
         for evento, fecha, ok, n, c_ok, c_n in resumen:

@@ -1,5 +1,5 @@
 """
-backtest_metodo.py
+modelado/backtest_metodo.py
 El mercado de MÉTODO (¿gana quién, y cómo?) contra el modelo.
 
 POR QUÉ ESTE MERCADO Y NO EL DE GANADOR
@@ -28,8 +28,8 @@ comparar contra las 6 cuotas. Se mezcla con el mercado por "log-opinion pool"
 (el equivalente multiclase del calibrador del otro backtest).
 
 Uso:
-    python backtest_metodo.py
-    python backtest_metodo.py --refit      # recalcula (tarda ~3 min)
+    python -m modelado.backtest_metodo
+    python -m modelado.backtest_metodo --refit      # recalcula (tarda ~3 min)
 """
 from __future__ import annotations
 

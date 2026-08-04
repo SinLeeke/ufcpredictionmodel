@@ -192,7 +192,7 @@ def combinar(p_modelo: float, p_mercado: float, cal: dict | None = None) -> floa
 
     Sin calibrador entrenado devuelve el modelo puro, y entonces las
     discrepancias que reporte NO están validadas (el backtest dice que esa
-    versión pierde). Corre `python backtest_valor.py` para generarlo.
+    versión pierde). Corre `python -m modelado.backtest_valor` para generarlo.
     """
     if cal is None:
         cal = cargar_calibrador()
@@ -278,7 +278,7 @@ def analizar(p_modelo_a: float, cuota_a, cuota_b,
     k = kelly(p_lado, cuota)
 
     if cal is None:
-        veredicto = "SIN CALIBRAR (corre backtest_valor.py)"
+        veredicto = "SIN CALIBRAR (corre python -m modelado.backtest_valor)"
     elif disc_lado >= min_discrepancia and ev >= min_ev:
         veredicto = "VALOR"
     elif disc_lado >= min_discrepancia:

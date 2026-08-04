@@ -225,7 +225,7 @@ def _imprimir_valor(valores: list[tuple[dict, object]]) -> None:
     print("  Sobre 3.821 peleas fuera de muestra esta estrategia dio +1.0% de ROI")
     print("  con un margen de error de ±7.5. Es un empate técnico con la casa, no")
     print("  una máquina de plata. La discrepancia CRUDA (la grande y llamativa)")
-    print("  sí está probada: pierde -8.1%. Detalle en 'python backtest_valor.py'.")
+    print("  sí está probada: pierde -8.1%. Detalle en 'python -m modelado.backtest_valor'.")
     print("=" * 96)
 
 
@@ -598,7 +598,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         from src import value
         calibrador = value.cargar_calibrador()
         if calibrador is None:
-            print("[!] hay cuotas pero falta el calibrador -> corre 'python backtest_valor.py'.\n"
+            print("[!] hay cuotas pero falta el calibrador -> corre 'python -m modelado.backtest_valor'.\n"
                   "    Sin él se compara con la probabilidad CRUDA, que el backtest\n"
                   "    mostró que pierde -8% de ROI. Los avisos de valor no son fiables.")
         else:

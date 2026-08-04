@@ -5,7 +5,7 @@ backtests, scrapers) para poder dispararlos desde la UI y ver el log en vivo.
 
 Por qué SUBPROCESO y no llamar a las funciones directamente:
 
-  * `train_model.py` y los backtests son scripts pensados para consola: imprimen
+  * `modelado/train_model.py` y los backtests son scripts pensados para consola: imprimen
     a stdout y algunos terminan con `SystemExit`. Importarlos y llamarlos dentro
     del servidor haría que un fallo se lleve puesta la UI.
   * Corren minutos. En un hilo del servidor bloquearían las peticiones.
@@ -53,7 +53,7 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
             [sys.executable, "-m", "src.ufcstats_events"],
             [sys.executable, "-m", "src.reemplazos"],
             [sys.executable, "-m", "src.scraper"],
-            [sys.executable, "train_model.py"],
+            [sys.executable, "-m", "modelado.train_model"],
         ],
         minutos="3-8 min",
     ),
@@ -62,7 +62,7 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
         nombre="Solo reentrenar el modelo",
         descripcion=("Reentrena ganador y método con los datos que ya hay en disco, sin "
                      "bajar nada. Útil si tocaste config.py."),
-        pasos=[[sys.executable, "train_model.py"]],
+        pasos=[[sys.executable, "-m", "modelado.train_model"]],
         minutos="~1 min",
     ),
     Receta(
@@ -92,7 +92,7 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
         descripcion=("Walk-forward del moneyline (2016→hoy). Regenera "
                      "models/calibrador_mercado.pkl, que es lo que permite mezclar modelo "
                      "y mercado. Correr DESPUÉS de reentrenar."),
-        pasos=[[sys.executable, "backtest_valor.py", "--refit"]],
+        pasos=[[sys.executable, "-m", "modelado.backtest_valor", "--refit"]],
         minutos="~2 min",
     ),
     Receta(
@@ -101,7 +101,7 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
         descripcion=("Walk-forward del mercado de 6 vías. Regenera metodo6_xgb.pkl y "
                      "calibrador_metodo.pkl, que es de donde sale la única ventaja "
                      "probada del proyecto."),
-        pasos=[[sys.executable, "backtest_metodo.py", "--refit"]],
+        pasos=[[sys.executable, "-m", "modelado.backtest_metodo", "--refit"]],
         minutos="~3 min",
     ),
     Receta(
@@ -110,7 +110,7 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
         descripcion=("Reconstruye las últimas 10 carteleras tal como estaban el día del "
                      "evento y compara. OJO: diferencias de menos de 4 peleas entre "
                      "corridas son ruido de semilla, no una mejora."),
-        pasos=[[sys.executable, "backtest_carteleras.py", "10"]],
+        pasos=[[sys.executable, "-m", "modelado.backtest_carteleras", "10"]],
         minutos="~4 min",
     ),
     Receta(
@@ -119,9 +119,9 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
         descripcion=("Acierto sobre las peleas de 2025-2026 y reparto por tramo (¿un 70% "
                      "gana el 70% de las veces?). Usa winner_xgb_split.pkl, el modelo "
                      "entrenado solo hasta 2024, así que el número es fuera de muestra y "
-                     "coincide con el que imprime train_model.py. Requiere haber "
+                     "coincide con el que imprime train_model. Requiere haber "
                      "reentrenado al menos una vez."),
-        pasos=[[sys.executable, "evaluar_modelo.py"]],
+        pasos=[[sys.executable, "-m", "modelado.evaluar_modelo"]],
         minutos="~30 s",
     ),
     Receta(

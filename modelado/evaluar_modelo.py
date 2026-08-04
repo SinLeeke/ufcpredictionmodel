@@ -1,5 +1,5 @@
 """
-evaluar_modelo.py
+modelado/evaluar_modelo.py
 Prueba el modelo contra peleas REALES que nunca vio, para saber si sirve.
 
 Cómo funciona: carga models/winner_xgb_split.pkl — el modelo del split temporal,
@@ -23,8 +23,8 @@ Tres cosas que responde:
                      solo esos.
 
 Uso:
-    python evaluar_modelo.py
-    # requiere haber corrido antes:  python train_model.py
+    python -m modelado.evaluar_modelo
+    # requiere haber corrido antes:  python -m modelado.train_model
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ def cargar():
         raise SystemExit(
             f"No existe {C.WINNER_MODEL_SPLIT}.\n"
             "Es el modelo de medición (entrenado solo hasta "
-            f"{C.TRAIN_END_DATE}). Genéralo:  python train_model.py"
+            f"{C.TRAIN_END_DATE}). Genéralo:  python -m modelado.train_model"
         )
     with open(C.WINNER_MODEL_SPLIT, "rb") as fh:
         modelo = pickle.load(fh)

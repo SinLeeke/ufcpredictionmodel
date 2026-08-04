@@ -39,14 +39,15 @@ midió y se descartó) está en [README.md](README.md).
 |---|---|---|
 | Bajar las cuotas de una cartelera | `python -m src.betano_scraper "UFC 330"` | antes de cada evento |
 | Predecir una cartelera | `python -m src.card cards\mi_evento.csv` | antes de cada evento |
-| Datos frescos + reentrenar | `actualizar_bd.bat` | 1 vez al mes |
+| Datos frescos + reentrenar | `scripts\actualizar_bd.bat` | 1 vez al mes |
 
-Los `.bat` son doble clic si prefieres no escribir comandos.
+Los `.bat` viven en `scripts\` y son doble clic si prefieres no escribir
+comandos: cada uno se cambia solo a la raíz del proyecto antes de correr nada.
 
 **O todo desde la interfaz web**, que hace lo mismo sin escribir nada:
 
 ```bash
-lanzar_ui.bat
+scripts\lanzar_ui.bat
 ```
 
 Ver la [sección 17](#17-la-interfaz-web).
@@ -92,10 +93,10 @@ python -m src.ufcstats_fightstats  # stats por pelea (~20 min, reanudable)
 python -m src.reemplazos           # reemplazos de Wikipedia (~25 min)
 python -m src.bfo_odds             # cuotas recientes que Kaggle no tiene (~12 min)
 python -m src.scraper              # dataset Kaggle + features + ELO
-python train_model.py              # entrena los dos modelos
+python -m modelado.train_model              # entrena los dos modelos
 ```
 
-Los tres primeros los hace `bajar_datos_ufcstats.bat` con doble clic.
+Los tres primeros los hace `scripts\bajar_datos_ufcstats.bat` con doble clic.
 
 **Todo es reanudable.** Si se corta a mitad (Ctrl+C, se cae internet), vuelve a
 correr el mismo comando: retoma donde quedó gracias a los cachés en `data\raw\`.
@@ -103,8 +104,8 @@ correr el mismo comando: retoma donde quedó gracias a los cachés en `data\raw\
 ### Paso 4 — generar los modelos de apuestas (una sola vez)
 
 ```bash
-python backtest_valor.py
-python backtest_metodo.py
+python -m modelado.backtest_valor
+python -m modelado.backtest_metodo
 ```
 
 Producen `models\calibrador_mercado.pkl`, `models\calibrador_metodo.pkl` y
@@ -138,7 +139,7 @@ atrasada a propósito:
 ### 3.1 Actualización normal (lo que harás casi siempre)
 
 ```bash
-actualizar_bd.bat
+scripts\actualizar_bd.bat
 ```
 
 Cinco pasos: borra el dataset viejo → actualiza resultados de UFCStats →
@@ -169,7 +170,7 @@ Dos alarmas que no hay que ignorar:
 ### 3.2 Actualización profunda de UFCStats (ocasional)
 
 ```bash
-bajar_datos_ufcstats.bat
+scripts\bajar_datos_ufcstats.bat
 ```
 
 Rebaja **todo** el historial de estadísticas por pelea (golpes, derribos,
@@ -188,7 +189,7 @@ python -m src.bfo_odds            # baja las cuotas que faltan
 python -m src.bfo_odds --revisar  # solo reporta cuánto del hueco está cubierto
 ```
 
-Vale la pena antes de correr `backtest_valor.py` o `backtest_metodo.py`, que son
+Vale la pena antes de correr `modelado/backtest_valor.py` o `modelado/backtest_metodo.py`, que son
 los que necesitan cuotas históricas.
 
 ### 3.4 Refrescar la ficha de un peleador puntual
@@ -416,14 +417,14 @@ y las barras de método. Doble clic para abrirlos.
 ## 7. Comprobar que el modelo sigue funcionando
 
 ```bash
-python backtest_carteleras.py 4
+python -m modelado.backtest_carteleras 4
 ```
 
 Prueba las últimas 4 carteleras reales reconstruyendo cada peleador **tal como
 estaba el día del evento** (sin ver el futuro). Para una cartelera puntual:
 
 ```bash
-python backtest_carteleras.py --evento Ankalaev
+python -m modelado.backtest_carteleras --evento Ankalaev
 ```
 
 **Cuidado al interpretarlo**: este backtest tiene mucho ruido. Diferencias de
@@ -434,7 +435,7 @@ global sigue siendo 65-69%.
 
 | Comando | Para qué |
 |---|---|
-| `python evaluar_modelo.py` | acierto fuera de muestra y calibración por umbral de confianza |
+| `python -m modelado.evaluar_modelo` | acierto fuera de muestra y calibración por umbral de confianza |
 | `python -m src.oposicion "Ilia Topuria"` | últimas 5 peleas: rivales, nivel y método |
 | `python -m src.ufcstats "Nombre"` | ficha cruda de un peleador |
 | `python -m src.reemplazos --revisar` | tasa de victoria de los reemplazos |
@@ -471,13 +472,17 @@ Todo lo que acepta cada script. Los `[]` son opcionales.
 
 ### Entrenar y validar
 
+Los cinco viven en `modelado\` y se llaman **con `-m`, parados en la raíz del
+proyecto**. Con la ruta suelta (`python modelado\train_model.py`) fallan: Python
+buscaría `config.py` dentro de `modelado\`, y ese archivo está en la raíz.
+
 | Comando | Qué hace |
 |---|---|
-| `python train_model.py` | entrena ganador + método e imprime las métricas |
-| `python backtest_carteleras.py [N] [--cuotas] [--evento <nombre>]` | valida contra N carteleras reales. `--cuotas` compara modelo/mercado/mezcla |
-| `python backtest_valor.py [--desde AAAA] [--refit]` | walk-forward del mercado de ganador |
-| `python backtest_metodo.py [--desde AAAA] [--refit]` | walk-forward del mercado de método |
-| `python evaluar_modelo.py` | acierto fuera de muestra y calibración por tramo de confianza |
+| `python -m modelado.train_model` | entrena ganador + método e imprime las métricas |
+| `python -m modelado.backtest_carteleras [N] [--cuotas] [--evento <nombre>]` | valida contra N carteleras reales. `--cuotas` compara modelo/mercado/mezcla |
+| `python -m modelado.backtest_valor [--desde AAAA] [--refit]` | walk-forward del mercado de ganador |
+| `python -m modelado.backtest_metodo [--desde AAAA] [--refit]` | walk-forward del mercado de método |
+| `python -m modelado.evaluar_modelo` | acierto fuera de muestra y calibración por tramo de confianza |
 
 **Sobre `--refit`**: los backtests de valor cachean sus 11 reentrenamientos en
 `data\processed\walkforward_*.csv`, así que probar umbrales nuevos es instantáneo.
@@ -499,14 +504,14 @@ constantes escondidas en el código.
 |---|---|---|
 | `TRAIN_WINDOW_YEARS` | `5` | años de historial que usa para entrenar. `None` = todo. Validado en 5 períodos: 5 años le gana a todo el historial en 4 de 5 |
 | `N_SIMULATIONS` | `10_000` | simulaciones de Monte Carlo. Bajarlo acelera, ensancha el intervalo |
-| `TRAIN_END_DATE` / `TEST_START_DATE` | 2024-12-31 / 2025-01-01 | el corte temporal del split. Moverlo cambia todas las métricas que reporta `train_model.py` |
+| `TRAIN_END_DATE` / `TEST_START_DATE` | 2024-12-31 / 2025-01-01 | el corte temporal del split. Moverlo cambia todas las métricas que reporta `modelado/train_model.py` |
 | `REQUEST_DELAY_SEC` | `1.5` | pausa entre requests. **Bajarlo es maleducado y te puede ganar un bloqueo** |
 | `ELO_K` | `32.0` | sensibilidad del ELO por pelea |
 | `RANDOM_STATE` | `42` | semilla. Cambiarla mueve la accuracy ±0,008 sin que nada haya mejorado |
 | `METHOD_BASE_RATES` | KO 30,8% / Sub 17,7% / Dec 51,5% | las tasas base contra las que se lee el LIFT del método. Solo tocar si reentrenas con otro período |
 
 **Regla**: si tocas `TRAIN_WINDOW_YEARS` o `TRAIN_END_DATE`, tienes que correr
-`train_model.py` **y** los dos backtests con `--refit`.
+`modelado/train_model.py` **y** los dos backtests con `--refit`.
 
 ---
 
@@ -543,12 +548,12 @@ Nada de esto se versiona: todo se regenera con los comandos de arriba.
 
 | Archivo | Lo produce |
 |---|---|
-| `winner_xgb.pkl` | `train_model.py` |
-| `method_xgb.pkl` | `train_model.py` |
-| `winner_xgb_split.pkl` | `train_model.py` (solo para medir: entrenado hasta 2024, lo lee `evaluar_modelo.py`) |
-| `metodo6_xgb.pkl` | `backtest_metodo.py` |
-| `calibrador_mercado.pkl` | `backtest_valor.py` |
-| `calibrador_metodo.pkl` | `backtest_metodo.py` |
+| `winner_xgb.pkl` | `modelado/train_model.py` |
+| `method_xgb.pkl` | `modelado/train_model.py` |
+| `winner_xgb_split.pkl` | `modelado/train_model.py` (solo para medir: entrenado hasta 2024, lo lee `modelado/evaluar_modelo.py`) |
+| `metodo6_xgb.pkl` | `modelado/backtest_metodo.py` |
+| `calibrador_mercado.pkl` | `modelado/backtest_valor.py` |
+| `calibrador_metodo.pkl` | `modelado/backtest_metodo.py` |
 
 ### `outputs\<nombre_del_csv>\`
 
@@ -563,14 +568,14 @@ Un HTML por pelea. Se pueden borrar en cualquier momento.
 | **Antes de cada cartelera** | `python -m src.betano_scraper "<evento>"` | cuotas frescas = +3 puntos de acierto |
 | | `del data\raw\ufcstats_cache.json` | para que las fichas incluyan la última pelea de cada uno |
 | | `python -m src.card cards\<csv>` | el pronóstico |
-| **1 vez al mes** | `actualizar_bd.bat` | mete los eventos nuevos y reentrena |
+| **1 vez al mes** | `scripts\actualizar_bd.bat` | mete los eventos nuevos y reentrena |
 | **Cada 2-3 meses** | `python -m src.bfo_odds` | cuotas históricas nuevas |
-| | `python backtest_valor.py --refit` | reajusta el calibrador con datos nuevos |
-| | `python backtest_metodo.py --refit` | ídem para el mercado de método |
-| **Cada 6 meses** | `bajar_datos_ufcstats.bat` | por si algún evento viejo quedó incompleto |
+| | `python -m modelado.backtest_valor --refit` | reajusta el calibrador con datos nuevos |
+| | `python -m modelado.backtest_metodo --refit` | ídem para el mercado de método |
+| **Cada 6 meses** | `scripts\bajar_datos_ufcstats.bat` | por si algún evento viejo quedó incompleto |
 | **Si algo se ve raro** | `python -m src.ufcstats_events --todo` | rebaja todo, por si cambiaron los selectores del sitio |
 
-**Qué mirar después de cada `actualizar_bd.bat`**: las 4 métricas de la sección
+**Qué mirar después de cada `scripts\actualizar_bd.bat`**: las 4 métricas de la sección
 3.1. Si el AUC salta a 0,85+, hay leakage. Si el log loss del método supera a la
 tasa base, el modelo de método se rompió.
 
@@ -645,24 +650,26 @@ Números medidos, no promesas:
 
 | Síntoma | Qué hacer |
 |---|---|
-| "falta el calibrador" | `python backtest_valor.py` |
+| "falta el calibrador" | `python -m modelado.backtest_valor` |
 | "cuotas imposibles (suman 0.9x)" | Guarda anti-datos-malos. Revisa las 6 cuotas. |
 | "CUOTAS DE MÉTODO SOSPECHOSAS" | Tus cuotas son más generosas que las de una casa real. Bájalas de Betano en vez de escribirlas a mano. |
 | "N homónimos, elegido el de ficha más completa" | Normal. Hay peleadores con el mismo nombre; elige el que tiene carrera. |
 | Peleador no encontrado | Debutante sin ficha en UFCStats. Se omite, no se inventa. |
 | Stats viejos | `del data\raw\ufcstats_cache.json` y vuelve a correr. |
-| Predicciones raras tras actualizar | `python train_model.py` para reentrenar. |
+| Predicciones raras tras actualizar | `python -m modelado.train_model` para reentrenar. |
 | El scraper de Betano no encuentra la cartelera | Corre `python -m src.betano_scraper` sin argumentos para ver los nombres exactos disponibles. |
-| `feature_names mismatch` al predecir | El modelo se entrenó con otra lista de columnas. Corre `python train_model.py`. |
+| **Todas las selecciones salen "sin ventaja clara"** | No es un fallo. Significa que Betano todavía no abrió el mercado de método para esa cartelera y solo publica "Ganador", que es justo el mercado donde no hay ventaja demostrada. Los mercados de método se abren en los días previos al evento: refresca más cerca de la fecha. La UI ya lo avisa arriba de la cartelera. |
+| El CSV bajado no trae ninguna columna `odds_*_ko` ni `odds_*_fin` | Lo mismo de arriba: esos mercados no estaban activados al momento de bajarlo. Para comprobarlo, `python -m src.betano_scraper` y revisa si la pelea lista más de un mercado. |
+| `feature_names mismatch` al predecir | El modelo se entrenó con otra lista de columnas. Corre `python -m modelado.train_model`. |
 | "No se pudo cargar desde Kaggle" | Falta `~/.kaggle/kaggle.json` (sección 2, paso 2). |
 | Wikipedia contesta 403 | Falta el User-Agent propio: `set WIKI_CONTACT=https://github.com/tu-usuario` |
 | `UnicodeEncodeError` con nombres como Błachowicz | No debería pasar (`config.py` fuerza UTF-8 tolerante). Si pasa, corre `chcp 65001` antes. |
 | El scraper se cortó a la mitad | Vuelve a correr el mismo comando: todos retoman donde quedaron. |
 | El backtest de valor da lo mismo tras reentrenar | Te falta `--refit`: está usando el caché del modelo viejo. |
 | `backtest_carteleras` da 2 peleas menos que ayer | Ruido de semilla. Menos de 4 peleas de diferencia no significa nada. |
-| `evaluar_modelo.py` dice que falta `winner_xgb_split.pkl` | Es el modelo de medición (entrenado solo hasta 2024). Lo deja `python train_model.py`: córrelo una vez. |
-| La UI no abre / "puerto ocupado" | Otro programa usa el 8000. Cierra la otra ventana de `lanzar_ui.bat` o cambia el puerto en `webui/server.py`. |
-| La UI dice "falta el calibrador" | `python backtest_valor.py`, o el botón "Recalcular el calibrador de ganador". |
+| `modelado/evaluar_modelo.py` dice que falta `winner_xgb_split.pkl` | Es el modelo de medición (entrenado solo hasta 2024). Lo deja `python -m modelado.train_model`: córrelo una vez. |
+| La UI no abre / "puerto ocupado" | Otro programa usa el 8000. Cierra la otra ventana de `scripts\lanzar_ui.bat` o cambia el puerto en `webui/server.py`. |
+| La UI dice "falta el calibrador" | `python -m modelado.backtest_valor`, o el botón "Recalcular el calibrador de ganador". |
 
 ---
 
@@ -671,7 +678,7 @@ Números medidos, no promesas:
 Hace todo lo que hace la consola, sin escribir comandos.
 
 ```bash
-lanzar_ui.bat
+scripts\lanzar_ui.bat
 ```
 
 Abre `http://127.0.0.1:8000` en el navegador. **Deja la ventana negra abierta**
@@ -749,11 +756,42 @@ Betano acepta hasta **13 patas**. El simulador las arma, calcula la combinada y
 Cada pata trae una etiqueta de **evidencia**, que no es la confianza del modelo
 sino lo que el backtest de este proyecto midió sobre ese mercado:
 
+Cada selección lleva **dos** etiquetas, porque responden preguntas distintas.
+
+**1. Qué tan probable es** — habla del pronóstico, sin mirar el precio:
+
+| Etiqueta | Probabilidad | Acierto real medido |
+|---|---|---|
+| **segura** | ≥80% | ~85% — o sea que igual falla 1 de cada 7 |
+| **buena** | 60-80% | 70-73% |
+| **leve** | 55-60% | 55-60% |
+| **coinflip** | <55% | ~50%, una moneda al aire |
+
+**2. Si está bien pagada** — habla del precio, no de la pelea:
+
 | Etiqueta | Mercado | Respaldo medido |
 |---|---|---|
 | **Probado** | decisión en el mercado de método | +16,5% ROI, t=3,1 (1.056 apuestas) |
 | **Sin ventaja clara** | ganador (moneyline) | +1,0% ROI ± 7,5, t=0,3 |
 | **Ruido** | finalización (KO/sub) en método | t=0,5 — indistinguible de la suerte |
+
+Una selección puede ser **segura y a la vez estar mal pagada**: son ejes
+independientes. "Sin ventaja clara" no dice que el peleador vaya a perder, dice
+que la casa ya cobró esa información.
+
+### Los dos porcentajes
+
+Debajo de cada selección hay dos números que no son lo mismo:
+
+- **modelo** — lo que estima el modelo por su cuenta, mirando solo a los
+  peleadores.
+- **con la cuota** — el modelo combinado con la línea de la casa. Es la
+  estimación **más certera** de las dos: ~70% de acierto contra ~67%.
+
+Cuando se separan mucho, la casa y el modelo están en desacuerdo. Está medido
+que en esos casos **el que suele equivocarse es el modelo** (filtrar por
+discrepancia grande da −8,1% de ROI), así que una diferencia enorme es motivo de
+desconfianza, no de entusiasmo.
 
 Debajo de cada pata hay una frase que dice SÍ o NO y el motivo. Una pata con
 +32% de EV puede decir **NO** si a un peleador le faltan datos o si las cuotas de

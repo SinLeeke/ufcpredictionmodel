@@ -1,6 +1,8 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0"
+rem Este .bat vive en scripts\, pero todo el proyecto asume la raiz como
+rem directorio de trabajo: los .py hacen "import config" sin tocar sys.path.
+cd /d "%~dp0.."
 echo ==================================================
 echo   UFC Predictor - interfaz web
 echo ==================================================

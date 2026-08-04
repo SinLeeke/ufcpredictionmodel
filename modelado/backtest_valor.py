@@ -1,5 +1,5 @@
 """
-backtest_valor.py
+modelado/backtest_valor.py
 ¿Apostar donde el modelo y el mercado discrepan fuerte da plata de verdad?
 
 Esta es la pregunta cara. Un modelo puede acertar 66% y AUN ASÍ perder dinero
@@ -25,8 +25,8 @@ El modelo NO usa `market_edge` como feature (columnas_disponibles lo excluye
 por defecto): si lo usara, copiaría al mercado y nunca discreparía.
 
 Uso:
-    python backtest_valor.py                  # barrido completo
-    python backtest_valor.py --desde 2019     # solo años recientes
+    python -m modelado.backtest_valor                  # barrido completo
+    python -m modelado.backtest_valor --desde 2019     # solo años recientes
 """
 from __future__ import annotations
 

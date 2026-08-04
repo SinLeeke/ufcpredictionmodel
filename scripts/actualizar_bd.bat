@@ -1,6 +1,8 @@
 @echo off
 chcp 65001 >nul
-cd /d "%~dp0"
+rem Este .bat vive en scripts\, pero todo el proyecto asume la raiz como
+rem directorio de trabajo: los .py hacen "import config" sin tocar sys.path.
+cd /d "%~dp0.."
 echo ==================================================
 echo   Actualizar base de datos y reentrenar el modelo
 echo ==================================================
@@ -24,7 +26,7 @@ python -m src.scraper
 if errorlevel 1 goto error
 echo.
 echo [5/5] Reentrenando modelos (mira las metricas Acc / Log loss / AUC / Brier)...
-python train_model.py
+python -m modelado.train_model
 if errorlevel 1 goto error
 echo.
 echo ==================================================

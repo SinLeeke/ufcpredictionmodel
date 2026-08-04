@@ -1,5 +1,5 @@
 """
-train_model.py
+modelado/train_model.py
 Entrena DOS modelos XGBoost desde data/processed/features.csv y los guarda en models/:
 
   1) models/winner_xgb.pkl  -> predice al GANADOR   (columna binaria `y`, 1 = gana A)
@@ -28,7 +28,7 @@ IMPORTANTE — el split NO es aleatorio, es CRONOLÓGICO (temporal). Motivo:
   espejo de una pelea comparten fecha, así que siempre caen del mismo lado.
 
 Uso:
-    python train_model.py
+    python -m modelado.train_model
     # requiere que exista features.csv:  python -m src.scraper   (lo genera)
 """
 from __future__ import annotations
