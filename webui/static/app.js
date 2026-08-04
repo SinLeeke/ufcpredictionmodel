@@ -50,7 +50,7 @@ $$('.tab').forEach(t => t.onclick = () => {
   $('#tab-' + t.dataset.tab).classList.add('activa');
   window.scrollTo({ top: 0 });
   if (t.dataset.tab === 'mantenimiento') cargarTareas();
-  if (t.dataset.tab === 'datos') cargarCSVs();
+  if (t.dataset.tab === 'datos') { cargarCSVs(); listarCarteleras(); }
 });
 $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
 
@@ -514,21 +514,60 @@ $('#btn-refresh').onclick = async () => {
   catch (e) { barra(e.message,'error'); }
 };
 
-$('#btn-listar').onclick = async () => {
+// Carteleras de Betano: se listan SOLAS al entrar a la pestaña y cada una
+// predice con un clic. Antes había que apretar un botón, leer los nombres y
+// escribir el nombre a mano en el campo de abajo — tres pasos para algo que
+// Betano ya nos está diciendo.
+let carterasCargadas = false;
+
+async function listarCarteleras(forzar) {
   const div = $('#lista-carteleras');
+  if (carterasCargadas && !forzar) return;
+  carterasCargadas = true;
   div.innerHTML = '<p class="nota">consultando Betano…</p>';
   try {
     const r = await api('/api/betano/carteleras');
-    div.innerHTML = r.carteleras.length
-      ? r.carteleras.map(c => `<div class="pick"><div class="cab">
-          <b>${esc(c.name)}</b>
-          <button class="secundario" data-q="${esc(c.name)}">Elegir</button></div></div>`).join('')
-      : '<p class="nota">Betano no está listando carteleras de MMA en este momento.</p>';
-    div.querySelectorAll('button').forEach(b => b.onclick = () => {
-      $('#query').value = b.dataset.q; $('#query').focus(); });
-  } catch (e) { div.innerHTML = `<div class="aviso err"><span class="ai">✕</span>
-    <div>${esc(e.message)}</div></div>`; }
-};
+    if (!r.carteleras.length) {
+      div.innerHTML = '<p class="nota">Betano no está listando carteleras de MMA ahora mismo.</p>';
+      return;
+    }
+    div.innerHTML = r.carteleras.map(c => {
+      const d = c.dias;
+      const cuando = d === null || d === undefined ? ''
+        : d === 0 ? 'HOY' : d === 1 ? 'MAÑANA' : d > 0 ? `en ${d} días` : 'ya pasó';
+      // Betano abre algunas carteleras con solo un par de peleas montadas.
+      // Avisarlo evita la sorpresa de bajar una cartelera "vacía".
+      const parcial = c.peleas && c.peleas <= 4
+        ? `<span class="cart-parcial">solo ${c.peleas} peleas montadas todavía</span>` : '';
+      return `<button class="cart" data-q="${esc(c.query || c.name)}"
+                      data-fecha="${esc(c.fecha || '')}">
+        <span class="cart-cuando">${esc(cuando)}</span>
+        <span class="cart-cuerpo">
+          <b>${esc(c.estelar || c.name)}</b>
+          <span class="cart-meta">${esc(c.name)}${c.peleas ? ` · ${c.peleas} peleas` : ''}${
+            c.fecha ? ` · ${esc(c.fecha)}` : ''}</span>
+          ${parcial}
+        </span>
+        <span class="cart-ir">Predecir →</span>
+      </button>`;
+    }).join('');
+
+    div.querySelectorAll('.cart').forEach(b => b.onclick = async () => {
+      try {
+        await post('/api/cartelera/betano',
+                   { query: b.dataset.q, fecha: b.dataset.fecha || null });
+        barra('⏳ bajando cuotas y prediciendo… puede tardar un minuto.');
+        irA('cartelera');
+      } catch (e) { barra(e.message, 'error'); }
+    });
+  } catch (e) {
+    div.innerHTML = `<div class="aviso err"><span class="ai">✕</span>
+      <div>${esc(e.message)}</div></div>`;
+    carterasCargadas = false;   // que se pueda reintentar
+  }
+}
+
+$('#btn-listar').onclick = () => listarCarteleras(true);
 
 $('#btn-cargar-betano').onclick = async () => {
   const q = $('#query').value.trim();

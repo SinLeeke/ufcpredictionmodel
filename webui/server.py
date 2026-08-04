@@ -51,13 +51,15 @@ def betano_carteleras():
 
 class CargaBetano(BaseModel):
     query: str
+    fecha: str | None = None      # AAAA-MM-DD, para elegir uno de los eventos
+                                  # que comparten nombre de liga
 
 
 @app.post("/api/cartelera/betano")
 def cargar_betano(body: CargaBetano):
     if engine.ESTADO.cargando:
         raise HTTPException(409, "Ya hay una carga en curso.")
-    engine.cargar("betano", body.query.strip())
+    engine.cargar("betano", body.query.strip(), fecha=body.fecha)
     return {"ok": True}
 
 

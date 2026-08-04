@@ -295,11 +295,51 @@ def _por_que_confianza(p: float, pocos: list, infos: dict) -> str:
 # Cuotas de Betano
 # --------------------------------------------------------------------------- #
 def listar_carteleras() -> list[dict]:
+    """
+    Carteleras de MMA abiertas en Betano, con fecha y número de peleas.
+
+    `list_cards()` solo devuelve nombre y url — con eso la lista de la UI era
+    una fila de nombres sin contexto. Acá se añade una petición por cartelera
+    (la página del evento, que ya trae todas sus peleas) para poder mostrar
+    CUÁNDO es y CUÁNTAS peleas tiene, que es lo que decide cuál abrir.
+
+    Betano agrupa varios eventos bajo la misma liga "UFC Fight Night", así que
+    una entrada puede rendir DOS carteleras de fines de semana distintos: se
+    devuelven separadas, con su fecha, y cada una sabe pedirse por `--fecha`.
+    """
+    import datetime as _dt
     from src import betano_scraper as bs
-    return bs.list_cards()
+
+    salida: list[dict] = []
+    for c in bs.list_cards():
+        try:
+            grupos = bs._por_fecha(bs.list_fights(c["url"]))
+        except Exception:                                   # noqa: BLE001
+            salida.append({**c, "fecha": None, "peleas": None, "estelar": ""})
+            continue
+        if not grupos:
+            salida.append({**c, "fecha": None, "peleas": None, "estelar": ""})
+            continue
+        for dia, peleas in grupos.items():
+            est = peleas[-1]
+            salida.append({
+                "id": c["id"], "url": c["url"],
+                # Con varios eventos bajo la misma liga, el nombre suelto no
+                # distingue: se muestra el estelar, que sí.
+                "name": c["name"],
+                "fecha": dia.isoformat(),
+                "dias": (dia - _dt.date.today()).days,
+                "peleas": len(peleas),
+                "estelar": f"{est['fighter_a']} vs {est['fighter_b']}",
+                # lo que hay que mandarle a /api/cartelera/betano
+                "query": c["name"],
+            })
+    salida.sort(key=lambda x: (x["fecha"] or "9999"))
+    return salida
 
 
-def bajar_cuotas(query: str, destino: Path | None = None) -> tuple[Path, str]:
+def bajar_cuotas(query: str, destino: Path | None = None,
+                 fecha: str | None = None) -> tuple[Path, str]:
     """
     Baja las cuotas de una cartelera de Betano y las deja en un CSV.
     Devuelve (ruta, titulo). Reutiliza `scrape_card`, que ya resuelve el lío de
@@ -308,7 +348,9 @@ def bajar_cuotas(query: str, destino: Path | None = None) -> tuple[Path, str]:
     from src import betano_scraper as bs
     card = bs.find_card(query)
     titulo = card["name"] if card else query
-    ruta = bs.scrape_card(query, str(destino) if destino else None)
+    # `fecha` distingue los eventos que Betano mete bajo la misma liga
+    # ("UFC Fight Night" puede ser dos fines de semana distintos).
+    ruta = bs.scrape_card(query, str(destino) if destino else None, fecha=fecha)
     return Path(ruta), titulo
 
 
@@ -343,7 +385,7 @@ def _predecir_sync(csv_path: Path) -> dict:
 
 
 def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
-           refrescar_cuotas: bool = True) -> None:
+           refrescar_cuotas: bool = True, fecha: str | None = None) -> None:
     """
     Arranca la carga de una cartelera en segundo plano. La UI hace polling a
     /api/estado mientras tanto.
@@ -361,7 +403,7 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
             ruta = csv_path
             if origen == "betano":
                 ESTADO._log(f"Bajando cuotas de Betano: {consulta}…")
-                ruta, titulo = bajar_cuotas(consulta)
+                ruta, titulo = bajar_cuotas(consulta, fecha=fecha)
                 with ESTADO.lock:
                     ESTADO.titulo = titulo
                     ESTADO.cuotas_en = time.time()
