@@ -83,7 +83,10 @@ async function tick() {
   try {
     const e = await api('/api/estado');
     S.proximoAuto = e.proximo_auto; S.origen = e.origen; S.vivo = e.vivo;
+    const hayCartelera = !!(e.titulo || e.csv);
     $('#titulo-cartelera').textContent = e.titulo || e.csv || 'sin cartelera cargada';
+    // La × solo aparece si hay algo que soltar.
+    $('#btn-soltar').classList.toggle('oculto', !hayCartelera);
     $('#btn-refresh').disabled = e.cargando || !e.origen;
 
     if (e.error)         barra(e.error, 'error');
@@ -339,6 +342,20 @@ $('#btn-sugerir').onclick = () => {
   pintarPatas(); evaluarParlay();
 };
 $('#bankroll').oninput = () => evaluarParlay();
+
+// Tocar el nombre de la cartelera lleva a elegir otra: es donde el usuario
+// mira cuando quiere cambiarla, más que en una pestaña.
+$('#titulo-cartelera').onclick = () => irA('datos');
+
+$('#btn-soltar').onclick = async () => {
+  try {
+    await post('/api/limpiar');
+    S.datos = null; S.patas = []; S.elegidas = [];
+    carterasCargadas = false;          // que vuelva a consultar Betano
+    barra('Cartelera soltada. Elige otra abajo.');
+    irA('datos');
+  } catch (e) { barra(e.message, 'error'); }
+};
 
 // Los desenlaces elementales que cubre cada selección. Es lo mismo que
 // parlay._COBERTURA en el backend, replicado acá para poder explicar el choque

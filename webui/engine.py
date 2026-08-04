@@ -453,6 +453,34 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
     threading.Thread(target=_run, daemon=True).start()
 
 
+def limpiar() -> None:
+    """
+    Suelta la cartelera activa y deja la UI como recién abierta.
+
+    Apaga también el modo en vivo y borra el histórico de movimiento de línea:
+    si no, al cargar la siguiente cartelera se quedaba refrescando cuotas de
+    una que ya no está en pantalla, y las flechas de movimiento mostraban
+    cambios de la anterior.
+    """
+    with ESTADO.lock:
+        ESTADO.datos = None
+        ESTADO.patas = []
+        ESTADO.origen = ""
+        ESTADO.consulta = ""
+        ESTADO.csv_path = None
+        ESTADO.titulo = ""
+        ESTADO.predicho_en = None
+        ESTADO.cuotas_en = None
+        ESTADO.proximo_auto = None
+        ESTADO.vivo = False
+        ESTADO.vivo_en = None
+        ESTADO.movimiento = {}
+        ESTADO._cuotas_previas = {}
+        ESTADO.progreso = ""
+        ESTADO.error = ""
+        ESTADO.log = []
+
+
 def refrescar() -> str:
     """Refresh manual: vuelve a bajar cuotas (si el origen es Betano) y repredice."""
     with ESTADO.lock:

@@ -120,6 +120,15 @@ def modo_vivo(encender: bool = True):
             "intervalo_seg": engine.INTERVALO_VIVO_SEG}
 
 
+@app.post("/api/limpiar")
+def limpiar_cartelera():
+    """Suelta la cartelera activa para poder elegir otra desde cero."""
+    if engine.ESTADO.cargando:
+        raise HTTPException(409, "Hay una carga en curso; espera a que termine.")
+    engine.limpiar()
+    return {"ok": True}
+
+
 @app.post("/api/refrescar")
 def refrescar():
     err = engine.refrescar()

@@ -523,14 +523,23 @@ button,input,select,textarea,.pill,.barra,.reloj-caja,.vivo-caja,
 /* --- Cartelera activa, ahora en la barra de pestañas ----------------------
    Es un dato de ESTADO, no de marca: en la cabecera competía con el logo y
    dejaba el bloque de la izquierda desbalanceado. */
+.cartelera-caja{margin-left:auto;padding-right:24px;align-self:center;
+  display:flex;align-items:center;gap:6px}
 .cartelera-activa{
-  margin-left:auto;padding-right:24px;align-self:center;
+  background:none;border:0;cursor:pointer;padding:0;
   font-size:12px;color:var(--tenue);
   text-transform:uppercase;letter-spacing:.07em;font-weight:600;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38ch;
 }
 .cartelera-activa::before{content:"▸ ";color:var(--acento)}
-@media (max-width:820px){ .cartelera-activa{display:none} }
+.cartelera-activa:hover{color:var(--acento)}
+/* La × para soltar la cartelera: discreta hasta que la apuntas. */
+.cartelera-x{background:none;border:1px solid var(--linea);color:var(--tenue);
+  width:20px;height:20px;line-height:1;border-radius:50%;cursor:pointer;
+  font-size:14px;display:grid;place-items:center;padding:0;
+  transition:color .15s, border-color .15s}
+.cartelera-x:hover{color:var(--acento);border-color:var(--acento)}
+@media (max-width:820px){ .cartelera-caja{display:none} }
 
 /* --- Flujo de uso en la Guía ---------------------------------------------
    Tres escenarios muy distintos (instalar / mantener / usar) que antes estaban
