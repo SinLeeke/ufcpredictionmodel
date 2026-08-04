@@ -421,6 +421,78 @@ def analizar_metodo(feat_df, cuotas6, min_ev: float = 0.0) -> list[dict]:
 
 
 # --------------------------------------------------------------------------- #
+# Mercado de MÉTODO de 5 VÍAS
+# --------------------------------------------------------------------------- #
+# Betano no siempre separa KO de sumisión. Cuando ofrece el 5-way, lo apostable
+# es "gana por FINALIZACIÓN" (KO+TKO+DQ+sumisión juntos) y "gana por DECISIÓN".
+# Antes esas peleas quedaban sin ninguna opción de método porque mercado_metodo()
+# exige las 6 cuotas; ahora se evalúan con su propio precio real.
+CLASES_METODO5 = ["A_FIN", "A_DEC", "B_FIN", "B_DEC"]
+
+# Guarda anti-datos-corruptos, igual que en el 6 vías pero sobre 4 selecciones.
+# HONESTIDAD SOBRE ESTE NÚMERO: el 1,18 del 6 vías está medido sobre miles de
+# cuotas históricas. Acá NO hay historial — el dataset no tiene ni una cuota de
+# 5-way — así que 1,12 es una cota conservadora deducida de que un mercado con
+# menos selecciones cobra menos comisión, no un valor validado. Sirve para
+# atrapar cuotas tecleadas a mano, no como referencia de mercado.
+MIN_SOBRERREDONDEO5 = 1.03
+SOBRERREDONDEO5_SOSPECHOSO = 1.12
+
+
+def analizar_metodo5(feat_df, cuotas4, min_ev: float = 0.0) -> list[dict]:
+    """
+    Las 4 opciones del 5-way, ordenadas por valor esperado.
+
+    `cuotas4` va en el orden de CLASES_METODO5: [A_fin, A_dec, B_fin, B_dec].
+
+    La probabilidad del modelo sale de AGREGAR el mismo clasificador de 6 clases
+    (A_FIN = A_KO + A_SUB), así que no hay un modelo nuevo ni una calibración
+    nueva: es la misma predicción, sumada. Los pesos del pool son los del 6 vías
+    porque no hay datos de 5-way con que ajustar unos propios; es una
+    aproximación razonable y está declarada como tal en `aproximado`.
+    """
+    modelo, cols = cargar_modelo_metodo()
+    cal = cargar_calibrador_metodo()
+    if modelo is None or cal is None:
+        return []
+
+    us = np.array([a_americana(c) for c in cuotas4], dtype=float)
+    if not np.isfinite(us).all():
+        return []
+    bruta = np.where(us < 0, -us / (-us + 100.0), 100.0 / (us + 100.0))
+    sobre = float(bruta.sum())
+    if sobre < MIN_SOBRERREDONDEO5:
+        return [{"error": f"cuotas imposibles (suman {sobre:.3f})"}]
+    q = bruta / sobre
+
+    p6 = modelo.predict_proba(feat_df[cols])[0]
+    i = {c: k for k, c in enumerate(CLASES_METODO)}
+    p = np.array([p6[i["A_KO"]] + p6[i["A_SUB"]], p6[i["A_DEC"]],
+                  p6[i["B_KO"]] + p6[i["B_SUB"]], p6[i["B_DEC"]]], dtype=float)
+
+    z = (cal["peso_mercado"] * np.log(np.clip(q, 1e-9, 1))
+         + cal["peso_modelo"] * np.log(np.clip(p, 1e-9, 1)))
+    z -= z.max()
+    combo = np.exp(z)
+    combo /= combo.sum()
+
+    pago = np.where(us < 0, 100.0 / -us, us / 100.0)
+    ev = combo * pago - (1 - combo)
+    sospechoso = sobre < SOBRERREDONDEO5_SOSPECHOSO
+
+    out = []
+    for k, c in enumerate(CLASES_METODO5):
+        out.append({
+            "clase": c, "p_modelo": float(p[k]), "p_mercado": float(q[k]),
+            "p_final": float(combo[k]), "cuota_decimal": float(1 + pago[k]),
+            "ev": float(ev[k]), "kelly": kelly(float(combo[k]), us[k]),
+            "apostar": bool(ev[k] >= min_ev and not sospechoso),
+            "sobrerredondeo": sobre, "sospechoso": sospechoso, "aproximado": True,
+        })
+    return sorted(out, key=lambda r: -r["ev"])
+
+
+# --------------------------------------------------------------------------- #
 # Versión vectorizada (para el backtest, que corre sobre miles de peleas)
 # --------------------------------------------------------------------------- #
 def analizar_lote(p_modelo_a: np.ndarray, cuota_a: np.ndarray,

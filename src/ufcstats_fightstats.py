@@ -116,6 +116,23 @@ def parse_fight(soup, url: str) -> list[dict]:
                         l, a = _of(d[idx][i])
                         filas[i][f"{key}_landed"] = l
                         filas[i][f"{key}_att"] = a
+
+    # --- POR ROUND (tabla 1) -------------------------------------------------
+    # Los totales promedian el ritmo de toda la pelea y esconden el DESGASTE.
+    # Ejemplo real, Rakic vs Tybura: golpes significativos por asalto 36 / 18 / 17.
+    # El total (71) dice "domina"; el detalle dice "domina un round y se apaga".
+    # Se guardan los golpes conectados y los derribos de cada round para poder
+    # medir la caída de ritmo (ver features de fade).
+    if len(tables) >= 2:
+        for r, fila_r in enumerate(tables[1].select("tbody tr"), start=1):
+            cr = _cells(fila_r)
+            if len(cr) < 6:
+                continue
+            for i in range(2):
+                sl, _ = _of(cr[2][i])
+                tl, _ = _of(cr[5][i])
+                filas[i][f"r{r}_sig"] = sl
+                filas[i][f"r{r}_td"] = tl
     return filas
 
 

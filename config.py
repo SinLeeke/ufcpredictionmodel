@@ -39,6 +39,14 @@ FEATURES_CSV = DATA_PROCESSED / "features.csv"      # dataset diferencial listo 
 
 WINNER_MODEL = MODELS / "winner_xgb.pkl"
 METHOD_MODEL = MODELS / "method_xgb.pkl"
+
+# Modelo de MEDICIÓN del ganador. Es el de la primera fase de train_model.py: se
+# entrena solo con <= TRAIN_END_DATE, así que 2025+ le es desconocido y se puede
+# evaluar sobre esas peleas sin mentir. WINNER_MODEL, en cambio, se reentrena con
+# TODO el historial (incluido 2025-2026) porque para PREDECIR conviene, pero
+# medirlo sobre 2025+ da ~80% de acierto que es dentro de muestra y no significa
+# nada. Este .pkl lo lee evaluar_modelo.py y nadie más: nunca se usa para predecir.
+WINNER_MODEL_SPLIT = MODELS / "winner_xgb_split.pkl"
 ELO_TABLE = DATA_PROCESSED / "elo_ratings.csv"
 
 # --------------------------------------------------------------------------- #

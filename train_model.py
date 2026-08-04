@@ -5,6 +5,12 @@ Entrena DOS modelos XGBoost desde data/processed/features.csv y los guarda en mo
   1) models/winner_xgb.pkl  -> predice al GANADOR   (columna binaria `y`, 1 = gana A)
   2) models/method_xgb.pkl  -> predice el MÉTODO     (columna `method`: KO/TKO, Submission, Decision)
 
+Y un tercero que NO predice, solo sirve para medir:
+
+  3) models/winner_xgb_split.pkl -> el modelo de ganador del split temporal, entrenado
+     solo con <= TRAIN_END_DATE. Es el que evalúa evaluar_modelo.py, porque es el único
+     que no vio las peleas de 2025+ sobre las que se lo juzga.
+
 Por qué XGBoost en vez del heurístico manual:
   * El heurístico `_heuristic_probability` de predict.py es una combinación lineal con
     pesos puestos a mano (sobrevalora el historial de KO, casi ignora el nivel del rival
@@ -111,9 +117,14 @@ def train_winner(train: pd.DataFrame, test: pd.DataFrame) -> XGBClassifier:
     else:
         print("  (sin test set para evaluar)")
 
-    with open(C.WINNER_MODEL, "wb") as fh:
+    # Este es el modelo de MEDICIÓN, no el de predicción: nunca vio 2025+, así que
+    # es el único con el que se puede evaluar sobre 2025+ sin medir dentro de
+    # muestra. Se guarda aparte para que evaluar_modelo.py lo use sin tener que
+    # reentrenar. El .pkl de producción lo escribe entrenar_produccion().
+    with open(C.WINNER_MODEL_SPLIT, "wb") as fh:
         pickle.dump(model, fh)
-    print(f"  -> guardado en {C.WINNER_MODEL}")
+    print(f"  -> modelo de medición guardado en {C.WINNER_MODEL_SPLIT.name} "
+          f"(lo usa evaluar_modelo.py)")
     return model
 
 
@@ -223,6 +234,10 @@ def entrenar_produccion(df: pd.DataFrame) -> None:
     y se predice con un modelo entrenado con todo (acá). El número que reporta
     el split sigue siendo el honesto; este modelo solo puede ser mejor, porque
     ve más datos recientes.
+
+    OJO al leer este .pkl: como vio 2025-2026, evaluarlo sobre 2025-2026 mide
+    dentro de muestra y da ~80% de acierto, que es falso. Para medir está
+    C.WINNER_MODEL_SPLIT, que guarda train_winner() más arriba.
 
     Se aplica la MISMA ventana temporal (C.TRAIN_WINDOW_YEARS): validado en 5
     períodos, quedarse con los últimos 5 años le gana a usar todo el historial

@@ -1,35 +1,69 @@
+# ---------------------------------------------------------------------------
 # Python
+# ---------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
+build/
+dist/
 .venv/
 venv/
+env/
+.pytest_cache/
+.ipynb_checkpoints/
 
-# Datos: se REGENERAN con actualizar_bd.bat / bajar_datos_ufcstats.bat.
-# No se versionan: son ~32 MB, cambian en cada corrida y no son fuente,
-# son derivados. Quien clona el repo los reconstruye en un par de comandos.
-data/raw/
-data/processed/
-
-# Modelos entrenados: también derivados (los produce train_model.py).
+# ---------------------------------------------------------------------------
+# DATOS Y MODELOS — no se versionan porque son DERIVADOS, no fuente.
+# Son ~35 MB, cambian en cada corrida, y quien clone el repo los reconstruye
+# con los comandos del README (sección "Construir la base").
+# ---------------------------------------------------------------------------
+data/
 models/
-
-# Reportes generados por cartelera
 outputs/
 
-# Carteleras propias del usuario (el CSV de ejemplo sí se versiona)
+# Carteleras propias. El CSV de ejemplo SÍ se versiona, para que se entienda
+# el formato sin tener que correr nada.
 cards/*
 !cards/ejemplo_con_cuotas.csv
 
-# Sistema
-.DS_Store
-Thumbs.db
-
-# Backup local de un modelo viejo, no es fuente
+# Backup local de un modelo viejo
 backup_modelo_kaggle/
 
-# PDF generado del manual (se regenera)
+# PDF del manual: se regenera, no es fuente
+MANUAL.pdf
 MINIMANUAL.pdf
 
-# Config local de Claude Code (permisos personales, no va al repo)
+# ---------------------------------------------------------------------------
+# SECRETOS Y CONFIG LOCAL — lo importante de este archivo.
+# Nada de esto debe salir del PC.
+# ---------------------------------------------------------------------------
+# Credenciales de Kaggle (kagglehub las lee de ~/.kaggle, pero por si acaso
+# alguien copia el kaggle.json a la carpeta del proyecto)
+kaggle.json
+.kaggle/
+
+# Variables de entorno con tokens o keys
+.env
+.env.*
+*.pem
+*.key
+secrets.json
+credentials.json
+
+# Config de asistentes de código (permisos y preferencias personales)
 .claude/
+.cursor/
+.aider*
+
+# Editores / IDE
+.vscode/
+.idea/
+*.swp
+
+# ---------------------------------------------------------------------------
+# Sistema
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini

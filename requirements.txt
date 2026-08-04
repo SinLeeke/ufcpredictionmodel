@@ -7,6 +7,10 @@ beautifulsoup4>=4.12
 requests>=2.31
 lxml>=4.9
 kagglehub>=0.3
+# UI web (lanzar_ui.bat). Sin esto el proyecto funciona igual por consola.
+fastapi>=0.110
+uvicorn>=0.27
+python-multipart>=0.0.9
 # Opcionales:
 # lightgbm>=4.0        # alternativa a XGBoost
 # kaleido>=0.2         # exportar los gráficos Plotly a PNG

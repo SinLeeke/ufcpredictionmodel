@@ -6,7 +6,30 @@ Todo se corre desde la carpeta del proyecto:
 cd ruta/a/ufc_predictor
 ```
 
-Detalle del diseño y las fuentes en `README.md`. Esto es el uso diario.
+Este manual es el **uso diario**: qué comando correr, qué esperar y cómo leer la
+salida. El **porqué** de cada decisión de diseño (features, anti-leakage, qué se
+midió y se descartó) está en [README.md](README.md).
+
+**Índice**
+
+1. [Los 3 comandos que importan](#1-los-3-comandos-que-importan)
+2. [Instalar desde cero](#2-instalar-desde-cero)
+3. [Alimentar la base de datos](#3-alimentar-la-base-de-datos-con-datos-actuales)
+4. [Bajar cuotas de Betano](#4-usar-el-scraper-de-cuotas-de-betano)
+5. [Qué poner en el CSV](#5-qué-poner-en-el-csv)
+6. [Predecir la cartelera](#6-predecir-la-cartelera)
+7. [Comprobar que el modelo sigue funcionando](#7-comprobar-que-el-modelo-sigue-funcionando)
+8. [Referencia de comandos y flags](#8-referencia-de-comandos-y-flags)
+9. [Ajustes en `config.py`](#9-ajustes-en-configpy)
+10. [Mapa de archivos](#10-mapa-de-archivos-qué-genera-cada-cosa)
+11. [Calendario de mantenimiento](#11-calendario-de-mantenimiento)
+12. [Glosario](#12-glosario-de-los-números-que-vas-a-ver)
+13. [Mercados que este sistema NO cubre](#13-mercados-que-este-sistema-no-cubre)
+14. [Expectativas realistas](#14-expectativas-realistas)
+15. [Las tres reglas de oro](#15-las-tres-reglas-de-oro)
+16. [Si algo falla](#16-si-algo-falla)
+17. [La interfaz web](#17-la-interfaz-web)
+18. [El simulador de parlay](#18-el-simulador-de-parlay)
 
 ---
 
@@ -20,26 +43,108 @@ Detalle del diseño y las fuentes en `README.md`. Esto es el uso diario.
 
 Los `.bat` son doble clic si prefieres no escribir comandos.
 
+**O todo desde la interfaz web**, que hace lo mismo sin escribir nada:
+
+```bash
+lanzar_ui.bat
+```
+
+Ver la [sección 17](#17-la-interfaz-web).
+
 ---
 
-## 2. Alimentar la base de datos con datos actuales
+## 2. Instalar desde cero
 
-El proyecto usa **dos fuentes**, y conviene entender la diferencia porque una va
+Solo la primera vez, o si cambias de PC.
+
+### Requisitos
+
+| | |
+|---|---|
+| **Python** | 3.10 o superior (probado en 3.14) |
+| **Espacio en disco** | ~60 MB de datos + ~4 MB de modelos |
+| **Internet** | sí, para todos los scrapers |
+| **Credenciales de Kaggle** | sí, un archivo `kaggle.json` (ver abajo) |
+| **Navegador / Selenium** | **no**, ningún scraper lo necesita |
+| **GPU** | no |
+
+### Paso 1 — dependencias
+
+```bash
+pip install -r requirements.txt
+```
+
+### Paso 2 — credenciales de Kaggle
+
+Es el único dato que pide login. En kaggle.com → *Account* → *Create New API
+Token*: baja un `kaggle.json` y déjalo en `C:\Users\<tu-usuario>\.kaggle\kaggle.json`.
+
+Si no lo haces, `python -m src.scraper` falla con un mensaje explicando esto
+mismo. Alternativa manual: descargar el CSV del dataset y dejarlo en
+`data\raw\kaggle_ufc.csv`.
+
+### Paso 3 — construir la base (~1 hora la primera vez)
+
+```bash
+python -m src.ufcstats_events      # resultados históricos (~2 min)
+python -m src.ufcstats_fighters    # biometría: altura, alcance, DOB (~3 min)
+python -m src.ufcstats_fightstats  # stats por pelea (~20 min, reanudable)
+python -m src.reemplazos           # reemplazos de Wikipedia (~25 min)
+python -m src.bfo_odds             # cuotas recientes que Kaggle no tiene (~12 min)
+python -m src.scraper              # dataset Kaggle + features + ELO
+python train_model.py              # entrena los dos modelos
+```
+
+Los tres primeros los hace `bajar_datos_ufcstats.bat` con doble clic.
+
+**Todo es reanudable.** Si se corta a mitad (Ctrl+C, se cae internet), vuelve a
+correr el mismo comando: retoma donde quedó gracias a los cachés en `data\raw\`.
+
+### Paso 4 — generar los modelos de apuestas (una sola vez)
+
+```bash
+python backtest_valor.py
+python backtest_metodo.py
+```
+
+Producen `models\calibrador_mercado.pkl`, `models\calibrador_metodo.pkl` y
+`models\metodo6_xgb.pkl`. Sin ellos, `card.py` predice igual pero **no** calcula
+valor ni recomienda apuestas (avisa con "falta el calibrador").
+
+### Paso 5 — cortesía opcional
+
+Si vas a scrapear Wikipedia en volumen, pon tu contacto:
+
+```bash
+set WIKI_CONTACT=https://github.com/tu-usuario
+```
+
+---
+
+## 3. Alimentar la base de datos con datos actuales
+
+El proyecto usa **seis fuentes**, y conviene entender la diferencia porque una va
 atrasada a propósito:
 
 | Fuente | Qué aporta | ¿Al día? |
 |---|---|---|
 | **UFCStats** (scraper propio) | resultados, control/grappling, fichas, historial de rivales | sí, el mismo día del evento |
 | **Kaggle** (`mdabbert`) | base de entrenamiento, con cuotas históricas | va ~4 meses atrás |
+| **BestFightOdds** | rellena las cuotas que a Kaggle le faltan | sí |
+| **Wikipedia** | quién entró de reemplazo (corto aviso) | sí |
+| **Sherdog** | historial FUERA de UFC, solo al predecir debutantes | sí |
+| **Betano** | cuotas de la cartelera que viene | sí |
 
-### 2.1 Actualización normal (lo que harás casi siempre)
+### 3.1 Actualización normal (lo que harás casi siempre)
 
 ```bash
 actualizar_bd.bat
 ```
 
-Cuatro pasos: borra el dataset viejo → actualiza resultados de UFCStats →
-reconstruye features/ELO → reentrena los modelos. Unos minutos.
+Cinco pasos: borra el dataset viejo → actualiza resultados de UFCStats →
+actualiza reemplazos de Wikipedia → reconstruye features/ELO → reentrena los
+modelos. Unos minutos, porque una corrida típica consulta **1 o 2 eventos**, no
+los 780.
 
 Al final imprime las métricas. **Míralas, son tu control de calidad:**
 
@@ -61,20 +166,32 @@ Dos alarmas que no hay que ignorar:
 - **Si el log loss del método supera al de la tasa base**, el modelo de método
   quedó peor que no tener modelo. Así estaba antes de julio 2026.
 
-### 2.2 Actualización profunda de UFCStats (ocasional)
+### 3.2 Actualización profunda de UFCStats (ocasional)
 
 ```bash
 bajar_datos_ufcstats.bat
 ```
 
 Rebaja **todo** el historial de estadísticas por pelea (golpes, derribos,
-control). ~20-25 min la primera vez. Se puede cortar con Ctrl+C: al volver a
-correrlo retoma donde quedó.
+control, y el desglose asalto por asalto). ~20-25 min la primera vez. Se puede
+cortar con Ctrl+C: al volver a correrlo retoma donde quedó.
 
 Córrelo si es la primera instalación, si pasaron varios meses, o si notas que
 faltan peleadores nuevos.
 
-### 2.3 Refrescar la ficha de un peleador puntual
+### 3.3 Refrescar cuotas históricas recientes
+
+El dataset de Kaggle va ~4 meses atrás. Para tapar ese hueco:
+
+```bash
+python -m src.bfo_odds            # baja las cuotas que faltan
+python -m src.bfo_odds --revisar  # solo reporta cuánto del hueco está cubierto
+```
+
+Vale la pena antes de correr `backtest_valor.py` o `backtest_metodo.py`, que son
+los que necesitan cuotas históricas.
+
+### 3.4 Refrescar la ficha de un peleador puntual
 
 Las fichas se cachean para no re-scrapear en cada corrida. Si alguien acaba de
 pelear y quieres su ficha al día:
@@ -87,7 +204,7 @@ Se vuelve a llenar sola en la siguiente corrida (esa vez va más lenta).
 
 ---
 
-## 3. Usar el scraper de cuotas de Betano
+## 4. Usar el scraper de cuotas de Betano
 
 Baja las cuotas reales y arma el CSV solo, con el formato correcto.
 
@@ -148,7 +265,7 @@ en el reporte — **el modelo no la usa**, así que puedes dejarla vacía.
 
 ---
 
-## 4. Qué poner en el CSV
+## 5. Qué poner en el CSV
 
 Los CSV van en `cards\`.
 
@@ -185,6 +302,11 @@ Islam Makhachev,Ian Machado Garry,Estelar,1.33,3.15,4.50,2.70,5.50,9.00,6.00,13.
 | `odds_a`, `odds_b` | no | cuota de que gane cada uno |
 | `odds_a_ko` / `odds_a_sub` / `odds_a_dec` | no | que **A** gane por KO / sumisión / decisión |
 | `odds_b_ko` / `odds_b_sub` / `odds_b_dec` | no | ídem para **B** |
+| `corto_a`, `corto_b` | no | `1` si ese peleador entró de reemplazo, `0` si no |
+
+**`corto_a`/`corto_b` es la única columna que conviene poner a mano**: el sistema
+ya busca los reemplazos en Wikipedia, pero un cambio anunciado hoy todavía no está
+publicado. Marcarlo a mano tiene prioridad sobre el caché.
 
 **Cuatro reglas que evitan problemas:**
 
@@ -212,7 +334,7 @@ Islam Makhachev,Ian Machado Garry,Estelar,1.33,3.15,4.50,2.70,5.50,9.00,6.00,13.
 
 ---
 
-## 5. Predecir la cartelera
+## 6. Predecir la cartelera
 
 ```bash
 python -m src.card cards\mi_evento.csv
@@ -237,6 +359,22 @@ Luque vs Gore            Vicente Luque       61.2  KO/TKO 44%    64%  KO x1.4 vs
   de las peleas de verdad van a tarjetas. Eso no es el modelo rindiéndose.
 - **TENDENCIA** es lo que distingue a esa pelea de una promedio. `KO x1.4 vs base`
   = 1,4 veces más propensa al KO que una pelea normal.
+
+### Las cuatro tablas
+
+| Tabla | Qué muestra | Cuándo aparece |
+|---|---|---|
+| 1. **MODELO SOLO** | el modelo sin cuotas y con el flag de corto aviso en 0 | siempre |
+| 2. **MERCADO** | la casa, con la comisión quitada | si el CSV trae cuotas |
+| 3. **MODELO + CORTO AVISO** | igual que la 1 pero con el flag activado | solo si hay reemplazos |
+| 4. **TODO JUNTO** | modelo + mercado (+ corto aviso) — **la que manda** | si el CSV trae cuotas |
+
+Están separadas a propósito. Cuando iban mezcladas, un pick donde el modelo iba
+tibio (56%) y la casa muy convencida (75%) aparecía como "fuerte 79%" y se leía
+como si el sistema estuviera seguro de algo que en realidad decía la casa.
+
+La tabla 3 tiene una columna CAMBIO que aísla exactamente cuánto movió el dato de
+reemplazo, y avisa si el pick se dio vuelta.
 
 ### Leer el bloque RESUMEN
 
@@ -265,6 +403,9 @@ el primero no sobrevive al test estadístico.
 Las peleas `NO FIABLE` **no generan apuesta** aunque el EV se vea rico: salen
 aparte como "DESCARTADAS por falta de datos".
 
+También avisa si la exposición total supera el **15% del bankroll**: Kelly asume
+que las apuestas son independientes, y las peleas de una misma noche no lo son.
+
 ### Reportes visuales
 
 Cada pelea genera un HTML en `outputs\<nombre_del_csv>\` con el donut de victoria
@@ -272,7 +413,7 @@ y las barras de método. Doble clic para abrirlos.
 
 ---
 
-## 6. Comprobar que el modelo sigue funcionando
+## 7. Comprobar que el modelo sigue funcionando
 
 ```bash
 python backtest_carteleras.py 4
@@ -285,28 +426,200 @@ estaba el día del evento** (sin ver el futuro). Para una cartelera puntual:
 python backtest_carteleras.py --evento Ankalaev
 ```
 
+**Cuidado al interpretarlo**: este backtest tiene mucho ruido. Diferencias de
+menos de 4 peleas entre dos corridas son ruido de semilla, no una mejora ni un
+empeoramiento. Y las carteleras encabezadas por un campeón son un subconjunto
+fácil (peleadores con mucha data): ahí el sistema da ~80%, pero el número honesto
+global sigue siendo 65-69%.
+
 | Comando | Para qué |
 |---|---|
-| `python evaluar_modelo.py` | calibración y acierto por umbral de confianza |
+| `python evaluar_modelo.py` | acierto fuera de muestra y calibración por umbral de confianza |
 | `python -m src.oposicion "Ilia Topuria"` | últimas 5 peleas: rivales, nivel y método |
 | `python -m src.ufcstats "Nombre"` | ficha cruda de un peleador |
-
-Para generar los modelos de apuestas (**una sola vez**):
-
-```bash
-python backtest_valor.py
-python backtest_metodo.py
-```
+| `python -m src.reemplazos --revisar` | tasa de victoria de los reemplazos |
+| `python -m src.bfo_odds --revisar` | cobertura de cuotas del hueco de Kaggle |
 
 ---
 
-## 7. Expectativas realistas
+## 8. Referencia de comandos y flags
+
+Todo lo que acepta cada script. Los `[]` son opcionales.
+
+### Predecir
+
+| Comando | Qué hace |
+|---|---|
+| `python -m src.card [csv] [--detalle]` | predice una cartelera. Sin CSV usa la de por defecto. `--detalle` agrega las últimas 5 peleas de cada peleador y el mercado de método completo |
+| `python -m src.betano_scraper` | lista las carteleras disponibles |
+| `python -m src.betano_scraper "<nombre>" [salida.csv]` | baja las cuotas de una |
+| `python -m src.oposicion "<nombre>"` | ficha de calidad de oposición de un peleador |
+| `python -m src.ufcstats "<nombre>"` | ficha cruda de UFCStats |
+
+### Datos
+
+| Comando | Qué hace |
+|---|---|
+| `python -m src.ufcstats_events [--limit N] [--todo]` | eventos y resultados. `--todo` borra el caché y rebaja todo (por si cambian los selectores del sitio) |
+| `python -m src.ufcstats_fighters` | biometría (altura, alcance, DOB, stance) |
+| `python -m src.ufcstats_fightstats [--limit N]` | stats por pelea, incluido el desglose por asalto |
+| `python -m src.reemplazos [N] [--refrescar] [--revisar]` | reemplazos de Wikipedia. `N` limita a N eventos, `--refrescar` re-consulta lo cacheado, `--revisar` solo reporta |
+| `python -m src.bfo_odds [N] [--revisar]` | cuotas de BestFightOdds para el hueco de Kaggle |
+| `python -m src.scraper` | descarga el dataset de Kaggle y reconstruye features + ELO |
+
+`--limit N` sirve para probar que un scraper funciona sin esperar 20 minutos.
+
+### Entrenar y validar
+
+| Comando | Qué hace |
+|---|---|
+| `python train_model.py` | entrena ganador + método e imprime las métricas |
+| `python backtest_carteleras.py [N] [--cuotas] [--evento <nombre>]` | valida contra N carteleras reales. `--cuotas` compara modelo/mercado/mezcla |
+| `python backtest_valor.py [--desde AAAA] [--refit]` | walk-forward del mercado de ganador |
+| `python backtest_metodo.py [--desde AAAA] [--refit]` | walk-forward del mercado de método |
+| `python evaluar_modelo.py` | acierto fuera de muestra y calibración por tramo de confianza |
+
+**Sobre `--refit`**: los backtests de valor cachean sus 11 reentrenamientos en
+`data\processed\walkforward_*.csv`, así que probar umbrales nuevos es instantáneo.
+`--refit` fuerza el recálculo (~2 min) y es lo que hay que usar **después de
+reentrenar el modelo**, o estarás midiendo el modelo viejo.
+
+**Sobre `--cuotas` en `backtest_carteleras`**: las carteleras más recientes no
+sirven para eso, porque las cuotas históricas llegan hasta donde llega Kaggle. El
+flag filtra automáticamente a las últimas con cobertura.
+
+---
+
+## 9. Ajustes en `config.py`
+
+Los únicos números que tiene sentido tocar. Todos están ahí para que no haya
+constantes escondidas en el código.
+
+| Constante | Por defecto | Qué pasa si la cambias |
+|---|---|---|
+| `TRAIN_WINDOW_YEARS` | `5` | años de historial que usa para entrenar. `None` = todo. Validado en 5 períodos: 5 años le gana a todo el historial en 4 de 5 |
+| `N_SIMULATIONS` | `10_000` | simulaciones de Monte Carlo. Bajarlo acelera, ensancha el intervalo |
+| `TRAIN_END_DATE` / `TEST_START_DATE` | 2024-12-31 / 2025-01-01 | el corte temporal del split. Moverlo cambia todas las métricas que reporta `train_model.py` |
+| `REQUEST_DELAY_SEC` | `1.5` | pausa entre requests. **Bajarlo es maleducado y te puede ganar un bloqueo** |
+| `ELO_K` | `32.0` | sensibilidad del ELO por pelea |
+| `RANDOM_STATE` | `42` | semilla. Cambiarla mueve la accuracy ±0,008 sin que nada haya mejorado |
+| `METHOD_BASE_RATES` | KO 30,8% / Sub 17,7% / Dec 51,5% | las tasas base contra las que se lee el LIFT del método. Solo tocar si reentrenas con otro período |
+
+**Regla**: si tocas `TRAIN_WINDOW_YEARS` o `TRAIN_END_DATE`, tienes que correr
+`train_model.py` **y** los dos backtests con `--refit`.
+
+---
+
+## 10. Mapa de archivos (qué genera cada cosa)
+
+Nada de esto se versiona: todo se regenera con los comandos de arriba.
+
+### `data\raw\` — cachés crudos, se borran sin miedo
+
+| Archivo | Lo llena | Si lo borras |
+|---|---|---|
+| `ufcstats_events.json` | `ufcstats_events` | rebaja el historial de eventos (~2 min) |
+| `ufcstats_fighters.json` | `ufcstats_fighters` | rebaja la biometría (~3 min) |
+| `ufcstats_fightstats.json` | `ufcstats_fightstats` | rebaja las stats por pelea (~20 min) |
+| `ufcstats_cache.json` | `card.py` al predecir | **este es el que quieres borrar** para refrescar fichas |
+| `sherdog_cache.json` | `card.py` al predecir debutantes | se vuelve a llenar solo |
+| `reemplazos_wiki.json` | `reemplazos` | rebaja Wikipedia (~25 min) |
+| `bfo_odds.json` | `bfo_odds` | rebaja las cuotas del hueco (~12 min) |
+| `kaggle_ufc.csv` | `scraper` | se re-descarga de Kaggle |
+
+### `data\processed\` — lo que consume el modelo
+
+| Archivo | Qué es |
+|---|---|
+| `features.csv` | el dataset diferencial listo para entrenar |
+| `fights.csv` / `ufcstats_fights.csv` | 1 fila por pelea histórica |
+| `fighters.csv` / `ufcstats_bio.csv` | 1 fila por peleador |
+| `elo_ratings.csv` | el ELO por categoría de peso |
+| `defense_stats.csv` | defensa de golpeo y de derribo (dataset de Rajeev Warrier) |
+| `walkforward_valor.csv` | caché del backtest de moneyline |
+| `walkforward_metodo.csv` | caché del backtest de método |
+
+### `models\`
+
+| Archivo | Lo produce |
+|---|---|
+| `winner_xgb.pkl` | `train_model.py` |
+| `method_xgb.pkl` | `train_model.py` |
+| `winner_xgb_split.pkl` | `train_model.py` (solo para medir: entrenado hasta 2024, lo lee `evaluar_modelo.py`) |
+| `metodo6_xgb.pkl` | `backtest_metodo.py` |
+| `calibrador_mercado.pkl` | `backtest_valor.py` |
+| `calibrador_metodo.pkl` | `backtest_metodo.py` |
+
+### `outputs\<nombre_del_csv>\`
+
+Un HTML por pelea. Se pueden borrar en cualquier momento.
+
+---
+
+## 11. Calendario de mantenimiento
+
+| Cuándo | Qué correr | Por qué |
+|---|---|---|
+| **Antes de cada cartelera** | `python -m src.betano_scraper "<evento>"` | cuotas frescas = +3 puntos de acierto |
+| | `del data\raw\ufcstats_cache.json` | para que las fichas incluyan la última pelea de cada uno |
+| | `python -m src.card cards\<csv>` | el pronóstico |
+| **1 vez al mes** | `actualizar_bd.bat` | mete los eventos nuevos y reentrena |
+| **Cada 2-3 meses** | `python -m src.bfo_odds` | cuotas históricas nuevas |
+| | `python backtest_valor.py --refit` | reajusta el calibrador con datos nuevos |
+| | `python backtest_metodo.py --refit` | ídem para el mercado de método |
+| **Cada 6 meses** | `bajar_datos_ufcstats.bat` | por si algún evento viejo quedó incompleto |
+| **Si algo se ve raro** | `python -m src.ufcstats_events --todo` | rebaja todo, por si cambiaron los selectores del sitio |
+
+**Qué mirar después de cada `actualizar_bd.bat`**: las 4 métricas de la sección
+3.1. Si el AUC salta a 0,85+, hay leakage. Si el log loss del método supera a la
+tasa base, el modelo de método se rompió.
+
+---
+
+## 12. Glosario (de los números que vas a ver)
+
+| Término | Qué mide | Cómo leerlo |
+|---|---|---|
+| **Accuracy** | % de peleas donde acertó el ganador | 0,66 = acierta 2 de cada 3. Engaña: no distingue "70% seguro" de "51% seguro" |
+| **AUC-ROC** | capacidad de **ordenar** — ¿le da más probabilidad al que ganó? | 0,50 = azar, 0,71 = lo normal aquí, **0,85+ = leakage** |
+| **Brier** | **calibración** — ¿un "70%" gana de verdad el 70% de las veces? | más bajo = mejor. 0,21-0,23 es lo normal. **Es la métrica que importa si vas a apostar** |
+| **Log loss** | como el Brier pero castiga más equivocarse con seguridad | solo tiene sentido comparado contra un baseline |
+| **Tasa base** | cantar siempre la frecuencia histórica sin mirar la pelea | el baseline a batir. Si el modelo no le gana, el modelo no sirve |
+| **ELO** | nivel del peleador, ajustado pelea a pelea | 1500 = debutante. Aquí es **graduado**: una decisión dividida suma menos que un KO |
+| **Lift** | cuántas veces más probable que la pelea promedio | `KO x1,4` = 40% más propensa al KO que una pelea normal |
+| **EV** | valor esperado de la apuesta, en % de lo apostado | +5% = ganas 5 centavos por peso a la larga. **Solo vale si la cuota es real** |
+| **Kelly** | qué fracción del bankroll apostar | aquí va a **1/4 de Kelly con tope 5%**, porque Kelly puro sobreapuesta cuando la `p` tiene error |
+| **`t`** | cuántos errores estándar está el ROI de cero | **`t` < 2 = suerte**, por lindo que se vea el ROI |
+| **Sobrerredondeo** | cuánto suman las probabilidades implícitas de un mercado | 1,00 = sin comisión (imposible). Moneyline real ~1,04, método real 1,20-1,24. **Menos de 1,18 en método = cuotas sospechosas** |
+
+---
+
+## 13. Mercados que este sistema NO cubre
+
+Para que no pierdas tiempo buscando algo que no está.
+
+| Mercado | Estado |
+|---|---|
+| **Ganador (moneyline)** | cubierto, pero es empate técnico con la casa |
+| **Método (KO/Sub/Dec)** | cubierto, y es la única ventaja probada |
+| **Total de golpes over/under** | **no**. Se puede predecir (AUC 0,65) pero no hay ni una cuota histórica para validar rentabilidad. Además Betano no lo ofrece: es de bet365 |
+| **Round exacto / total de rounds** | **no**. Mismo problema: cero cuotas históricas |
+| **"¿Llega a tarjetas?"** | medido y **descartado**: el mercado infravalora el "sí" en 6 puntos reales, pero dutchear las dos patas de decisión cuesta 10 puntos de comisión → ROI −6,1%. Un mercado dedicado de 2 vías cobraría ~5%, y ahí sí saldría — pero no hay datos históricos para probarlo |
+| **Peleas de otras ligas** (Bellator, PFL, ONE) | **no**. El ELO y las features se construyen sobre datos de UFC |
+
+Si en algún momento quieres atacar los mercados de golpes o rounds, el camino
+honesto es **empezar a registrar esas cuotas ahora** y validar en unos meses, no
+apostar por el álgebra.
+
+---
+
+## 14. Expectativas realistas
 
 Números medidos, no promesas:
 
 - El modelo acierta **65-69%** de las peleas. Sobre picks de confianza ≥75% sube
   a ~85%, pero esas son pocas por cartelera.
-- El **mercado acierta 67%**, o sea más que el modelo solo. Por eso cuando le
+- El **mercado acierta 69%**, o sea más que el modelo solo. Por eso cuando le
   pasas cuotas el sistema mezcla los dos (llega a ~70%).
 - **Apostar al ganador es un empate técnico con la casa** (+1,0% de ROI, margen
   de error ±7,5). La única ventaja que aguantó el test estadístico es apostar
@@ -317,7 +630,7 @@ Números medidos, no promesas:
 
 ---
 
-## 8. Las tres reglas de oro
+## 15. Las tres reglas de oro
 
 1. **Si un backtest da un número espectacular, el bug está en los datos.** El de
    método daba +63% hasta que se descubrió que las cuotas de 2025 sumaban menos
@@ -328,7 +641,7 @@ Números medidos, no promesas:
 
 ---
 
-## 9. Si algo falla
+## 16. Si algo falla
 
 | Síntoma | Qué hacer |
 |---|---|
@@ -340,3 +653,168 @@ Números medidos, no promesas:
 | Stats viejos | `del data\raw\ufcstats_cache.json` y vuelve a correr. |
 | Predicciones raras tras actualizar | `python train_model.py` para reentrenar. |
 | El scraper de Betano no encuentra la cartelera | Corre `python -m src.betano_scraper` sin argumentos para ver los nombres exactos disponibles. |
+| `feature_names mismatch` al predecir | El modelo se entrenó con otra lista de columnas. Corre `python train_model.py`. |
+| "No se pudo cargar desde Kaggle" | Falta `~/.kaggle/kaggle.json` (sección 2, paso 2). |
+| Wikipedia contesta 403 | Falta el User-Agent propio: `set WIKI_CONTACT=https://github.com/tu-usuario` |
+| `UnicodeEncodeError` con nombres como Błachowicz | No debería pasar (`config.py` fuerza UTF-8 tolerante). Si pasa, corre `chcp 65001` antes. |
+| El scraper se cortó a la mitad | Vuelve a correr el mismo comando: todos retoman donde quedaron. |
+| El backtest de valor da lo mismo tras reentrenar | Te falta `--refit`: está usando el caché del modelo viejo. |
+| `backtest_carteleras` da 2 peleas menos que ayer | Ruido de semilla. Menos de 4 peleas de diferencia no significa nada. |
+| `evaluar_modelo.py` dice que falta `winner_xgb_split.pkl` | Es el modelo de medición (entrenado solo hasta 2024). Lo deja `python train_model.py`: córrelo una vez. |
+| La UI no abre / "puerto ocupado" | Otro programa usa el 8000. Cierra la otra ventana de `lanzar_ui.bat` o cambia el puerto en `webui/server.py`. |
+| La UI dice "falta el calibrador" | `python backtest_valor.py`, o el botón "Recalcular el calibrador de ganador". |
+
+---
+
+## 17. La interfaz web
+
+Hace todo lo que hace la consola, sin escribir comandos.
+
+```bash
+lanzar_ui.bat
+```
+
+Abre `http://127.0.0.1:8000` en el navegador. **Deja la ventana negra abierta**
+mientras la uses: ahí corre el servidor. Ctrl+C para cerrarlo.
+
+Escucha solo en `127.0.0.1`, o sea **solo tu PC**: maneja tu bankroll y no tiene
+contraseña, así que no hay motivo para exponerla a la red.
+
+### Las cinco pestañas
+
+| Pestaña | Qué hay |
+|---|---|
+| **Cartelera** | Resumen de qué apostar + una tarjeta por pelea (o vista de tabla) |
+| **Combinada** | El constructor de parlays (sección 18) |
+| **Cargar** | Bajar de Betano, subir un CSV, o repredecir uno de `cards\` |
+| **Mantenimiento** | Actualizar BD / reentrenar / backtests, con el registro en vivo |
+| **Guía** | Glosario en lenguaje llano: qué es cada etiqueta, cada número y qué NO hace |
+
+El botón **◐** de la cabecera alterna entre tema claro y oscuro (por defecto sigue
+al de tu sistema operativo y recuerda tu elección).
+
+### Cada etiqueta se explica sola
+
+Este es el criterio de diseño de la interfaz: **ningún número aparece sin decir
+qué significa**.
+
+- El **`?`** al lado de la etiqueta de confianza de cada pelea abre la explicación
+  de esa pelea en concreto.
+- Las peleas marcadas **NO FIABLE** traen el motivo escrito debajo, con nombre y
+  apellido: *"Dulatov tiene 1 pelea en UFC. Fuera de UFC tiene récord 12-1, pero
+  de esas peleas no existen estadísticas de golpeo ni de lucha"*.
+- En la pestaña **Combinada**, cada selección dice **Conviene / Se puede / No
+  conviene** y el porqué, en vez de mostrar solo un porcentaje.
+- La pestaña **Guía** tiene el glosario completo: cuota, valor, bankroll, Kelly,
+  comisión, las etiquetas de confianza y las de evidencia.
+
+### El refresco de cuotas
+
+Arriba a la derecha hay una cuenta regresiva. **Cada 10 minutos vuelve a bajar
+las cuotas de la cartelera activa** y repredice, marcando con ▲▼ las que se
+movieron (pasa el mouse por encima para ver el valor anterior).
+
+- **"Refrescar ahora"** lo hace en el momento.
+- El interruptor **auto 10 min** lo apaga si prefieres controlarlo tú.
+- Solo refresca la cartelera **que tienes abierta**, no todo Betano: son ~22
+  peticiones con 1,5 s de pausa entre medio. Cada 10 min eso es scraping
+  educado; barrer el sitio entero no lo sería.
+- Si cargaste desde un CSV en vez de Betano, no hay nada que refrescar: el
+  auto-refresh solo aplica al origen Betano.
+
+### Mantenimiento
+
+Cada tarea explica qué hace y cuánto tarda, y el log sale en vivo abajo. **Solo
+corre una a la vez**, a propósito: casi todas escriben en `data\processed\` y dos
+en paralelo se pisarían los archivos.
+
+Los chips de arriba dicen qué modelos tienes y cuáles faltan. Si alguno sale en
+rojo, el botón que lo genera está en la misma pantalla.
+
+### Lo que la UI no reemplaza
+
+Sigue siendo la consola el lugar para `--detalle`, `--evento`, `--desde` y los
+flags finos de la [sección 8](#8-referencia-de-comandos-y-flags). La UI cubre el
+uso diario, no el 100% de las opciones.
+
+---
+
+## 18. El simulador de parlay
+
+Betano acepta hasta **13 patas**. El simulador las arma, calcula la combinada y
+—lo importante— dice **si conviene y por qué**.
+
+### Cómo lee cada pata
+
+Cada pata trae una etiqueta de **evidencia**, que no es la confianza del modelo
+sino lo que el backtest de este proyecto midió sobre ese mercado:
+
+| Etiqueta | Mercado | Respaldo medido |
+|---|---|---|
+| **Probado** | decisión en el mercado de método | +16,5% ROI, t=3,1 (1.056 apuestas) |
+| **Sin ventaja clara** | ganador (moneyline) | +1,0% ROI ± 7,5, t=0,3 |
+| **Ruido** | finalización (KO/sub) en método | t=0,5 — indistinguible de la suerte |
+
+Debajo de cada pata hay una frase que dice SÍ o NO y el motivo. Una pata con
++32% de EV puede decir **NO** si a un peleador le faltan datos o si las cuotas de
+método de esa pelea suman menos de 1,18: el EV se calcula con el pago de la
+cuota, así que una cuota inflada produce "valor" que no existe.
+
+Por defecto la lista muestra solo *Probado* y *Sin ventaja clara*. El filtro
+**Ruido** existe para que veas lo que estás dejando fuera, no para que lo uses.
+
+### Las tres secciones
+
+Las selecciones vienen **agrupadas por mercado**, porque en Betano son mercados
+distintos, con precios y reglas distintas:
+
+| Sección | Qué es | Comisión |
+|---|---|---|
+| **Quién gana** | Solo importa quién levanta la mano | ~4% |
+| **Cómo gana — 7 vías** | KO/TKO, sumisión y decisión separados por peleador (3×2 + empate) | ~22% |
+| **Cómo gana — 5 vías** | Cuando Betano no separa KO de sumisión: solo "finalización" y "decisión" (2×2 + empate) | ~22% |
+
+Las 5 vías no son un mercado peor, son el mismo con menos granularidad — y la
+decisión vale exactamente lo mismo en los dos, porque es literalmente la misma
+apuesta. Si una sección sale vacía es porque Betano no la abrió para esa
+cartelera, no porque falte un dato.
+
+### Reglas que aplica solo
+
+- **Máximo 13 patas**, que es el tope de Betano.
+- **Bloquea las EXCLUYENTES y las SIMILARES**, y te dice cuál de las dos es:
+
+  | Caso | Ejemplo | Por qué se bloquea |
+  |---|---|---|
+  | **Excluyente** | "Gana A" + "Gana B"; "A por KO" + "A por decisión" | No pueden pasar las dos. Ninguna casa acepta la combinada. |
+  | **Similar** | "Gana A" + "A por decisión"; "A por finalización" (5 vías) + "A por KO" (7 vías) | Una contiene a la otra. Betano casi no sube la cuota al combinarlas —a veces ni la sube— porque estarías pagando dos veces por la misma información. |
+
+  No está hardcodeado caso por caso: cada selección se traduce al conjunto de
+  desenlaces que la hacen ganar (sobre KO/sumisión/decisión de cada peleador).
+  Si dos conjuntos no se tocan son excluyentes; si se tocan, similares.
+
+- **"Sugerir"** arma la mejor combinada posible: solo patas con respaldo, EV
+  positivo, sin avisos y sin choques. Que no sugiera nada es un resultado
+  normal.
+
+### El número que hay que mirar
+
+No es el EV. Es **"cuánto error aguanta por pata"**.
+
+El EV de una combinada de patas independientes es `Π(1+EV_i) − 1`. O sea: 13
+patas con +5% de EV cada una dan **+88% de EV combinado**. Eso es cierto, y es
+una trampa:
+
+- **Cobras 1 de cada 766 veces.** El +88% es real a larguísimo plazo; tu
+  bankroll no llega.
+- **El error se multiplica.** Ese parlay de +88% se cae a **cero** si cada
+  probabilidad está sobreestimada apenas un **4,8%**. El Brier del modelo es
+  0,21: ese error existe, no es teórico.
+
+Por eso el simulador puede decirte *"las patas son buenas, el parlay es frágil"*
+aunque las 13 sean del mercado probado. **Las combinadas de 2-4 patas conservan
+casi todo el EV por unidad de riesgo y cobran muchísimo más seguido.**
+
+El **stake sugerido** va a ¼ de Kelly con tope 5%, igual que el resto del
+sistema. En parlays largos te va a sugerir casi cero — eso no es un error del
+cálculo, es la respuesta.

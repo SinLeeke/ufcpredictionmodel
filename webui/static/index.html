@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UFC Predictor</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <div class="marca">
+    <div class="logo">UFC</div>
+    <div>
+      <h1>Predictor</h1>
+      <span id="titulo-cartelera" class="sub">sin cartelera cargada</span>
+    </div>
+  </div>
+
+  <div class="cabecera-acciones">
+    <div id="reloj-caja" class="reloj-caja" title="Refresco automático de cuotas">
+      <span id="reloj"></span>
+    </div>
+    <button id="btn-refresh" class="primario" disabled>
+      <span class="ico">⟳</span> Refrescar
+    </button>
+    <button id="btn-tema" class="icono" title="Cambiar entre claro y oscuro">◐</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab activa" data-tab="cartelera">Cartelera</button>
+  <button class="tab" data-tab="parlay">Combinada <span id="badge-patas" class="badge">0</span></button>
+  <button class="tab" data-tab="datos">Cargar</button>
+  <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
+  <button class="tab" data-tab="guia">Guía</button>
+</nav>
+
+<div id="barra-estado" class="barra oculto"></div>
+
+<main>
+
+<!-- ======================= CARTELERA ======================= -->
+<section id="tab-cartelera" class="panel activa">
+
+  <div id="bienvenida" class="bienvenida">
+    <h2>Bienvenido</h2>
+    <p>Esto estima quién gana cada pelea de una cartelera de UFC y, si le das las cuotas
+       de la casa, te dice dónde hay valor. Tres pasos:</p>
+    <ol class="pasos">
+      <li><b>Carga una cartelera.</b> Baja las cuotas de Betano automáticamente, o sube
+          un CSV con los nombres de los peleadores.</li>
+      <li><b>Mira las predicciones.</b> Cada pelea trae su probabilidad, cómo va a
+          terminar y qué tan confiable es el pronóstico.</li>
+      <li><b>Revisa qué apostar.</b> Y sobre todo qué <i>no</i>: el sistema es
+          deliberadamente cauto, y que no recomiende nada es lo normal.</li>
+    </ol>
+    <div class="bienvenida-botones">
+      <button class="primario" data-ir="datos">Cargar una cartelera</button>
+      <button class="secundario" data-ir="guia">¿Cómo funciona esto?</button>
+    </div>
+  </div>
+
+  <div id="cartelera-contenido" class="oculto">
+    <div id="avisos"></div>
+
+    <div id="tarjetas-kpi" class="kpis"></div>
+
+    <section class="bloque">
+      <div class="bloque-cab">
+        <h2>Qué apostar</h2>
+        <p class="nota">Ordenado por <b>cuánta evidencia hay detrás del mercado</b>, no por
+          cuánto promete pagar. Un +40% en una finalización es peor apuesta que un +5% en
+          una decisión, porque el primero no sobrevive al análisis estadístico.</p>
+      </div>
+      <div id="resumen"></div>
+    </section>
+
+    <section class="bloque">
+      <div class="bloque-cab fila">
+        <div>
+          <h2>Las peleas</h2>
+          <p class="nota" id="nota-base"></p>
+        </div>
+        <div class="segmentado">
+          <button class="seg activa" data-vista="tarjetas">Tarjetas</button>
+          <button class="seg" data-vista="tabla">Tabla</button>
+        </div>
+      </div>
+      <div id="peleas"></div>
+      <div id="tabla-wrap" class="tabla-scroll oculto"><table id="tabla-principal"></table></div>
+    </section>
+  </div>
+</section>
+
+<!-- ======================== PARLAY ========================= -->
+<section id="tab-parlay" class="panel">
+  <div id="parlay-vacio" class="bienvenida">
+    <h2>Combinada (parlay)</h2>
+    <p>Acá armas una apuesta múltiple de hasta 13 selecciones, que es el máximo que
+       acepta Betano, y el sistema te dice si conviene <b>y por qué</b>.</p>
+    <p class="nota">Necesitas una cartelera <b>con cuotas</b>: sin precio no hay forma
+       de saber si una selección tiene valor. Carga una desde Betano.</p>
+    <button class="primario" data-ir="datos">Cargar una cartelera</button>
+  </div>
+
+  <div id="parlay-contenido" class="oculto">
+    <div class="explicacion-tiers" id="explica-tiers"></div>
+
+    <div class="parlay-grid">
+      <div class="col-patas">
+        <div class="bloque-cab fila">
+          <h2>Selecciones disponibles</h2>
+          <div class="botonera">
+            <button id="btn-sugerir" class="secundario">✨ Armar la mejor</button>
+            <button id="btn-limpiar" class="secundario">Vaciar</button>
+          </div>
+        </div>
+        <div class="filtros">
+          <span class="filtros-tit">Mostrar:</span>
+          <label class="chk"><input type="checkbox" class="filtro-tier" value="A" checked>
+            <span class="pill tA">Probado</span></label>
+          <label class="chk"><input type="checkbox" class="filtro-tier" value="B" checked>
+            <span class="pill tB">Sin ventaja clara</span></label>
+          <label class="chk"><input type="checkbox" class="filtro-tier" value="C">
+            <span class="pill tC">Ruido</span></label>
+          <label class="chk sep"><input type="checkbox" id="solo-positivo">
+            solo las que pagan de más</label>
+        </div>
+        <div id="lista-patas"></div>
+      </div>
+
+      <aside class="col-boleto">
+        <div class="boleto-caja">
+          <div class="bloque-cab fila">
+            <h2>Tu boleto</h2>
+            <span id="cuenta-patas" class="badge">0/13</span>
+          </div>
+          <div id="boleto"></div>
+          <div class="campo-inline">
+            <label for="bankroll">Bankroll</label>
+            <input type="number" id="bankroll" value="100" min="1" step="10">
+          </div>
+          <div id="parlay-resultado"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= CARGAR ======================== -->
+<section id="tab-datos" class="panel">
+  <div class="cols">
+    <div class="caja">
+      <h2><span class="ico-caja">📡</span> Desde Betano</h2>
+      <p class="nota">Baja las cuotas reales y arma el archivo solo. Es la opción
+        recomendada: con cuotas el sistema acierta ~3 puntos más y se habilita el
+        análisis de valor y la combinada.</p>
+      <button id="btn-listar" class="secundario">Ver qué carteleras hay</button>
+      <div id="lista-carteleras"></div>
+      <div class="campo">
+        <label for="query">…o escribe parte del nombre</label>
+        <div class="fila-input">
+          <input type="text" id="query" placeholder="UFC 330">
+          <button id="btn-cargar-betano" class="primario">Bajar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="caja">
+      <h2><span class="ico-caja">📄</span> Desde un archivo</h2>
+      <p class="nota">Un CSV con al menos dos columnas: <code>fighter_a</code> y
+        <code>fighter_b</code>. Si además le pones <code>odds_a</code> y
+        <code>odds_b</code> se activa el análisis de valor.</p>
+      <div class="fila-input">
+        <input type="file" id="archivo" accept=".csv">
+        <button id="btn-subir" class="primario">Subir</button>
+      </div>
+      <details class="mini">
+        <summary>Ver el formato exacto</summary>
+        <pre class="ejemplo">fighter_a,fighter_b,segment,odds_a,odds_b
+Islam Makhachev,Ian Machado Garry,Estelar,1.33,3.15
+Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
+        <p class="nota">Los nombres deben escribirse como aparecen en UFCStats. Las
+          celdas vacías están bien: lo que falte simplemente no se analiza.</p>
+      </details>
+      <h3>Ya guardados</h3>
+      <div id="lista-csvs"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ====================== MANTENIMIENTO ==================== -->
+<section id="tab-mantenimiento" class="panel">
+  <div class="bloque-cab">
+    <h2>Estado del sistema</h2>
+    <p class="nota">Los modelos se generan en tu PC. Si alguno aparece en rojo, el botón
+      que lo crea está más abajo.</p>
+  </div>
+  <div id="salud" class="salud"></div>
+
+  <div class="bloque-cab">
+    <h2>Tareas</h2>
+    <p class="nota">Se ejecuta <b>una a la vez</b>: casi todas escriben en los mismos
+      archivos de datos y dos en paralelo se pisarían.</p>
+  </div>
+  <div id="lista-tareas" class="cols"></div>
+
+  <div class="bloque-cab fila">
+    <div><h2>Registro</h2><span id="job-estado" class="sub">sin tareas corriendo</span></div>
+    <button id="btn-cancelar" class="peligro oculto">Cancelar</button>
+  </div>
+  <pre id="log"></pre>
+</section>
+
+<!-- ========================== GUÍA ========================= -->
+<section id="tab-guia" class="panel">
+  <div class="guia">
+
+    <h2>Qué hace este sistema</h2>
+    <p>Aprende de <b>más de 8.000 peleas reales de UFC</b> qué características tienden a
+      ganar: edad, alcance, nivel de los rivales que enfrentaste, cómo golpeas, cómo
+      luchas, si vienes de descanso largo. Con eso estima la probabilidad de cada peleador
+      y cómo es más probable que termine la pelea.</p>
+
+    <div class="callout">
+      <h3>Expectativa realista, antes que nada</h3>
+      <p>Acierta entre <b>66% y 69%</b> de las peleas. Suena poco y es el techo real del
+        problema: las casas de apuestas aciertan ~69% y el sistema de rating más
+        reconocido del MMA tampoco pasa de ahí. <b>Si alguna vez ves 80% o más, hay un
+        error</b>, no un descubrimiento.</p>
+    </div>
+
+    <h2>Cómo leer una pelea</h2>
+    <dl class="glosario">
+      <dt>El porcentaje grande</dt>
+      <dd>La probabilidad de que ese peleador gane. Un 65% significa que si esa misma
+        pelea se disputara 100 veces, ganaría 65. No es una certeza: el favorito pierde
+        seguido, y por eso existen las apuestas.</dd>
+
+      <dt>Cómo termina</dt>
+      <dd>El reparto entre <b>KO/TKO</b>, <b>sumisión</b> y <b>decisión</b> (que llegue a
+        las tarjetas de los jueces). Casi siempre gana "decisión" porque el 51% de las
+        peleas de verdad terminan así. Eso no es el modelo rindiéndose.</dd>
+
+      <dt>Tendencia</dt>
+      <dd>Lo interesante no es el número absoluto sino la comparación con una pelea
+        promedio. "KO x1,4" quiere decir 40% más propensa al nocaut que lo normal. Eso
+        sí es información.</dd>
+    </dl>
+
+    <h2>Las etiquetas de confianza</h2>
+    <p class="nota">No son opiniones: cada una viene de medir cuánto acertó de verdad ese
+      tramo sobre peleas que el modelo nunca vio.</p>
+    <div class="tarjetas-info">
+      <div class="info-card"><span class="pill fuerte">fuerte</span>
+        <b>75% o más</b><p>Acertó ~85% de las veces. Son pocas por cartelera.</p></div>
+      <div class="info-card"><span class="pill buena">buena</span>
+        <b>65-75%</b><p>Acertó ~73%. Es el mínimo desde el que conviene apostar.</p></div>
+      <div class="info-card"><span class="pill justa">justa</span>
+        <b>60-65%</b><p>Acertó ~70%, pero con poco margen.</p></div>
+      <div class="info-card"><span class="pill moneda">moneda</span>
+        <b>Menos de 60%</b><p>Acierto real ~50%. Una moneda al aire: ignórala.</p></div>
+      <div class="info-card ancha"><span class="pill nofiable">NO FIABLE</span>
+        <b>Faltan datos</b>
+        <p>No significa que el modelo se equivocó, sino que <b>a algún peleador le faltan
+          datos</b>: normalmente porque tiene una o dos peleas en UFC. Puede tener una
+          carrera larga en otras ligas —el sistema la busca y la usa— pero las
+          estadísticas finas de golpeo y lucha <b>solo existen para peleas de UFC</b>.
+          Con una sola pelea de muestra, los números se disparan: es común ver a un
+          debutante con el triple de golpes por minuto que el promedio, y eso es ruido,
+          no talento. Estas peleas se predicen igual pero <b>nunca generan una apuesta</b>,
+          por alta que se vea la probabilidad. Las carteleras llenas de prospectos traen
+          muchas; los eventos grandes, casi ninguna.</p></div>
+    </div>
+
+    <h2>Las etiquetas de las apuestas</h2>
+    <p class="nota">Acá está la idea central del sistema. No todas las apuestas valen lo
+      mismo, aunque prometan el mismo retorno, porque no todas tienen la misma evidencia
+      detrás. Se probó cada mercado sobre miles de apuestas históricas:</p>
+    <div class="tarjetas-info">
+      <div class="info-card ancha"><span class="pill tA">Probado</span>
+        <b>Apostar a que la pelea llega a decisión</b>
+        <p>Es lo único que superó el análisis estadístico: <b>+16,5% de retorno sobre
+          1.056 apuestas</b>. La razón es que el público paga de más por las
+          finalizaciones espectaculares, y eso deja baratas las decisiones.</p></div>
+      <div class="info-card ancha"><span class="pill tB">Sin ventaja clara</span>
+        <b>Apostar al ganador (moneyline)</b>
+        <p>Sobre 4.744 apuestas el resultado fue <b>+1,0% con un margen de error de
+          ±7,5 puntos</b>. Traducido: el valor real puede estar entre −6,5% y +8,5%, o
+          sea <b>no se distingue de quedar en cero</b>. No es que el modelo falle; es que
+          no hay prueba de ventaja en ninguna dirección. Úsalas para completar, nunca
+          como base.</p></div>
+      <div class="info-card ancha"><span class="pill tC">Ruido</span>
+        <b>Apostar a KO o a sumisión</b>
+        <p>No sobrevivió al análisis. Suelen mostrar retornos enormes justamente porque
+          son cuotas altas y poco probables, y eso no es lo mismo que tener ventaja.</p></div>
+    </div>
+
+    <h2>Palabras que vas a ver</h2>
+    <dl class="glosario">
+      <dt>Cuota</dt>
+      <dd>Lo que paga la casa. Cuota 2,50 significa que $1.000 se convierten en $2.500 si
+        aciertas. Mientras más alta, menos probable lo considera la casa.</dd>
+      <dt>Valor / EV</dt>
+      <dd>La diferencia entre lo que paga la casa y lo que el sistema cree que vale.
+        <b>+5%</b> quiere decir que, a la larga, ganarías 5 centavos por cada peso
+        apostado. Ojo: el valor se calcula con el precio, así que <b>una cuota mal
+        anotada produce valor falso</b>. Por eso el sistema avisa cuando las cuotas
+        parecen demasiado generosas para ser reales.</dd>
+      <dt>Bankroll</dt>
+      <dd>El dinero total que tienes destinado a apostar. Todo se expresa como porcentaje
+        de eso, no en pesos, para que las recomendaciones sirvan sin importar tu tamaño.</dd>
+      <dt>Kelly</dt>
+      <dd>La fórmula que dice cuánto apostar según cuánta ventaja tienes. Acá va a
+        <b>un cuarto de la fórmula y con tope del 5%</b>, porque la versión pura apuesta
+        de más cuando las probabilidades tienen error — y siempre lo tienen.</dd>
+      <dt>Comisión de la casa</dt>
+      <dd>El margen que se queda la casa. En "ganador" ronda el <b>4%</b>; en el mercado
+        de método es <b>22%</b>. Por eso el segundo necesita una ventaja mucho mayor
+        para valer la pena.</dd>
+    </dl>
+
+    <h2>Qué NO hace</h2>
+    <ul class="lista-no">
+      <li><b>No le gana a la casa apostando al ganador.</b> Está medido y es un empate.</li>
+      <li><b>No predice mercados de golpes ni de rondas.</b> Puede estimarlos, pero no
+        existen datos históricos de esas cuotas para saber si le ganaría al precio, así
+        que no se recomienda a ciegas.</li>
+      <li><b>No cubre otras ligas</b> (Bellator, PFL, ONE): todo está construido sobre
+        datos de UFC.</li>
+      <li><b>No sabe de lesiones, cortes de peso fallidos ni cambios de gimnasio.</b></li>
+    </ul>
+
+    <div class="callout aviso-legal">
+      <h3>Una advertencia honesta</h3>
+      <p>Apostar tiene retorno esperado negativo salvo ventajas muy específicas y difíciles
+        de sostener. Los números de acá salen de simulaciones sobre el pasado, que no son
+        una promesa de rendimiento. Que el sistema no recomiende nada en una cartelera
+        <b>es el resultado más común y está bien</b>.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div id="modal" class="modal oculto">
+  <div class="modal-caja">
+    <button class="modal-cerrar">×</button>
+    <div id="modal-cuerpo"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

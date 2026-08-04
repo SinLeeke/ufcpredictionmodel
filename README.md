@@ -8,32 +8,48 @@ Ese número no es humilde por modestia: es el techo real del problema, y más ab
 explico por qué.
 
 ```
-         UFCStats     Kaggle + BestFightOdds    Wikipedia      Betano
-        (oficial)      (cuotas históricas)     (reemplazos)    (cuotas)
-             │                  │                    │            │
-             └──────────────────┴─────────┬──────────┴────────────┘
-                                           ▼
-                                 features diferenciales
-                                  (ELO, estilo, forma)
-                                           │
-                              ┌────────────┴────────────┐
-                              ▼                         ▼
-                       modelo GANADOR             modelo MÉTODO
-                        (XGBoost bin)            (XGBoost 3 clases)
-                              │                         │
-                              └────────────┬────────────┘
-                                           ▼
-                              Monte Carlo (10.000 sims)
-                                           │
-                                           ▼
-                          reporte: 4 tablas + HTML por pelea
+   UFCStats     Kaggle + BestFightOdds     Wikipedia     Sherdog     Betano
+  (oficial)      (cuotas históricas)     (reemplazos)  (fuera UFC)  (cuotas)
+      │                   │                    │            │          │
+      └───────────────────┴──────────┬─────────┴────────────┴──────────┘
+                                     ▼
+                          features diferenciales
+                           (ELO, estilo, forma)
+                                     │
+                         ┌───────────┴───────────┐
+                         ▼                       ▼
+                  modelo GANADOR           modelo MÉTODO
+                   (XGBoost bin)         (XGBoost 3 clases)
+                         │                       │
+                         └───────────┬───────────┘
+                                     ▼
+                         Monte Carlo (10.000 sims)
+                                     │
+                                     ▼
+                     reporte: 4 tablas + HTML por pelea
 ```
+
+---
+
+## Qué necesita para funcionar
+
+| | |
+|---|---|
+| **Python** | 3.10+ (probado en 3.14) |
+| **Dependencias** | `pip install -r requirements.txt` — pandas, numpy, scikit-learn, xgboost, plotly, beautifulsoup4, requests, lxml, kagglehub |
+| **Credenciales** | solo Kaggle (`~/.kaggle/kaggle.json`). Las otras cinco fuentes son públicas |
+| **Navegador / Selenium** | **no**. Ni siquiera para el anti-bot de UFCStats ni para Betano |
+| **GPU** | no. Entrenar tarda segundos en CPU |
+| **Disco** | ~60 MB de datos + ~4 MB de modelos, todos regenerables |
+| **Tiempo de construcción** | ~1 hora la primera vez; después las actualizaciones son de minutos |
+
+Guía paso a paso en [MANUAL.md](MANUAL.md).
 
 ---
 
 ## Qué scrapea y cómo
 
-Cinco fuentes, ninguna necesita navegador. Todo con `requests`, caché en disco y
+Seis fuentes, ninguna necesita navegador. Todo con `requests`, caché en disco y
 descarga incremental (solo se pide lo que falta).
 
 ### 1. UFCStats — la fuente oficial
@@ -99,6 +115,22 @@ Dos detalles que costaron encontrar:
 - El mercado de método viene en dos formatos: **7-way** (KO, sumisión y decisión separados)
   o **5-way** (KO+sumisión combinados). En el 5-way no existe un número real de "solo KO",
   así que esas celdas quedan **vacías** en vez de inventar un valor.
+
+### 5. Sherdog — la carrera fuera de UFC
+
+`src/sherdog.py`, y **solo en el camino de predicción**, nunca en el de entrenamiento.
+
+UFCStats solo conoce lo que pasó dentro de UFC. Un debutante con 1 pelea en UFC puede
+traer 15 peleas profesionales atrás, y el modelo lo trataba como un desconocido: en el
+backtest, **8 de 31 fallos involucraban peleadores con menos de 3 peleas registradas**.
+Sherdog aporta récord total, racha real y cómo gana/pierde contando la carrera completa.
+
+Dos límites que se respetan a propósito:
+
+- **No trae estadística fina** (golpes, derribos, control). Eso solo existe para UFC.
+- **Ganar 12 peleas en shows regionales no equivale a ganarlas en UFC.** Las peleas fuera
+  de UFC se marcan aparte para poder ponderarlas distinto, y **no entran al entrenamiento**:
+  se probó meterlas al dataset y no mejoró.
 
 ---
 
@@ -201,7 +233,30 @@ Que las 7 juntas den 1/4 mientras una sola da 4/4 confirma el diagnóstico: es r
   KO-vs-sumisión. Tiene sentido — cómo termina una pelea depende del estilo de los dos,
   no de contra quién pelearon antes ni de si uno entró de reemplazo.
 
-**3. Datos disponibles que no se bajan.**
+**3. Datos por round: se bajan, pero no entran al modelo.**
+
+UFCStats publica el desglose asalto por asalto y el scraper lo captura
+(`r1_sig`, `r2_sig`, …). La hipótesis era que el **desgaste** predice: en
+Rakic vs Tybura los golpes significativos de Rakic van 36 / 18 / 17 — el total
+(71) dice "domina", el detalle dice "domina un round y se apaga".
+
+Se construyeron features de caída de ritmo (82% de cobertura) y se midieron:
+
+| | Gana en | Media |
+|---|---|---|
+| Predecir el ganador (accuracy) | 4/7 | +0,0010 |
+| Predecir el ganador (AUC) | 5/7 | +0,0030 |
+| Predecir si llega a tarjetas | 3/5 | +0,0015 |
+
+**No entraron.** Con 4 períodos daban 3/4 y parecían prometedoras; al extender a
+7 se cayeron — el mismo patrón que ya había engañado antes. La explicación más
+probable es que el desgaste **ya está** en los datos: un peleador que se apaga
+pierde más, y eso se refleja en su récord, su ELO y sus tasas de finalización.
+
+Los datos se siguen bajando igual: no cuestan nada, y son el insumo para modelar
+el **round exacto** de finalización, un mercado que este proyecto no toca todavía.
+
+**4. Datos disponibles que no se bajan.**
 
 - **Formato de asaltos (3 vs 5).** UFCStats lo publica (`Time format: 3 Rnd (5-5-5)`).
   Se probó una aproximación derivada de la posición en la cartelera: Acc +0,0003,
@@ -209,11 +264,63 @@ Que las 7 juntas den 1/4 mientras una sola da 4/4 confirma el diagnóstico: es r
   peleadores de ELO alto.
 - **Días exactos de aviso** en los reemplazos: Wikipedia solo lo dice en el 6% de los
   casos, así que se usa un flag binario en vez de un número poco fiable.
+- **El historial de Sherdog en el entrenamiento.** Se baja y se usa al predecir (arriba),
+  pero meterlo al dataset de entrenamiento no mejoró: la calidad del dato no es comparable
+  (una victoria regional no es una victoria en UFC) y no trae estadística fina.
 
-**Ventana temporal de entrenamiento.** El modelo NO entrena con todo el historial: usa
-los últimos 5 años. El MMA cambia, y las peleas viejas meten patrones que ya no aplican.
-Validado en 5 períodos por dos métricas: gana 4/5 en AUC (+0,0117) y 4/5 en accuracy
-(+0,0096). Se controla con `TRAIN_WINDOW_YEARS` en `config.py`.
+**5. Ideas de modelado que se probaron y no quedaron.**
+
+Todas están medidas. La tabla existe para no volver a gastar una tarde en ellas.
+
+| Idea | Resultado medido | Veredicto |
+|---|---|---|
+| **Calibración post-hoc** (Platt / isotónica, ajustando con 2024) | Brier 0,2167 → 0,2181 (Platt) / 0,2178 (isotónica); log loss peor en las dos | XGBoost ya sale calibrado acá. **Empeora** |
+| **Flag de 5 asaltos** (estelar = 1ª pelea del evento, 1.182 filas) | Acc +0,0003, AUC −0,0007 (ruido ±0,0037) | Cero. El ELO ya lo capta indirecto |
+| **Ensemble de 10 semillas** | Acc 0,6570 → 0,6576, AUC +0,0014 | No sube el acierto. Solo quita la lotería de semilla |
+| **Arquetipos de estilo** (features simétricas de nivel y de choque) | 4 períodos: +0,0049 / ±0 / **−0,0057** / +0,0023. Media **+0,0004** | Empate. Los diferenciales + XGBoost ya capturan el matchup |
+| **Revanchas / head-to-head** ("le tiene el número") | el que ganó antes gana la revancha **115/217 = 53,0% ± 6,7**, y las revanchas son el 2,5% de las peleas | El efecto no existe |
+| **Glicko-2** en vez de ELO | no implementado: FightMatrix lo probó y lo abandonó (la *rating deviation* es "fairly inconsequential" para MMA) | No vale la complejidad |
+| **Balancear las clases del modelo de método** | log loss 1,033 (balanceado) vs 0,950 (sin balancear); anunciaba **el doble** de sumisiones de las que ocurren | Revertido. Estaba peor que cantar las tasas base |
+| **Subir a 12 los rivales de la calidad de oposición** | ganaba en 7 de 8 semillas sobre el test… y perdía 2 de 3 al validar en **otros períodos** | Revertido a 5 |
+
+Las dos últimas filas son las que más enseñaron:
+
+- El modelo de método **balanceado** tenía accuracy 0,488 y parecía "solo un poco peor".
+  Lo que delató el bug fue comparar su log loss contra el de **cantar las tasas base**
+  (1,008): el modelo era literalmente peor que no tener modelo. Ese baseline ahora se
+  imprime siempre en `train_model.py`.
+- El **N=12** pasó 7 de 8 semillas. Pero 8 semillas son 8 corridas sobre *el mismo período
+  de test*: miden consistencia entre semillas, no entre épocas. Para un hiperparámetro
+  elegido mirando el test, eso **no es evidencia**. Desde entonces todo se valida en varios
+  períodos, que es por qué las tablas de esta sección dicen "4/4" o "3/7" y no "p < 0,05".
+
+**6. Mercados que se pueden predecir pero no validar.**
+
+Golpes over/under, round exacto, total de rondas. Hay señal: para los golpes significativos
+combinados el AUC es **0,645-0,651** en las líneas 50+/75+/100+/125+, comparable al modelo
+de ganador.
+
+**No se cubren igual**, porque las únicas cuotas históricas del proyecto son moneyline y
+método 6-vías: **cero cuotas históricas de golpes, rondas o asalto exacto**. Sin ellas no
+hay forma de saber si ese 0,65 de AUC le gana al precio, y las casas cotizan bien los
+totales.
+
+El caso de **"¿llega a tarjetas?"** muestra por qué esto importa. El sesgo es real y
+grande: el mercado dice 44,1% (sin comisión) y ocurre **50,2%** — 6 puntos, estables en
+todo el rango de precio y en todos los tramos. Y aun así **pierdes**: cobrar ese sesgo
+dutcheando las dos patas de decisión cuesta 10 puntos de comisión, ROI real **−6,1%
+(t=−3,1)**. Un mercado dedicado de 2 vías cobra ~5% en vez de 22% y ahí sí saldría, pero
+eso es álgebra, no un resultado: no existe una sola cuota histórica de ese mercado para
+probarlo. El camino honesto es empezar a registrarlas ahora y validar en unos meses.
+
+*(Nota metodológica: al calcular "apostar a que NO llega" salía +12,6%. Era falso —
+el precio del "No" estaba construido como complemento sin comisión, o sea un precio que
+ninguna casa ofrece. Toda pata sintética tiene que pagar su propio vig.)*
+
+**7. Datos viejos que se descartan por antigüedad.** El modelo NO entrena con todo el
+historial: usa **los últimos 5 años**. El MMA cambia, y las peleas viejas meten patrones
+que ya no aplican. Validado en 5 períodos por dos métricas: gana 4/5 en AUC (+0,0117) y
+4/5 en accuracy (+0,0096). Se controla con `TRAIN_WINDOW_YEARS` en `config.py`.
 
 ### Monte Carlo
 
@@ -253,13 +360,57 @@ se vea rico, y avisa si las cuotas del CSV son más generosas que las de una cas
 
 ---
 
+## Interfaz web
+
+`lanzar_ui.bat` levanta un servidor local (`127.0.0.1:8000`, sin exponer a la red) que
+hace lo mismo que la consola sin escribir comandos: predice carteleras, baja las cuotas de
+Betano **refrescándolas cada 10 minutos** con marca de movimiento de línea, dispara las
+tareas de mantenimiento con el log en vivo, y arma **parlays de hasta 13 patas**.
+
+No re-implementa nada: la predicción la sigue haciendo la misma `card.predict_card()` que
+usa el CLI, solo que además devuelve sus estructuras en vez de imprimirlas y tirarlas.
+
+Lo único que la UI agrega como lógica propia es el **simulador de parlay**, y su aporte no
+es el EV sino la **fragilidad**. El EV de una combinada de patas independientes es
+`Π(1+EV_i) − 1`, así que 13 patas al +5% dan +88% — un número que invita a apostar y que
+es una trampa: se cae a **cero** si cada probabilidad está sobreestimada un **4,8%**, y el
+Brier del modelo es 0,21. El simulador muestra ese umbral de error en grande y degrada su
+propio veredicto cuando la combinada es larga, aunque las 13 patas vengan del mercado
+probado. Además clasifica cada pata por el respaldo medido del mercado (decisión en método
+t=3,1 / moneyline t=0,3 / finalización t=0,5).
+
+Las selecciones se agrupan en las **tres secciones que Betano ofrece de verdad** — *Quién
+gana*, *Cómo gana 7 vías* (KO, sumisión y decisión separados) y *Cómo gana 5 vías* (cuando
+no separa KO de sumisión) — porque son mercados distintos, con comisiones distintas (~4% vs
+~22%) y disponibilidad distinta por pelea. En una sola lista era imposible ver que una pelea
+con 5 vías simplemente no ofrece KO por separado.
+
+Y bloquea las combinaciones imposibles distinguiendo los **dos motivos**, porque no son lo
+mismo:
+
+- **Excluyentes** — "Gana A" + "Gana B", o "A por KO" + "A por decisión". No pueden pasar
+  las dos; ninguna casa acepta esa combinada.
+- **Similares** — "Gana A" + "A por decisión", o "A por finalización" (5 vías) + "A por KO"
+  (7 vías). Una contiene a la otra, y Betano casi no sube la cuota al combinarlas: estarías
+  pagando dos veces por la misma información.
+
+La detección no enumera casos: cada selección se traduce al conjunto de desenlaces
+elementales que la hacen ganar, sobre `{A_KO, A_SUB, A_DEC, B_KO, B_SUB, B_DEC}`. Si dos
+conjuntos son disjuntos son excluyentes; si se tocan, similares. Agregar un mercado nuevo
+(rounds, distancia) es agregar una entrada al diccionario, no escribir reglas.
+
+---
+
 ## Cómo se usa
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 1. Construir la base (primera vez)
+Y las credenciales de Kaggle, que son lo único que pide login: en kaggle.com →
+*Account* → *Create New API Token*, y el `kaggle.json` va a `~/.kaggle/kaggle.json`.
+
+### 1. Construir la base (primera vez, ~1 hora)
 
 ```bash
 python -m src.ufcstats_events      # resultados históricos (~2 min)
@@ -269,7 +420,12 @@ python -m src.reemplazos           # reemplazos de Wikipedia (~25 min)
 python -m src.bfo_odds             # cuotas recientes que Kaggle no tiene (~12 min)
 python -m src.scraper              # dataset Kaggle + features + ELO
 python train_model.py              # entrena los dos modelos
+python backtest_valor.py           # calibrador del mercado de ganador
+python backtest_metodo.py          # calibrador + modelo de método 6-vías
 ```
+
+Los dos últimos son los que habilitan el análisis de valor: sin ellos `card.py`
+predice igual pero no recomienda apuestas.
 
 ### 2. Mantenerla al día
 
@@ -316,7 +472,7 @@ Islam Makhachev,Ian Machado Garry,Estelar,1.33,3.15,4.50,2.70,5.50,9.00,6.00,13.
 ```bash
 python backtest_carteleras.py 10          # carteleras reales, sin ver el futuro
 python backtest_carteleras.py --evento Ankalaev
-python evaluar_modelo.py                  # calibración por tramos
+python evaluar_modelo.py                  # acierto y calibración fuera de muestra
 python -m src.oposicion "Ilia Topuria"    # últimas 5 peleas de un peleador
 ```
 
@@ -344,8 +500,14 @@ parejas trae cada una.
 - La única ventaja que aguantó el test estadístico es apostar **decisiones en el mercado
   de método** (+16,5% ROI, t=3,1) — un mercado con 22% de comisión, límites bajos y casas
   que cierran cuentas ganadoras.
-- **No predice MMA al 80%.** Los sitios que lo anuncian no están midiendo fuera de
-  muestra. FightMatrix, tras años optimizando, tampoco pasa de "high 60s".
+- **No predice MMA al 80%.** Ni nadie. FightMatrix, tras años optimizando, tampoco pasa de
+  "high 60s", y el mercado mismo acierta 69%. El contraste más claro está publicado por
+  [FightEdge](https://fight-edge.com/accuracy), que reporta **76,8% en su backtest
+  walk-forward** y, en la misma página, **65,5% en predicciones en vivo** (171 registradas)
+  con un edge de **−1,4%** contra la línea de cierre. Los dos números son suyos y son
+  honestos al publicarlos juntos; la lección es que un backtest y el rendimiento real
+  pueden separarse 11 puntos. Cuando este proyecto muestre >80%, la primera hipótesis es
+  leakage, no talento.
 
 ---
 
@@ -357,24 +519,36 @@ src/
   ufcstats_events.py      historial de eventos y resultados
   ufcstats_fighters.py    biometría (altura, alcance, DOB, stance)
   ufcstats_fightstats.py  stats por pelea (golpes, derribos, control)
+  ufcstats_ingest.py      cruce de las tablas de UFCStats con el dataset
   fast_fetch.py           descarga paralela
+  sherdog.py              carrera fuera de UFC (solo al predecir)
   betano_scraper.py       cuotas (sin navegador)
   reemplazos.py           corto aviso vía Wikipedia
   kaggle_ingest.py        ingesta + ELO + features (leak-free)
   bfo_odds.py             cuotas de BestFightOdds (rellena el hueco de Kaggle)
+  scraper.py              orquestador de la ingesta (Kaggle -> features)
   features.py             features diferenciales, ELO graduado, simetría
   oposicion.py            calidad de los últimos rivales
   control_stats.py        grappling/control con lookup sin leakage
+  odds.py                 conversión de cuotas (decimal / americana / implícita)
+  model.py                arquitectura y entrenamiento de los dos modelos
   value.py                EV, Kelly, calibrador con el mercado
   card.py                 orquestador: predice una cartelera
   simulate.py             Monte Carlo
   visuals.py              reportes HTML
 
+webui/
+  server.py               API local (FastAPI) y estáticos
+  engine.py               puente a card.predict_card, sin lógica propia
+  parlay.py               combinadas: evidencia por mercado y fragilidad
+  jobs.py                 tareas largas en subproceso con log en vivo
+  static/                 index.html + app.js + style.css (sin CDN ni build)
+
 train_model.py            entrena ganador + método
 backtest_carteleras.py    valida contra carteleras reales
 backtest_valor.py         walk-forward del mercado de ganador
 backtest_metodo.py        walk-forward del mercado de método
-evaluar_modelo.py         calibración y acierto por umbral
+evaluar_modelo.py         acierto y calibración por tramo, fuera de muestra
 ```
 
 ---
@@ -397,15 +571,32 @@ Este proyecto no habría sido posible sin estas fuentes y trabajos previos:
 - **[Wikipedia](https://en.wikipedia.org/)** — secciones "Background" de cada evento, de
   donde sale qué peleadores entraron de reemplazo.
 - **[Betano](https://lat.betano.com/)** — cuotas de las carteleras próximas.
+- **[Sherdog](https://www.sherdog.com/)** — historial completo de cada peleador, incluidas
+  sus peleas fuera de UFC. Se consulta solo al predecir, para no tratar como desconocido a
+  un debutante que trae 15 peleas profesionales atrás.
 - **[Rajeev Warrier's UFC Dataset](https://www.kaggle.com/datasets/rajeevw/ufcdata)** —
-  usado para inyectar defensa de golpeo y de derribo reales en el entrenamiento.
+  usado para inyectar defensa de golpeo y de derribo reales en el entrenamiento
+  (`data/processed/defense_stats.csv`).
 
-**Ideas**
+**Ideas y referencias metodológicas**
 
 - **[FightMatrix](https://www.fightmatrix.com/2019/09/18/tuning-glicko-what-i-learned-confirmed/)**
   — de su artículo sobre ajustar Glicko para MMA salió el **ELO graduado** (una decisión
   dividida vale 0,55, no 1,00) y la confirmación de que ningún sistema de rating pasa de
-  "high 60s" de acierto.
+  "high 60s" de acierto. También la decisión de **no** usar Glicko-2: ellos lo probaron y
+  reportaron que la *rating deviation* aporta poco en MMA.
+- **[MMA-AI](https://github.com/DanMcInerney/mma-ai)**, de Dan McInerney — el referente
+  público en este problema: cinco años de trabajo, modelo y base de datos abiertos, y ~8%
+  de ROI en moneyline con dinero real. Su decisión de **excluir las cuotas del set de
+  entrenamiento** (incluirlas sube la métrica pero baja el ROI) es la misma que se toma acá
+  con `market_edge`, y fue una confirmación externa útil.
+- **[FightEdge](https://fight-edge.com/accuracy)** — por publicar su backtest (76,8%) junto
+  a su acierto en vivo (65,5%) y su edge contra la línea de cierre. Es el mejor recordatorio
+  disponible de por qué este README reporta números fuera de muestra y no de backtest.
+
+**Herramientas**
+
+XGBoost, scikit-learn, pandas, NumPy, Plotly, BeautifulSoup y Requests.
 
 ---
 

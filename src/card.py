@@ -57,9 +57,13 @@ def _slug(s: str) -> str:
 
 DEFAULT_CARD = C.ROOT / "cards" / "ankalaev_vs_guskov.csv"
 
-# Columnas opcionales del CSV con las 6 cuotas del mercado de MÉTODO.
+# Columnas opcionales del CSV con las 6 cuotas del mercado de MÉTODO (7 vías).
 COL_METODO = ["odds_a_ko", "odds_a_sub", "odds_a_dec",
               "odds_b_ko", "odds_b_sub", "odds_b_dec"]
+
+# Mercado de 5 vías: cuando Betano no separa KO de sumisión, lo apostable es
+# "gana por finalización" y "gana por decisión". Orden = value.CLASES_METODO5.
+COL_METODO5 = ["odds_a_fin", "odds_a_dec", "odds_b_fin", "odds_b_dec"]
 
 
 # --------------------------------------------------------------------------- #
@@ -564,7 +568,7 @@ def _imprimir_consenso(consenso: list[dict], con_cuotas: bool,
 # Orquestador
 # --------------------------------------------------------------------------- #
 def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
-                 detalle: bool = False):
+                 detalle: bool = False, devolver_todo: bool = False):
     """
     Predice una cartelera completa. Si reports=True, además de la tabla CSV
     genera un reporte visual (donut + barras) por pelea en outputs/ (Plotly vía
@@ -572,6 +576,11 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
 
     detalle=True añade las tablas largas (MODELO vs MERCADO y el mercado de
     método pelea por pelea). Por defecto solo se imprime el resumen accionable.
+
+    devolver_todo=True devuelve el dict completo con las estructuras internas
+    (rows/valores/metodos/consenso/missing) en vez de solo el DataFrame. Lo usa
+    la UI web para no re-implementar este bucle: es la MISMA corrida que el CLI,
+    solo que además entrega los objetos en vez de imprimirlos y tirarlos.
     """
     card = pd.read_csv(card_csv)
     model, method_model = _load_models()
@@ -583,6 +592,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     # ¿El CSV trae cuotas? Si sí, se activa el análisis de valor.
     con_cuotas = {"odds_a", "odds_b"}.issubset(card.columns)
     con_metodo = set(COL_METODO).issubset(card.columns)
+    con_metodo5 = set(COL_METODO5).issubset(card.columns)
     calibrador = None
     if con_cuotas:
         from src import value
@@ -595,7 +605,9 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
             print(f"Cuotas detectadas -> las probabilidades mezclan modelo y mercado "
                   f"(70.1% de acierto vs 65.3% del modelo solo).")
         if con_metodo:
-            print("Cuotas de método detectadas -> se analiza el mercado de 6 vías.")
+            print("Cuotas de método detectadas -> se analiza el mercado de 7 vías.")
+        if con_metodo5:
+            print("Cuotas de 5 vías detectadas -> se analiza también finalización/decisión.")
     print()
 
     rows, missing, valores, metodos, consenso = [], [], [], [], []
@@ -610,6 +622,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
             continue
 
         opciones = None
+        opciones5 = None
         # features con el MISMO cálculo que el entrenamiento (incluye grappling)
         from src.ufcstats_ingest import features_pelea
         feat = features_pelea(a, b, _elo(a), _elo(b))
@@ -737,7 +750,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
             })
             valores.append((fila, v))
 
-            # Mercado de MÉTODO (6 vías). Es el único donde el backtest
+            # Mercado de MÉTODO (7 vías). Es el único donde el backtest
             # encontró ventaja real, así que se analiza aparte.
             if con_metodo:
                 cuotas6 = [fight.get(c) for c in COL_METODO]
@@ -747,14 +760,39 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
                     opciones = ops
                 elif ops:
                     print(f"[!] {a['name']} vs {b['name']}: {ops[0]['error']}")
+
+            # Mercado de 5 VÍAS. No es una alternativa al de arriba: es lo que
+            # Betano ofrece cuando NO separa KO de sumisión. Sin esto, esas
+            # peleas se quedaban sin ninguna opción de método.
+            if con_metodo5:
+                cuotas4 = [fight.get(c) for c in COL_METODO5]
+                ops5 = value.analizar_metodo5(X, cuotas4)
+                if ops5 and "error" not in ops5[0]:
+                    opciones5 = ops5
+                elif ops5:
+                    print(f"[!] {a['name']} vs {b['name']} (5 vías): {ops5[0]['error']}")
         rows.append(fila)
+        # `info_*` no lo usa la consola: es para que la UI pueda EXPLICAR por qué
+        # una pelea sale marcada como poco fiable ("solo 1 pelea en UFC", "sin
+        # stats de golpeo") en vez de limitarse a mostrar la etiqueta.
+        def _info(f, src):
+            return {"n_peleas_hist": int(f.get("n_peleas_hist", 0) or 0),
+                    "slpm": float(f.get("slpm", 0) or 0),
+                    "wins": int(f.get("wins", 0) or 0),
+                    "losses": int(f.get("losses", 0) or 0),
+                    "sherdog": bool(f.get("_sherdog")), "fuente": src}
+
         consenso.append({"a": a["name"], "b": b["name"], "sim": sim,
                          "method": method, "pocos": pocos, "v": v,
-                         "metodo6": opciones})
+                         "metodo6": opciones, "metodo5": opciones5,
+                         "info_a": _info(a, sa), "info_b": _info(b, sb)})
 
     if not rows:
         print("No se pudo predecir ninguna pelea (revisa nombres o conexión).")
-        return
+        return {"rows": [], "valores": [], "metodos": [], "consenso": [],
+                "missing": sorted(set(missing)), "con_cuotas": con_cuotas,
+                "con_metodo": con_metodo, "con_metodo5": con_metodo5,
+                "evento": event} if devolver_todo else None
 
     # --- Las tres miradas, por separado ---
     # Se imprimen aparte a propósito. Cuando iban mezcladas en una sola columna,
@@ -796,6 +834,13 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     pd.DataFrame(rows).to_csv(out, index=False)
     print(f"\n[ok] tabla -> {out}")
     print(f"[ok] todo el reporte de esta cartelera -> {out_dir}")
+    if devolver_todo:
+        return {"rows": rows, "valores": valores, "metodos": metodos,
+                "consenso": consenso, "missing": sorted(set(missing)),
+                "con_cuotas": con_cuotas, "con_metodo": con_metodo,
+                "con_metodo5": con_metodo5,
+                "calibrador": calibrador is not None, "evento": event,
+                "hay_corto": hay_corto, "modelo_real": model is not None}
     return pd.DataFrame(rows)
 
 

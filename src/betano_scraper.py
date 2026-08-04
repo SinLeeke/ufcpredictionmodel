@@ -18,8 +18,10 @@ Betano NO siempre separa KO de Sumisión. Por pelea puede haber:
     fuente real para llenar odds_a_ko/odds_a_sub por separado.
   * "Método de victoria (5-way)"  -> KO/TKO/DQ/Sumisión COMBINADOS en una sola
     cuota + Decisión, por peleador (5 = 2 x 2 + empate). Aquí NO existe un
-    número real de "solo KO" ni "solo sumisión", así que esas dos columnas
-    quedan vacías; solo se llena la de decisión.
+    número real de "solo KO" ni "solo sumisión", así que odds_*_ko y odds_*_sub
+    quedan vacías. Lo que SÍ existe es el precio de "gana por finalización",
+    que se guarda en odds_a_fin / odds_b_fin: es una cuota real y apostable,
+    y descartarla dejaba a esas peleas sin ninguna opción de método.
   * Ningún mercado de método activado (a veces solo está "Ganador").
 
 Regla (pedida explícitamente por el usuario): scrapear SOLO lo que el
@@ -51,7 +53,9 @@ _SESSION.headers.update({**C.HEADERS, "Accept-Language": "es-CL,es;q=0.9"})
 
 COLUMNS = ["fighter_a", "fighter_b", "segment", "odds_a", "odds_b",
            "odds_a_ko", "odds_a_sub", "odds_a_dec",
-           "odds_b_ko", "odds_b_sub", "odds_b_dec"]
+           "odds_b_ko", "odds_b_sub", "odds_b_dec",
+           # Solo del 5-way: "gana por finalización" (KO+TKO+DQ+sumisión juntos).
+           "odds_a_fin", "odds_b_fin"]
 
 
 # --------------------------------------------------------------------------- #
@@ -212,7 +216,8 @@ def get_fight_odds(fight: dict) -> dict:
     row = {"fighter_a": fa, "fighter_b": fb, "segment": "",
            "odds_a": "", "odds_b": "",
            "odds_a_ko": "", "odds_a_sub": "", "odds_a_dec": "",
-           "odds_b_ko": "", "odds_b_sub": "", "odds_b_dec": ""}
+           "odds_b_ko": "", "odds_b_sub": "", "odds_b_dec": "",
+           "odds_a_fin": "", "odds_b_fin": ""}
 
     data = _get_json(f"{C.BETANO_BASE}/api{fight['path']}", params={"bt": 2, "req": "s,stnf,c"})
     if data is None:
@@ -243,8 +248,11 @@ def get_fight_odds(fight: dict) -> dict:
             continue
         if met in ("ko", "sub") and not es_7way:
             # 5-way: la cuota de "ko" acá es en realidad KO+TKO+DQ+Sumisión
-            # combinados. No hay cuota real de sumisión sola -> no se llena
-            # ninguna de las dos para no inventar un número.
+            # combinados, o sea "gana por finalización". No se puede repartir
+            # entre odds_*_ko y odds_*_sub sin inventar números, pero sí es una
+            # cuota real y apostable, así que va a su propia columna.
+            if met == "ko":
+                row[f"odds_{lado}_fin"] = sel["price"]
             continue
         row[f"odds_{lado}_{met}"] = sel["price"]
     return row
