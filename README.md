@@ -3,6 +3,18 @@
 Sistema de predicción de peleas de UFC construido de punta a punta: scraping propio →
 features diferenciales → XGBoost → simulación Monte Carlo → reporte.
 
+> **Proyecto personal de un estudiante universitario**, hecho por curiosidad y por
+> diversión. No es un producto, no hay soporte y no pretende ser un servicio de
+> pronósticos.
+>
+> **Úsalo con cautela.** Todo lo que verás son estimaciones estadísticas con su margen
+> de error, medidas y documentadas — no certezas. El propio README dedica una sección a
+> explicar por qué este sistema **no le gana al mercado** apostando al ganador.
+>
+> **Si apuestas, es bajo tu propia responsabilidad.** Las apuestas deportivas tienen
+> valor esperado negativo salvo ventajas muy específicas y difíciles de sostener. Nada
+> acá es consejo financiero.
+
 Acierta **66-69%** de las peleas, y ~70% cuando se le pasan las cuotas del mercado.
 Ese número no es humilde por modestia: es el techo real del problema, y más abajo
 explico por qué.
