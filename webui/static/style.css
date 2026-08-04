@@ -1,63 +1,66 @@
-/* ===========================================================================
-   UFC Predictor — hoja de estilos
-   Dos temas con las mismas variables. Por defecto sigue al sistema; el botón
-   ◐ de la cabecera fuerza uno u otro y queda guardado.
-   =========================================================================== */
-
 :root{
-  --bg:#f6f7f9;  --sup:#ffffff;  --sup2:#f0f2f5;  --linea:#dfe3e8;
-  --txt:#151a21;  --txt2:#5b6472;  --tenue:#828b99;
-  --acento:#2563eb; --acento-sup:#eff4ff;
-  --ok:#15803d;   --ok-sup:#eaf6ee;
-  --mal:#c2410c;  --mal-sup:#fdf0ea;
-  --alerta:#a16207; --alerta-sup:#fdf8e7;
-  --probado:#7c3aed; --probado-sup:#f4efff;
-  --sombra:0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
-  --sombra-md:0 4px 12px rgba(16,24,40,.08);
-  --r:10px; --r-lg:14px;
+  /* Negro, hueso y rojo. La paleta sale del cartel de pelea, no de un dashboard:
+     nada de azul corporativo ni violeta, que era lo que había antes. */
+  --bg:#f2f0ec;  --sup:#ffffff;  --sup2:#e8e5df;  --linea:#d3cec5;
+  --txt:#0d0d0d;  --txt2:#4a4742;  --tenue:#8a857c;
+  --acento:#b71c1c; --acento-sup:#fbeaea;
+  --ok:#1b5e20;   --ok-sup:#e8f0e6;
+  --mal:#b71c1c;  --mal-sup:#fbeaea;
+  --alerta:#8a6d00; --alerta-sup:#faf4e0;
+  --probado:#0d0d0d; --probado-sup:#e8e5df;
+  --tinta:#0d0d0d;          /* el negro del logo, igual en los dos temas */
+  --logo-txt:#ffffff;       /* claro: letras BLANCAS sobre negro */
+  --sombra:none; --sombra-md:0 2px 0 rgba(13,13,13,.08);
+  --r:2px; --r-lg:3px;      /* casi sin redondeo: el look es angular */
+  --display:"Archivo Black",Impact,Haettenschweiler,"Arial Narrow Bold",sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#0f1319;  --sup:#161c25;  --sup2:#1d2530;  --linea:#2a3441;
-    --txt:#e8edf4;  --txt2:#a7b2c1;  --tenue:#7b8797;
-    --acento:#60a5fa; --acento-sup:#152234;
-    --ok:#4ade80;   --ok-sup:#132a1d;
-    --mal:#fb923c;  --mal-sup:#2e1c12;
-    --alerta:#fbbf24; --alerta-sup:#2b2312;
-    --probado:#c084fc; --probado-sup:#241a33;
-    --sombra:0 1px 2px rgba(0,0,0,.3); --sombra-md:0 4px 14px rgba(0,0,0,.35);
+    --bg:#0b0b0c;  --sup:#141416;  --sup2:#1c1c1f;  --linea:#2c2c30;
+    --txt:#f0ece5;  --txt2:#b3ada3;  --tenue:#7d776e;
+    --acento:#e53935; --acento-sup:#2a1414;
+    --ok:#66bb6a;   --ok-sup:#132414;
+    --mal:#e53935;  --mal-sup:#2a1414;
+    --alerta:#d4a017; --alerta-sup:#241d0c;
+    --probado:#f0ece5; --probado-sup:#1c1c1f;
+    --logo-txt:#e53935;     /* oscuro: letras ROJAS sobre negro */
+    --sombra:none; --sombra-md:0 2px 0 rgba(0,0,0,.5);
   }
 }
 :root[data-tema="claro"]{
-  --bg:#f6f7f9;  --sup:#ffffff;  --sup2:#f0f2f5;  --linea:#dfe3e8;
-  --txt:#151a21;  --txt2:#5b6472;  --tenue:#828b99;
-  --acento:#2563eb; --acento-sup:#eff4ff;
-  --ok:#15803d;   --ok-sup:#eaf6ee;
-  --mal:#c2410c;  --mal-sup:#fdf0ea;
-  --alerta:#a16207; --alerta-sup:#fdf8e7;
-  --probado:#7c3aed; --probado-sup:#f4efff;
-  --sombra:0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
-  --sombra-md:0 4px 12px rgba(16,24,40,.08);
+  --bg:#f2f0ec;  --sup:#ffffff;  --sup2:#e8e5df;  --linea:#d3cec5;
+  --txt:#0d0d0d;  --txt2:#4a4742;  --tenue:#8a857c;
+  --acento:#b71c1c; --acento-sup:#fbeaea;
+  --ok:#1b5e20;   --ok-sup:#e8f0e6;
+  --mal:#b71c1c;  --mal-sup:#fbeaea;
+  --alerta:#8a6d00; --alerta-sup:#faf4e0;
+  --probado:#0d0d0d; --probado-sup:#e8e5df;
+  --logo-txt:#ffffff;
+  --sombra:none; --sombra-md:0 2px 0 rgba(13,13,13,.08);
 }
 :root[data-tema="oscuro"]{
-  --bg:#0f1319;  --sup:#161c25;  --sup2:#1d2530;  --linea:#2a3441;
-  --txt:#e8edf4;  --txt2:#a7b2c1;  --tenue:#7b8797;
-  --acento:#60a5fa; --acento-sup:#152234;
-  --ok:#4ade80;   --ok-sup:#132a1d;
-  --mal:#fb923c;  --mal-sup:#2e1c12;
-  --alerta:#fbbf24; --alerta-sup:#2b2312;
-  --probado:#c084fc; --probado-sup:#241a33;
-  --sombra:0 1px 2px rgba(0,0,0,.3); --sombra-md:0 4px 14px rgba(0,0,0,.35);
+  --bg:#0b0b0c;  --sup:#141416;  --sup2:#1c1c1f;  --linea:#2c2c30;
+  --txt:#f0ece5;  --txt2:#b3ada3;  --tenue:#7d776e;
+  --acento:#e53935; --acento-sup:#2a1414;
+  --ok:#66bb6a;   --ok-sup:#132414;
+  --mal:#e53935;  --mal-sup:#2a1414;
+  --alerta:#d4a017; --alerta-sup:#241d0c;
+  --probado:#f0ece5; --probado-sup:#1c1c1f;
+  --logo-txt:#e53935;
+  --sombra:none; --sombra-md:0 2px 0 rgba(0,0,0,.5);
 }
-
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
 body{
   margin:0; background:var(--bg); color:var(--txt);
   font:15px/1.6 -apple-system,"Segoe UI",system-ui,Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-h1{font-size:17px;margin:0;letter-spacing:-.01em}
+/* Los números (cuotas, probabilidades, EV) van en monoespaciada y con cifras
+   de ancho fijo: así las columnas quedan alineadas y no bailan al refrescar en
+   vivo, que era mareante. */
+.cuota,.precio,.pct,td,.num{font-variant-numeric:tabular-nums}
+h1{font-family:var(--display);font-size:19px;margin:0;letter-spacing:.02em;
+   text-transform:uppercase;line-height:1}
 h2{font-size:19px;margin:0 0 4px;letter-spacing:-.015em}
 h3{font-size:14px;margin:0 0 6px}
 p{margin:0 0 10px}
@@ -71,15 +74,33 @@ code{background:var(--sup2);padding:2px 6px;border-radius:5px;font-size:.87em;
 /* ------------------------------ cabecera ------------------------------ */
 header{
   display:flex;justify-content:space-between;align-items:center;gap:16px;
-  padding:12px 24px;background:var(--sup);border-bottom:1px solid var(--linea);
+  padding:13px 24px;background:var(--sup);
+  border-bottom:3px solid var(--tinta);   /* regla gruesa, no sombra */
   position:sticky;top:0;z-index:30;
 }
-.marca{display:flex;align-items:center;gap:11px}
-.logo{
-  width:38px;height:38px;border-radius:9px;display:grid;place-items:center;
-  background:linear-gradient(135deg,var(--acento),var(--probado));
-  color:#fff;font-weight:800;font-size:12px;letter-spacing:.04em;
+:root[data-tema="oscuro"] header{border-bottom-color:var(--acento)}
+/* Sin atributo de tema la página sigue al sistema, así que la regla roja del
+   header y de las secciones necesita también su versión en @media. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-tema="claro"]) header{border-bottom-color:var(--acento)}
+  :root:not([data-tema="claro"]) .mercado-cab{border-bottom-color:var(--acento)}
+  :root:not([data-tema="claro"]) button.primario{background:var(--acento);border-color:var(--acento)}
 }
+.marca{display:flex;align-items:center;gap:11px}
+/* El logo es un SELLO, no un botón: rectángulo negro, sin redondeo y sin
+   degradado. Cambia solo el color de la letra según el tema —blanca en claro,
+   roja en oscuro— porque el relleno negro se mantiene en los dos. */
+.logo{
+  padding:6px 11px 5px;border-radius:0;display:grid;place-items:center;
+  background:var(--tinta);color:var(--logo-txt);
+  font-family:var(--display);font-size:21px;line-height:1;
+  letter-spacing:.06em;text-transform:uppercase;
+  border:2px solid var(--tinta);
+}
+/* En oscuro el sello necesita un borde que lo despegue del fondo casi negro. */
+@media (prefers-color-scheme: dark){ .logo{border-color:#2c2c30} }
+:root[data-tema="oscuro"] .logo{border-color:#2c2c30}
+:root[data-tema="claro"] .logo{border-color:var(--tinta)}
 .cabecera-acciones{display:flex;align-items:center;gap:10px}
 .reloj-caja{
   font-size:12px;color:var(--txt2);background:var(--sup2);padding:6px 11px;
@@ -112,7 +133,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
   padding:11px 14px;color:var(--txt2);font-weight:500;white-space:nowrap;
 }
 .tab:hover{color:var(--txt);border-color:transparent}
-.tab.activa{color:var(--acento);border-bottom-color:var(--acento);font-weight:600}
+.tab.activa{color:var(--txt);border-bottom-color:var(--acento);font-weight:700}
+.tab{text-transform:uppercase;letter-spacing:.06em;font-size:12.5px;font-weight:600}
 .badge{background:var(--sup2);border-radius:99px;padding:1px 8px;font-size:11.5px;
        color:var(--txt2);font-weight:600}
 
@@ -423,3 +445,49 @@ pre#log{
 .vivo-caja.activo{color:#c0392b;border-color:#c0392b}
 .vivo-caja.activo span::before{content:"● ";animation:latido 1.4s ease-in-out infinite}
 @keyframes latido{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ===========================================================================
+   IDENTIDAD — cartel de pelea, no dashboard
+   Lo que había antes era el look SaaS por defecto: degradado azul→violeta,
+   esquinas de 10 px y sombras difusas por todas partes. Esto lo reemplaza por
+   la gramática de un cartel de UFC: negro, hueso y rojo; reglas gruesas en vez
+   de sombras; mayúsculas condensadas; y ángulos rectos.
+   =========================================================================== */
+
+/* Títulos de sección: condensados, en caja alta, con una regla debajo que los
+   ancla. Es lo que hace que la página se lea como un cartel y no como un panel. */
+h2{font-family:var(--display);text-transform:uppercase;letter-spacing:.03em;
+   font-size:20px;line-height:1.1}
+h3{text-transform:uppercase;letter-spacing:.08em;font-size:11.5px;font-weight:700;
+   color:var(--tenue)}
+
+/* Las etiquetas dejan de ser píldoras redondas (otro tic de plantilla) y pasan
+   a ser marcas rectas con borde izquierdo grueso, como un sello. */
+.pill{border-radius:0;border-left-width:3px;text-transform:uppercase;
+      letter-spacing:.05em;font-weight:700;font-size:10.5px;padding:2px 7px}
+
+/* Números en monoespaciada: cuotas y porcentajes se leen como un marcador. */
+.cuota{font-family:var(--mono);font-weight:700;letter-spacing:-.02em}
+
+/* Franja diagonal roja sobre el sello del logo — el guiño al cartel. Es un
+   ::after y no una imagen para no cargar assets. */
+.marca{position:relative}
+.logo{position:relative;overflow:hidden}
+.logo::after{content:"";position:absolute;inset:auto -20% -3px -20%;height:3px;
+  background:var(--acento);transform:rotate(-4deg)}
+
+/* Las tarjetas pierden la sombra difusa y ganan una regla superior: agrupan por
+   estructura, no por profundidad falsa. */
+.pata{border-radius:0;border-left:3px solid transparent}
+.pata.elegida{border-left-color:var(--acento)}
+.mercado-cab h3{font-family:var(--display);font-size:15px;color:var(--txt);
+  letter-spacing:.03em}
+.mercado-cab{border-bottom-width:3px;border-bottom-color:var(--tinta)}
+:root[data-tema="oscuro"] .mercado-cab{border-bottom-color:var(--acento)}
+
+/* Botón principal: bloque sólido, sin degradado ni sombra. */
+button.primario{border-radius:0;text-transform:uppercase;letter-spacing:.06em;
+  font-weight:700;font-size:12px;background:var(--tinta);color:#fff;
+  border:2px solid var(--tinta)}
+button.primario:hover:not(:disabled){background:var(--acento);border-color:var(--acento)}
+:root[data-tema="oscuro"] button.primario{background:var(--acento);border-color:var(--acento)}
