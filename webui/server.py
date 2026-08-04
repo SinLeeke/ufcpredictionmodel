@@ -1,6 +1,6 @@
 """
 server.py
-Servidor local de la UI. Se lanza con `lanzar_ui.bat` o:
+Servidor local de la UI. Se lanza con `scripts/lanzar_ui.bat` o:
 
     python -m webui.server
 
@@ -244,6 +244,19 @@ def reporte(evento: str, archivo: str):
 @app.exception_handler(Exception)
 async def _err(request, exc):                                # noqa: ANN001
     return JSONResponse({"detail": str(exc)}, status_code=500)
+
+
+@app.middleware("http")
+async def _sin_cache(request, call_next):
+    """
+    La UI se sirve desde el disco local, así que cachearla no ahorra nada y en
+    cambio hace que tras editar el HTML o el CSS el navegador siga mostrando la
+    versión vieja hasta un Ctrl+F5. Se desactiva el caché para los estáticos.
+    """
+    resp = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store, must-revalidate"
+    return resp
 
 
 app.mount("/", StaticFiles(directory=str(STATIC), html=True), name="static")

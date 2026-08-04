@@ -156,6 +156,13 @@ function pintarCartelera(d, mov) {
     'Hay cuotas pero falta el calibrador, que es lo que permite combinar el modelo con el mercado. Ve a Mantenimiento → "Recalcular el calibrador de ganador". Sin él las señales de valor no son de fiar.']);
   if (!d.con_cuotas) av.push(['warn','ℹ',
     'Esta cartelera no trae cuotas, así que se predice pero no se puede decir dónde hay valor ni armar combinadas. Bajarla desde Betano suma cuotas y ~3 puntos de acierto.']);
+  // Caso muy frecuente y que sin explicación se lee como si el sistema fallara:
+  // hay cuotas de ganador pero Betano todavía no abrió el mercado de método, que
+  // es justo el único con ventaja demostrada. Sin este aviso el usuario ve una
+  // pantalla entera de "sin ventaja clara" y no sabe si es culpa del modelo.
+  const hayMetodo = d.patas.some(p => p.mercado !== 'ganador');
+  if (d.con_cuotas && !hayMetodo) av.push(['warn','⏳',
+    '<b>Betano todavía no abre el mercado de método para esta cartelera.</b> Por ahora solo publica "Ganador", que es precisamente el mercado donde las pruebas <b>no</b> encontraron ventaja — por eso todas las selecciones salen como <i>sin ventaja clara</i>. No es un fallo del modelo ni falta de datos. Los mercados de método (KO / sumisión / decisión) suelen abrirse en los días previos al evento: vuelve a refrescar más cerca de la fecha y aparecerán las selecciones <i>probadas</i>.']);
   if (d.missing.length) av.push(['warn','🔍',
     `No encontré a estos peleadores en ninguna fuente, probablemente son debutantes absolutos: <b>${d.missing.map(esc).join(', ')}</b>. Sus peleas se omiten en vez de inventar datos.`]);
   const sosp = d.peleas.filter(p => (p.metodo6 || []).some(o => o.sospechoso));
@@ -271,13 +278,17 @@ function tarjetaPelea(p, d) {
     </div>
 
     <div class="duelo">
-      <span class="lado-nombre ${ganaA?'gana':''}">${esc(p.a)}</span>
-      <span class="lado-pct ${ganaA?'gana':''}">${pct(p.p_a)}</span>
+      <div class="esquina a">
+        <span class="lado-nombre ${ganaA?'gana':''}">${esc(p.a)}</span>
+        <span class="lado-pct ${ganaA?'gana':''}">${pct(p.p_a)}</span>
+      </div>
+      <div class="esquina b">
+        <span class="lado-nombre ${!ganaA?'gana':''}">${esc(p.b)}</span>
+        <span class="lado-pct ${!ganaA?'gana':''}">${pct(p.p_b)}</span>
+      </div>
       <div class="barra-dual">
         <i class="ba" style="width:${p.p_a*100}%"></i><i class="bb" style="width:${p.p_b*100}%"></i>
       </div>
-      <span class="lado-nombre ${!ganaA?'gana':''}">${esc(p.b)}</span>
-      <span class="lado-pct ${!ganaA?'gana':''}">${pct(p.p_b)}</span>
     </div>
 
     <div class="metodo-fila">
@@ -410,8 +421,16 @@ function pintarPatas() {
       <div class="top">
         <div>
           <div class="sel">${esc(p.seleccion)}</div>
-          <div class="meta">${esc(p.pelea)} · el modelo le da ${pct(p.p)}
-            <span class="pill t${p.tier}">${esc(p.tier_nombre)}</span></div>
+          <div class="meta">
+            <span class="pill n-${p.nivel}" title="${esc(p.nivel_detalle)}">${esc(p.nivel)}</span>
+            <span class="pill t${p.tier}" title="Esto habla del PRECIO, no de la probabilidad: ${esc(p.tier_detalle)}">${esc(p.tier_nombre)}</span>
+          </div>
+          <div class="probs">
+            <span title="Lo que dice el modelo por su cuenta, sin mirar la cuota">
+              modelo <b>${p.p_modelo != null ? pct(p.p_modelo) : '—'}</b></span>
+            <span title="El modelo combinado con la línea de la casa. Es la estimación más certera de las dos (~70% de acierto contra 67%).">
+              con la cuota <b>${pct(p.p)}</b></span>
+          </div>
         </div>
         <div class="precio">
           <span class="cuota">${p.cuota.toFixed(2)}</span>
@@ -434,12 +453,29 @@ function pintarPatas() {
     const patas = lista.filter(p => p.mercado === clave);
     if (!patas.length) return '';
     const m = mercados[clave];
+
+    // Dentro del mercado se agrupa por PELEA y las opciones van lado a lado.
+    // Antes salían una debajo de otra y había que subir y bajar para ver quién
+    // peleaba contra quién; enfrentadas se leen de un vistazo y se nota al toque
+    // que elegir una bloquea a la otra.
+    const porPelea = new Map();
+    patas.forEach(p => {
+      if (!porPelea.has(p.fight_id)) porPelea.set(p.fight_id, []);
+      porPelea.get(p.fight_id).push(p);
+    });
+
+    const grupos = Array.from(porPelea.values()).map(ps => `
+      <div class="pelea-grupo">
+        <div class="pelea-grupo-cab">${esc(ps[0].pelea)}</div>
+        <div class="pelea-grupo-opciones">${ps.map(tarjeta).join('')}</div>
+      </div>`).join('');
+
     return `<section class="mercado-bloque">
       <header class="mercado-cab">
         <h3>${esc(m.nombre)} <span class="cuenta">${patas.length}</span></h3>
         <p>${esc(m.descripcion)}</p>
       </header>
-      ${patas.map(tarjeta).join('')}
+      ${grupos}
     </section>`;
   }).filter(Boolean).join('');
 
@@ -509,7 +545,10 @@ async function evaluarParlay() {
           <div class="expl">1 de cada ${miles(r.una_de_cada)} intentos</div></div>
         <div class="metrica"><div class="k">Cuánto apostar</div>
           <div class="v">${miles(r.stake_sugerido)}</div>
-          <div class="expl">${pct(r.kelly)} del bankroll</div></div>
+          <div class="expl">${pct(r.kelly)} de tu bankroll.
+            ${r.kelly < 0.005
+              ? '<b>Prácticamente cero: así es como el sistema dice que no apuestes esto.</b> Una combinada que sí convenga suele quedar entre el 1 % y el 4 %.'
+              : 'Sobre el total que apartaste para apostar, no sobre esta apuesta.'}</div></div>
         <div class="metrica destacada">
           <div class="k">Margen de error que aguanta</div>
           <div class="v ${r.error_tolerable >= r.umbral_fragil ? 'pos':'neg'}">${pct(r.error_tolerable,1)}</div>
@@ -682,6 +721,49 @@ async function seguirJob() {
 }
 
 $('#btn-cancelar').onclick = () => S.job && post(`/api/tareas/${S.job}/cancelar`);
+
+/* ====================== BARRA SUPERIOR AL HACER SCROLL ================= */
+/* Al bajar se esconde entera (cabecera + pestañas) para dejar la pantalla a la
+   cartelera; al subir aunque sea un poco, vuelve. El umbral evita que
+   parpadee con el rebote del scroll o con movimientos de un par de píxeles. */
+(() => {
+  const barra = $('#barra-superior');
+  const UMBRAL = 8;      // px que hay que mover para que reaccione
+  const LIBRE  = 90;     // arriba del todo siempre se muestra
+  let ultimo = window.scrollY;
+  let ultimoTick = 0;
+
+  const evaluar = () => {
+    const y = window.scrollY;
+    const delta = y - ultimo;
+    if (Math.abs(delta) <= UMBRAL) return;
+    // Nunca esconderla cerca del tope, ni con un modal abierto (ahí el fondo no
+    // scrollea y esconderla dejaría la página descabezada al cerrarlo).
+    const ocultar = delta > 0 && y > LIBRE && $('#modal').classList.contains('oculto');
+    barra.classList.toggle('oculta', ocultar);
+    // El boleto del parlay es sticky y se posiciona bajo la barra: si la barra
+    // se fue, puede subir también en vez de dejar un hueco.
+    document.documentElement.style.setProperty('--tope', ocultar ? '18px' : '118px');
+    ultimo = y;
+  };
+
+  // Throttle por tiempo y no con requestAnimationFrame: rAF no corre cuando la
+  // pestaña está oculta, y un latch booleano esperando un frame que no llega
+  // deja el handler mudo. Leer scrollY no fuerza layout, así que 60 ms sobra.
+  addEventListener('scroll', () => {
+    const ahora = performance.now();
+    if (ahora - ultimoTick < 60) return;
+    ultimoTick = ahora;
+    evaluar();
+  }, { passive: true });
+
+  // Cambiar de pestaña vuelve al tope: la barra tiene que reaparecer.
+  $$('.tab').forEach(t => t.addEventListener('click', () => {
+    barra.classList.remove('oculta');
+    document.documentElement.style.setProperty('--tope', '118px');
+    ultimo = 0;
+  }));
+})();
 
 /* ============================== ARRANQUE ============================== */
 tick();

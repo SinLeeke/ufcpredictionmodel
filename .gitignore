@@ -27,8 +27,8 @@ outputs/
 cards/*
 !cards/ejemplo_con_cuotas.csv
 
-# Backup local de un modelo viejo
-backup_modelo_kaggle/
+# Backups locales de modelos/datasets viejos (una subcarpeta por fecha)
+backups/
 
 # PDF del manual: se regenera, no es fuente
 MANUAL.pdf

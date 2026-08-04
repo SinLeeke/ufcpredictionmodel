@@ -68,21 +68,39 @@ code{background:var(--sup2);padding:2px 6px;border-radius:5px;font-size:.87em;
      font-family:ui-monospace,Consolas,monospace}
 .oculto{display:none !important}
 .sub{color:var(--tenue);font-size:12.5px;display:block}
-.nota{color:var(--txt2);font-size:13.5px;max-width:80ch}
+/* Sin tope de ancho: `max-width:80ch` a 13.5px son ~540px, o sea que los textos
+   de sección quedaban en el 40% izquierdo con las tarjetas ocupando todo el
+   ancho debajo, y se leía desbalanceado. Las páginas de lectura larga (la Guía,
+   la bienvenida, el pie) sí conservan su propio tope. */
+.nota{color:var(--txt2);font-size:13.5px}
 .ico{font-size:1.05em;line-height:1}
 
 /* ------------------------------ cabecera ------------------------------ */
-header{
+/* Cabecera y pestañas comparten UN solo contenedor sticky. Con dos sticky
+   independientes había que acertarle a mano al `top` del segundo, y cualquier
+   diferencia de altura dejaba una franja cortada al hacer scroll. */
+.barra-superior{
+  position:sticky;top:0;z-index:30;
+  transition:transform .28s cubic-bezier(.4,0,.2,1);
+}
+/* Al bajar se esconde entera; al subir vuelve. La clase la pone app.js. */
+.barra-superior.oculta{transform:translateY(-100%)}
+
+/* OJO: el selector va atado a `.barra-superior`, no a `header` a secas. Las
+   secciones de mercado de la combinada también son <header> (`.mercado-cab`), y
+   con el selector suelto heredaban `display:flex` + `space-between`: el título
+   "QUIÉN GANA" se partía en dos líneas y su descripción se iba al costado
+   derecho, como si fuera otra barra de navegación. */
+.barra-superior>header{
   display:flex;justify-content:space-between;align-items:center;gap:16px;
   padding:13px 24px;background:var(--sup);
   border-bottom:3px solid var(--tinta);   /* regla gruesa, no sombra */
-  position:sticky;top:0;z-index:30;
 }
-:root[data-tema="oscuro"] header{border-bottom-color:var(--acento)}
+:root[data-tema="oscuro"] .barra-superior>header{border-bottom-color:var(--acento)}
 /* Sin atributo de tema la página sigue al sistema, así que la regla roja del
    header y de las secciones necesita también su versión en @media. */
 @media (prefers-color-scheme: dark){
-  :root:not([data-tema="claro"]) header{border-bottom-color:var(--acento)}
+  :root:not([data-tema="claro"]) .barra-superior>header{border-bottom-color:var(--acento)}
   :root:not([data-tema="claro"]) .mercado-cab{border-bottom-color:var(--acento)}
   :root:not([data-tema="claro"]) button.primario{background:var(--acento);border-color:var(--acento)}
 }
@@ -140,7 +158,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 /* -------------------------------- tabs -------------------------------- */
 .tabs{
   display:flex;gap:4px;padding:0 24px;background:var(--sup);
-  border-bottom:1px solid var(--linea);position:sticky;top:71px;z-index:29;
+  border-bottom:1px solid var(--linea);
   overflow-x:auto;
 }
 .tab{
@@ -163,9 +181,38 @@ main{padding:22px 24px 80px;max-width:1360px;margin:0 auto}
 .barra.error{background:var(--mal-sup);color:var(--mal)}
 
 .bloque{margin:26px 0}
-.bloque-cab{margin-bottom:12px}
-.bloque-cab.fila{display:flex;justify-content:space-between;align-items:flex-end;
-                 gap:14px;flex-wrap:wrap}
+/* Cabecera de sección: título a la izquierda, su explicación al lado, y una
+   regla gruesa que cruza TODO el ancho por debajo.
+   La regla no es adorno: sin ella el bloque se leía "pegado a la izquierda",
+   porque un párrafo legible ocupa la mitad de un contenedor de 1360 px y el
+   resto quedaba en blanco. Estirar el texto a los 1360 px tampoco servía —son
+   líneas de 170 caracteres—, así que el ancho lo marca la regla y el texto
+   conserva su medida. */
+.bloque-cab{
+  display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;
+  gap:2px 22px;margin-bottom:14px;padding-bottom:9px;
+  border-bottom:3px solid var(--tinta);
+}
+.bloque-cab>h2{grid-column:1}
+.bloque-cab>.nota,.bloque-cab>.sub{grid-column:2;max-width:86ch}
+:root[data-tema="oscuro"] .bloque-cab{border-bottom-color:var(--acento)}
+@media (prefers-color-scheme: dark){
+  :root:not([data-tema="claro"]) .bloque-cab{border-bottom-color:var(--acento)}
+}
+/* La variante con control a la derecha (Tarjetas/Tabla, botonera, contador…).
+   La regla es por descarte —todo lo que no sea el título ni su explicación— para
+   no tener que ir agregando el selector de cada control nuevo. */
+.bloque-cab.fila{grid-template-columns:auto minmax(0,1fr) auto}
+.bloque-cab.fila>*:not(h2):not(.nota):not(.sub){
+  grid-column:3;justify-self:end;align-self:center;
+}
+/* En pantallas angostas el título y su explicación no caben lado a lado. */
+@media (max-width:900px){
+  .bloque-cab{grid-template-columns:minmax(0,1fr)}
+  .bloque-cab.fila{grid-template-columns:minmax(0,1fr) auto}
+  .bloque-cab>.nota,.bloque-cab>.sub{grid-column:1/-1;max-width:none}
+  .bloque-cab.fila>*:not(h2):not(.nota):not(.sub){grid-column:2;grid-row:1}
+}
 
 /* ----------------------------- bienvenida ----------------------------- */
 .bienvenida{
@@ -220,13 +267,19 @@ main{padding:22px 24px 80px;max-width:1360px;margin:0 auto}
 .pelea-seg{font-size:11px;color:var(--tenue);text-transform:uppercase;
            letter-spacing:.07em;font-weight:600}
 
-.duelo{display:grid;grid-template-columns:1fr auto;gap:4px 14px;align-items:center}
-.lado{display:contents}
-.lado-nombre{font-weight:600;font-size:15px}
+/* Los dos peleadores enfrentados: cada uno con su nombre y, JUSTO DEBAJO, su
+   porcentaje. Antes el nombre iba a la izquierda y su porcentaje a la derecha,
+   lo que dejaba el número de A pegado al nombre de B y se leía cruzado. */
+.duelo{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;align-items:start}
+.esquina{display:flex;flex-direction:column;gap:1px;min-width:0}
+.esquina.b{align-items:flex-end;text-align:right}
+.lado-nombre{font-weight:600;font-size:15px;line-height:1.3;overflow-wrap:anywhere}
 .lado-nombre.gana{color:var(--acento)}
-.lado-pct{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px;text-align:right}
+.lado-pct{font-variant-numeric:tabular-nums;font-weight:700;font-size:20px;
+          line-height:1.15;letter-spacing:-.02em;color:var(--txt2)}
+.lado-pct.gana{color:var(--acento)}
 .barra-dual{grid-column:1/-1;height:9px;border-radius:99px;overflow:hidden;
-            display:flex;background:var(--sup2);margin:7px 0}
+            display:flex;background:var(--sup2);margin:10px 0 0}
 .barra-dual i{display:block;height:100%}
 .barra-dual .ba{background:var(--acento)}
 .barra-dual .bb{background:var(--tenue);opacity:.5}
@@ -294,7 +347,8 @@ tbody tr:last-child td{border-bottom:none}
 
 .parlay-grid{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
 @media(max-width:1080px){.parlay-grid{grid-template-columns:1fr}}
-.col-boleto{position:sticky;top:118px}
+/* --tope lo mueve app.js según si la barra superior está visible o escondida. */
+.col-boleto{position:sticky;top:var(--tope,118px);transition:top .28s cubic-bezier(.4,0,.2,1)}
 .boleto-caja{background:var(--sup);border:1px solid var(--linea);border-radius:var(--r-lg);
              padding:16px;box-shadow:var(--sombra)}
 
@@ -303,6 +357,20 @@ tbody tr:last-child td{border-bottom:none}
 .filtros-tit{font-size:12px;color:var(--tenue)}
 .chk{display:flex;align-items:center;gap:6px;cursor:pointer}
 .chk.sep{border-left:1px solid var(--linea);padding-left:12px}
+
+/* Las opciones de UNA pelea, enfrentadas en la misma línea. Leerlas de a pares
+   evita ir subiendo y bajando para saber quién pelea contra quién, y hace
+   evidente que elegir una bloquea a la otra. */
+.pelea-grupo{margin:14px 0}
+.pelea-grupo-cab{
+  font-size:12px;font-weight:700;color:var(--txt2);text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:6px;padding-left:2px;
+}
+.pelea-grupo-opciones{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;
+  align-items:start;
+}
+.pelea-grupo-opciones .pata{margin:0}
 
 .pata{background:var(--sup);border:1px solid var(--linea);border-radius:var(--r);
       padding:13px 15px;margin:9px 0;cursor:pointer;transition:.13s;box-shadow:var(--sombra)}
@@ -314,8 +382,20 @@ tbody tr:last-child td{border-bottom:none}
 .pata .sel{font-weight:600;font-size:14.5px}
 .pata .precio{text-align:right;white-space:nowrap}
 .pata .cuota{font-variant-numeric:tabular-nums;font-weight:700;font-size:16px;display:block}
-.pata .meta{color:var(--tenue);font-size:12.5px;margin-top:3px;display:flex;gap:8px;
+.pata .meta{color:var(--tenue);font-size:12.5px;margin-top:5px;display:flex;gap:6px;
             align-items:center;flex-wrap:wrap}
+/* Las dos probabilidades, separadas a propósito: antes se mostraba una sola
+   rotulada "el modelo le da" cuando en realidad ya venía mezclada con la cuota. */
+.pata .probs{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;
+             font-size:12px;color:var(--tenue)}
+.pata .probs b{color:var(--txt2);font-family:var(--mono);font-weight:700}
+
+/* Qué tan probable lo ve el sistema. Eje distinto al de la evidencia, así que
+   usa una escala de color propia: verde seguro -> gris moneda al aire. */
+.pill.n-segura  {background:var(--ok-sup);   color:var(--ok);     border-color:var(--ok)}
+.pill.n-buena   {background:var(--acento-sup);color:var(--acento);border-color:var(--acento)}
+.pill.n-leve    {background:var(--alerta-sup);color:var(--alerta);border-color:var(--alerta)}
+.pill.n-coinflip{background:var(--sup2);     color:var(--tenue);  border-color:var(--linea)}
 .pata .porque{font-size:12.5px;margin-top:9px;padding-top:9px;color:var(--txt2);
               border-top:1px dashed var(--linea)}
 .pata .porque .si{color:var(--ok)}
@@ -332,8 +412,12 @@ tbody tr:last-child td{border-bottom:none}
 .boleto-item button:hover{color:var(--mal)}
 .boleto-vacio{color:var(--tenue);font-size:13px;padding:16px;text-align:center}
 .campo-inline{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.campo-inline label{font-size:13px;color:var(--txt2)}
-.campo-inline input{flex:1}
+.campo-inline label{font-size:13px;color:var(--txt2);display:flex;flex-direction:column;
+                    line-height:1.25;flex-shrink:0}
+/* La aclaración va pegada al campo: "bankroll" a secas se lee como "cuánto
+   quiero apostar", y con eso el stake sugerido sale absurdamente chico. */
+.campo-inline label small{font-size:11px;color:var(--tenue);font-weight:400}
+.campo-inline input{flex:1;min-width:90px}
 
 .veredicto{padding:14px 15px;border-radius:var(--r);margin-bottom:12px;
            border:1px solid;font-size:13.5px;line-height:1.55}
@@ -429,9 +513,15 @@ pre#log{
 
 @media(max-width:640px){
   header,.tabs,main{padding-left:14px;padding-right:14px}
-  .tabs{top:63px}
   h2{font-size:17px}
   .metricas{grid-template-columns:1fr}
+  .duelo{gap:0 10px}
+  .esquina .lado-pct{font-size:17px}
+}
+
+/* Quien prefiera menos movimiento no ve la barra deslizarse. */
+@media (prefers-reduced-motion: reduce){
+  .barra-superior{transition:none}
 }
 
 /* --- Secciones por mercado (Quién gana / 7 vías / 5 vías) ---------------- */
@@ -495,6 +585,9 @@ h3{text-transform:uppercase;letter-spacing:.08em;font-size:11.5px;font-weight:70
    estructura, no por profundidad falsa. */
 .pata{border-radius:0;border-left:3px solid transparent}
 .pata.elegida{border-left-color:var(--acento)}
+/* El nombre de la pelea, con la misma tipografía de cartel que los mercados. */
+.pelea-grupo-cab{font-family:var(--display);letter-spacing:.04em;
+  border-left:3px solid var(--acento);padding-left:8px}
 .mercado-cab h3{font-family:var(--display);font-size:15px;color:var(--txt);
   letter-spacing:.03em}
 .mercado-cab{border-bottom-width:3px;border-bottom-color:var(--tinta)}

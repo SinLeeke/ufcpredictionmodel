@@ -8,6 +8,12 @@
 </head>
 <body>
 
+<!-- Cabecera y pestañas van en UN solo contenedor sticky. Antes cada una tenía
+     su propio `top` y el de las pestañas era un offset fijo (71px) que no
+     coincidía con la altura real de la cabecera: se veía una franja cortada al
+     hacer scroll. Con un contenedor único no hay offset que calzar, y además
+     permite esconder las dos juntas al bajar. -->
+<div class="barra-superior" id="barra-superior">
 <header>
   <div class="marca">
     <div class="logo" aria-label="UFC"><span>UFC</span></div>
@@ -42,6 +48,7 @@
             title="Soltar esta cartelera">×</button>
   </div>
 </nav>
+</div>
 
 <div id="barra-estado" class="barra oculto"></div>
 
@@ -84,11 +91,11 @@
     </section>
 
     <section class="bloque">
+      <!-- Sin <div> envolviendo al título: `.bloque-cab` es un grid y necesita
+           al h2, a su nota y al control como hijos DIRECTOS. -->
       <div class="bloque-cab fila">
-        <div>
-          <h2>Las peleas</h2>
-          <p class="nota" id="nota-base"></p>
-        </div>
+        <h2>Las peleas</h2>
+        <p class="nota" id="nota-base"></p>
         <div class="segmentado">
           <button class="seg activa" data-vista="tarjetas">Tarjetas</button>
           <button class="seg" data-vista="tabla">Tabla</button>
@@ -145,7 +152,8 @@
           </div>
           <div id="boleto"></div>
           <div class="campo-inline">
-            <label for="bankroll">Bankroll</label>
+            <label for="bankroll">Bankroll
+              <small>toda tu plata para apostar, no esta apuesta</small></label>
             <input type="number" id="bankroll" value="100" min="1" step="10">
           </div>
           <div id="parlay-resultado"></div>
@@ -218,7 +226,8 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
   <div id="lista-tareas" class="cols"></div>
 
   <div class="bloque-cab fila">
-    <div><h2>Registro</h2><span id="job-estado" class="sub">sin tareas corriendo</span></div>
+    <h2>Registro</h2>
+    <span id="job-estado" class="sub">sin tareas corriendo</span>
     <button id="btn-cancelar" class="peligro oculto">Cancelar</button>
   </div>
   <pre id="log"></pre>
@@ -354,7 +363,43 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
           muchas; los eventos grandes, casi ninguna.</p></div>
     </div>
 
-    <h2>Las etiquetas de las apuestas</h2>
+    <h2>Las dos etiquetas de cada selección</h2>
+    <p>Cada selección de la combinada lleva <b>dos</b> etiquetas porque responden preguntas
+      distintas, y confundirlas desorienta:</p>
+    <div class="tarjetas-info">
+      <div class="info-card ancha">
+        <b>1. ¿Qué tan probable es?</b>
+        <p>Habla del <b>pronóstico</b>: cuántas veces de cada cien debería pasar. No mira
+          el precio para nada.</p>
+        <p style="margin-top:8px">
+          <span class="pill n-segura">segura</span> 80 % o más ·
+          <span class="pill n-buena">buena</span> 60-80 % ·
+          <span class="pill n-leve">leve</span> 55-60 % ·
+          <span class="pill n-coinflip">coinflip</span> menos de 55 %</p>
+        <p style="margin-top:8px"><b>"Segura" no quiere decir infalible.</b> En ese tramo el
+          acierto real medido ronda el 85 %, o sea que falla alrededor de 1 de cada 7.</p>
+      </div>
+      <div class="info-card ancha">
+        <b>2. ¿Está bien pagada?</b>
+        <p>Habla del <b>precio</b>, no de la pelea. Una selección puede ser muy probable y
+          aun así mala apuesta, si la casa ya la cobró de más. Son las etiquetas
+          <i>Probado</i>, <i>Sin ventaja clara</i> y <i>Ruido</i> que se explican abajo.</p>
+      </div>
+    </div>
+
+    <h3>Los dos porcentajes</h3>
+    <p>Bajo cada selección aparecen dos números y no son lo mismo:</p>
+    <dl class="glosario">
+      <dt>modelo</dt>
+      <dd>Lo que estima el modelo <b>por su cuenta</b>, mirando solo a los peleadores.</dd>
+      <dt>con la cuota</dt>
+      <dd>El modelo <b>combinado con la línea de la casa</b>. Es la estimación más certera de
+        las dos: acierta ~70 % contra ~67 % del modelo solo. Cuando los dos números se
+        separan mucho, la casa y el modelo están en desacuerdo — y está medido que en esos
+        casos <b>el que suele equivocarse es el modelo</b>.</dd>
+    </dl>
+
+    <h2>Las etiquetas de precio</h2>
     <p class="nota">Acá está la idea central del sistema. No todas las apuestas valen lo
       mismo, aunque prometan el mismo retorno, porque no todas tienen la misma evidencia
       detrás. Se probó cada mercado sobre miles de apuestas históricas:</p>

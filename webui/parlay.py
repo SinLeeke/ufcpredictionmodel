@@ -156,6 +156,35 @@ _COBERTURA = {
 }
 
 
+# --------------------------------------------------------------------------- #
+# Qué tan probable lo ve el sistema (eje distinto al de la evidencia)
+# --------------------------------------------------------------------------- #
+# El nivel de evidencia responde "¿vale la pena el PRECIO?". Esto responde otra
+# pregunta, la que se hace uno primero: "¿qué tan probable es que pase?".
+# Son independientes: una selección puede ser muy probable y aun así mal pagada.
+#
+# Los porcentajes de acierto son los MEDIDOS por tramo sobre peleas fuera de
+# muestra, y van pegados a cada etiqueta a propósito: "segura" a secas haría
+# creer que no falla, y a ese nivel falla alrededor de 1 de cada 7 veces.
+NIVELES = [
+    (0.80, "segura",   "El sistema la ve muy clara. En este tramo acierta cerca del 85 %, "
+                       "o sea que aun así falla alrededor de 1 de cada 7."),
+    (0.60, "buena",    "Favorito con margen. En este tramo el acierto real ronda el 70-73 %."),
+    (0.55, "leve",     "Favorito por poco. El acierto real acá está entre 55 % y 60 %: "
+                       "existe la ventaja, pero es chica."),
+    (0.00, "coinflip", "Pelea pareja. Por debajo de 55 % el acierto real ronda el 50 %, "
+                       "que es lo mismo que tirar una moneda."),
+]
+
+
+def nivel_confianza(p: float) -> tuple[str, str]:
+    """(etiqueta, explicación) según la probabilidad estimada."""
+    for corte, nombre, detalle in NIVELES:
+        if p >= corte:
+            return nombre, detalle
+    return NIVELES[-1][1], NIVELES[-1][2]
+
+
 @dataclass
 class Pata:
     """Una pata candidata del parlay."""
@@ -165,9 +194,12 @@ class Pata:
     mercado: str          # "ganador" | "metodo7" | "metodo5"
     seleccion: str        # texto para humanos
     clase: str            # "A"/"B", "A_KO"…, "A_FIN"…
-    p: float              # probabilidad final (calibrada si había cuotas)
+    p: float              # probabilidad final (mezclada con el mercado si hay cuotas)
     cuota: float          # decimal, tal como la paga Betano
     tier: str
+    # Probabilidad del modelo SOLO, sin mirar la cuota. Se guarda aparte porque
+    # la interfaz decía "el modelo le da X %" mostrando en realidad la mezcla.
+    p_modelo: float | None = None
     avisos: list[str] = field(default_factory=list)
 
     @property
@@ -196,7 +228,13 @@ class Pata:
             "tier_detalle": t["detalle"], "avisos": self.avisos,
             "apostable": self.apostable,
             "veredicto": self.veredicto(), "por_que": self.por_que(),
+            "p_modelo": None if self.p_modelo is None else round(self.p_modelo, 4),
+            "nivel": self.nivel()[0], "nivel_detalle": self.nivel()[1],
         }
+
+    def nivel(self) -> tuple[str, str]:
+        """Qué tan probable la ve el sistema. Independiente de si está bien pagada."""
+        return nivel_confianza(self.p)
 
     def veredicto(self) -> str:
         """
@@ -286,14 +324,17 @@ def patas_de_cartelera(consenso: list[dict]) -> list[Pata]:
         v = c.get("v")
         if v is not None:
             sim = c["sim"]
+            pm_a = getattr(v, "p_modelo_a", None)
             for lado, nombre, p in (("A", na, sim.p_a), ("B", nb, sim.p_b)):
                 cuota = _decimal(v, lado)
                 if cuota is None:
                     continue
+                pm = None if pm_a is None else (pm_a if lado == "A" else 1 - pm_a)
                 patas.append(Pata(
                     id=f"{fid}:ML:{lado}", fight_id=fid, pelea=pelea,
                     mercado="ganador", seleccion=f"Gana {nombre}",
                     clase=lado, p=float(p), cuota=cuota, tier="B",
+                    p_modelo=None if pm is None else float(pm),
                     avisos=list(aviso_datos),
                 ))
 
@@ -313,7 +354,8 @@ def patas_de_cartelera(consenso: list[dict]) -> list[Pata]:
                 mercado="metodo7",
                 seleccion=f"Gana {na if lado == 'A' else nb} {_METODO_TXT[met]}",
                 clase=clase, p=float(op["p_final"]), cuota=float(op["cuota_decimal"]),
-                tier="A" if met == "DEC" else "C", avisos=avisos,
+                tier="A" if met == "DEC" else "C",
+                p_modelo=float(op["p_modelo"]), avisos=avisos,
             ))
 
         # --- Método, 5 vías ---
@@ -334,7 +376,8 @@ def patas_de_cartelera(consenso: list[dict]) -> list[Pata]:
                 clase=clase, p=float(op["p_final"]), cuota=float(op["cuota_decimal"]),
                 # La decisión es LA MISMA apuesta que en 7 vías, así que hereda su
                 # respaldo. La finalización sigue siendo el lado que no lo tiene.
-                tier="A" if met == "DEC" else "C", avisos=avisos,
+                tier="A" if met == "DEC" else "C",
+                p_modelo=float(op["p_modelo"]), avisos=avisos,
             ))
 
     # Orden: primero lo que más respaldo tiene, y dentro de eso el mejor valor.
