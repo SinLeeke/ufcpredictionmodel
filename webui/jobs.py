@@ -89,8 +89,10 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
     Receta(
         id="bfo",
         nombre="Cuotas históricas recientes",
-        descripcion=("Rellena con BestFightOdds el hueco de ~4 meses que arrastra el "
-                     "dataset de Kaggle. Correr antes de los backtests de valor."),
+        descripcion=("Baja de BestFightOdds las cuotas del hueco de ~4 meses que arrastra "
+                     "el dataset de Kaggle. Hoy ningún modelo ni backtest las usa: sirven "
+                     "para medir cuánto del hueco se podría cubrir. No hace falta antes "
+                     "de los backtests."),
         pasos=[[sys.executable, "-m", "src.bfo_odds"]],
         minutos="~12 min",
     ),

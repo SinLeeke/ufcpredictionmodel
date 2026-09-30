@@ -194,8 +194,11 @@ python -m src.bfo_odds            # baja las cuotas que faltan
 python -m src.bfo_odds --revisar  # solo reporta cuánto del hueco está cubierto
 ```
 
-Vale la pena antes de correr `modelado/backtest_valor.py` o `modelado/backtest_metodo.py`, que son
-los que necesitan cuotas históricas.
+**Ojo: hoy ningún script lee estas cuotas.** Los backtests usan las de Kaggle, y
+meter las filas del hueco al entrenamiento se midió y no mejora el AUC en ningún
+período (ver README, "Ideas de modelado probadas y revertidas"). Sirven para saber
+cuánto del hueco se podría cubrir si algún día se integran. No hace falta correrlo
+antes de los backtests.
 
 ### 3.4 Refrescar la ficha de un peleador puntual
 

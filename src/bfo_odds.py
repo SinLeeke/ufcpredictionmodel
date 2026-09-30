@@ -150,11 +150,36 @@ def _hueco() -> pd.DataFrame:
     return h[h["date"] > corte].copy()
 
 
+def _pendientes(gap: pd.DataFrame, cache: dict) -> list[str]:
+    """
+    Peleadores del hueco cuya ficha hay que (re)bajar: los que nunca se bajaron
+    y los que VOLVIERON A PELEAR después de la última pelea que trae su ficha
+    guardada. Antes solo se miraba si estaban en el caché, así que la segunda
+    pelea de alguien dentro del hueco no conseguía cuota nunca.
+
+    Una ficha guardada vacía significa que BFO no tiene a ese peleador: no se
+    insiste.
+    """
+    ultima = pd.concat([gap[["fighter_a", "date"]].rename(columns={"fighter_a": "f"}),
+                        gap[["fighter_b", "date"]].rename(columns={"fighter_b": "f"})]
+                       ).groupby("f")["date"].max()
+    out = []
+    for nombre, fecha in sorted(ultima.items()):
+        guardadas = cache.get(_norm(nombre))
+        if guardadas is None:
+            out.append(nombre)
+            continue
+        fechas = [r["fecha"] for r in guardadas if r.get("fecha")]
+        if fechas and pd.Timestamp(max(fechas)) < pd.Timestamp(fecha) - pd.Timedelta(days=1):
+            out.append(nombre)
+    return out
+
+
 def construir(limite: int | None = None) -> dict:
     cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
     gap = _hueco()
     peleadores = sorted(set(gap["fighter_a"]) | set(gap["fighter_b"]))
-    pendientes = [p for p in peleadores if _norm(p) not in cache]
+    pendientes = _pendientes(gap, cache)
     if limite:
         pendientes = pendientes[:limite]
     print(f"[bfo] hueco: {len(gap)} peleas, {len(peleadores)} peleadores | "
@@ -180,10 +205,15 @@ def cuotas_de(fighter_a: str, fighter_b: str, fecha) -> tuple[float, float] | No
         return None
     cache = json.loads(CACHE.read_text(encoding="utf-8"))
     a, b = _norm(fighter_a), _norm(fighter_b)
-    f = str(pd.Timestamp(fecha).date())
+    f = pd.Timestamp(fecha).normalize()
+    # ±1 día: BFO fecha en hora de EE.UU. y los eventos en Abu Dhabi o
+    # Australia caen un día antes o después en UFCStats. Medido: la mitad de
+    # las peleas del hueco que quedaban sin cuota eran esto. Nadie pelea con
+    # el mismo rival dos días seguidos, así que la ventana no inventa cruces.
     for yo, rival, invertir in ((a, b, False), (b, a, True)):
         for reg in cache.get(yo, []):
-            if reg["rival"] == rival and reg["fecha"] == f:
+            if reg["rival"] == rival and reg["fecha"] and \
+                    abs((pd.Timestamp(reg["fecha"]) - f).days) <= 1:
                 ca, cb = reg["cuota_propia"], reg["cuota_rival"]
                 return (cb, ca) if invertir else (ca, cb)
     return None
