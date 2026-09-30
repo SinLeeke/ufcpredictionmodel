@@ -810,7 +810,9 @@ siempre.
 
 Funciona porque la página de Betano trae las cuotas de ganador de toda la cartelera de una
 vez: es **una petición** por refresco, no una por pelea. Y no vuelve a predecir — solo
-recalcula lo que depende de la cuota (la mezcla con el mercado, el EV y cuánto apostar).
+recalcula lo que depende de la cuota: la mezcla con el mercado (que es el porcentaje que ves
+en la tarjeta, con su ganador y su etiqueta de confianza), el EV, cuánto apostar y la
+probabilidad de las selecciones de ganador del simulador de combinada.
 
 | | Completo (10 min) | En vivo (10 s) |
 |---|---|---|

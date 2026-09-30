@@ -501,9 +501,16 @@ def refrescar_linea() -> str:
     Qué cambia y qué no, que es la parte que importa entender:
       * `p_modelo_a` NO cambia. Es lo que el modelo saca de los stats; que Betano
         mueva la línea no altera el historial de nadie.
-      * SÍ cambian `p_mercado_a`, la mezcla `p_final_a`, el EV y Kelly, porque
-        todos se calculan CON la cuota.
+      * SÍ cambia TODO lo que se calcula con la cuota: `p_mercado_a`, la mezcla
+        `p_final_a`, el EV y Kelly, y como la mezcla es la probabilidad que
+        manda, también el porcentaje de la tarjeta, el ganador, la etiqueta de
+        confianza y la p de las patas de ganador del parlay.
     Por eso este refresco es barato: una petición y aritmética en memoria.
+
+    BUG QUE ESTO ARREGLA: antes solo se actualizaba el bloque "mercado". Si la
+    línea se daba vuelta (Rakic 1,26 -> 2,05), la tarjeta seguía diciendo
+    "Rakic 79%, fuerte" y la pata del parlay multiplicaba la p VIEJA por la
+    cuota NUEVA: mostraba EV +62,5% cuando el real era +2,9%.
 
     Las cuotas de MÉTODO no se tocan acá — viven en otra API, una llamada por
     pelea. Las refresca el ciclo completo.
@@ -517,6 +524,7 @@ def refrescar_linea() -> str:
     try:
         from src import betano_scraper as B
         from src import value
+        from src.simulate import monte_carlo
         card = B.find_card(consulta)
         if card is None:
             return "no encontré la cartelera"
@@ -525,10 +533,13 @@ def refrescar_linea() -> str:
             return "sin respuesta de Betano"
 
         # Índice por apellidos: el id de pelea de Betano no viaja en `datos`.
-        def clave(a: str, b: str) -> frozenset:
-            return frozenset({_slug(a.split()[-1]), _slug(b.split()[-1])})
+        def apellido(nombre: str) -> str:
+            return _slug(nombre.split()[-1])
 
-        por_par = {clave(a, b): (ca, cb) for (a, b, ca, cb) in frescas.values()}
+        def clave(a: str, b: str) -> frozenset:
+            return frozenset({apellido(a), apellido(b)})
+
+        por_par = {clave(a, b): (a, ca, cb) for (a, b, ca, cb) in frescas.values()}
         cal = value.cargar_calibrador()
 
         movidas = 0
@@ -540,11 +551,16 @@ def refrescar_linea() -> str:
                 par = por_par.get(clave(pl["a"], pl["b"]))
                 if not par:
                     continue
-                ca, cb = par
+                primero, ca, cb = par
+                # El conjunto de apellidos no dice quién es quién: si Betano lista
+                # la pelea al revés que el CSV, cada cuota iría al peleador
+                # equivocado. Se orienta por el nombre que acompaña a la cuota.
+                if apellido(primero) == apellido(pl["b"]) != apellido(pl["a"]):
+                    ca, cb = cb, ca
                 if m.get("cuota_a") == ca and m.get("cuota_b") == cb:
                     continue
 
-                antes_a = m.get("cuota_a")
+                antes = {"A": m.get("cuota_a"), "B": m.get("cuota_b")}
                 v = value.analizar(m["p_modelo_a"], ca, cb, cal=cal)
                 m.update({
                     "cuota_a": ca, "cuota_b": cb,
@@ -555,22 +571,35 @@ def refrescar_linea() -> str:
                     "cuota": _num(v.cuota_decimal), "ev": _num(v.ev),
                     "kelly": _num(v.kelly), "veredicto": v.veredicto,
                 })
-                if antes_a:
-                    ESTADO.movimiento[f"{pl['id']}:ML:A"] = {"antes": antes_a, "ahora": ca}
+                for lado, ahora in (("A", ca), ("B", cb)):
+                    if antes[lado]:
+                        ESTADO.movimiento[f"{pl['id']}:ML:{lado}"] = {"antes": antes[lado],
+                                                                       "ahora": ahora}
+
+                # La probabilidad que manda es la mezcla, igual que en card.py.
+                p_a = v.p_final_a if (cal is not None and v.p_final_a == v.p_final_a) \
+                    else m["p_modelo_a"]
+                sim = monte_carlo(p_a, pl["metodo"], pl["a"], pl["b"])
+                prob, pocos = max(sim.p_a, sim.p_b), pl.get("pocos") or []
+                pl.update({
+                    "p_a": sim.p_a, "p_b": sim.p_b, "ci_a": list(sim.ci_a),
+                    "ganador": sim.winner,
+                    "confianza": _confianza(prob, pocos),
+                    "por_que_confianza": _por_que_confianza(
+                        prob, pocos, {pl["a"]: pl.get("info_a", {}), pl["b"]: pl.get("info_b", {})}),
+                })
+
+                # Las patas de ganador de ESTA pelea cotizan con la línea nueva Y
+                # con la probabilidad nueva: una sin la otra es un EV inventado.
+                for pata in ESTADO.patas:
+                    if pata.mercado == "ganador" and pata.fight_id == pl["id"]:
+                        pata.cuota = ca if pata.clase == "A" else cb
+                        pata.p = sim.p_a if pata.clase == "A" else sim.p_b
                 movidas += 1
 
-            # Las patas del parlay del mercado de ganador cotizan con esa línea.
-            for pata in ESTADO.patas:
-                if pata.mercado != "ganador":
-                    continue
-                pl = next((x for x in datos["peleas"]
-                           if clave(x["a"], x["b"]) == clave(*pata.pelea.split(" vs "))), None)
-                if not pl or not pl.get("mercado"):
-                    continue
-                c = pl["mercado"]["cuota_a" if pata.clase == "A" else "cuota_b"]
-                if c:
-                    pata.cuota = c
+            ESTADO.patas.sort(key=lambda x: (P.TIERS[x.tier]["orden"], -x.ev))
             datos["patas"] = [x.dict() for x in ESTADO.patas]
+            datos["sugerencia"] = P.sugerir(ESTADO.patas)
             ESTADO.cuotas_en = time.time()
             ESTADO.vivo_en = time.time()
         return f"{movidas} cuotas movidas" if movidas else "sin cambios"
