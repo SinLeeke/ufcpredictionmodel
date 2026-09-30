@@ -307,7 +307,8 @@ Islam Makhachev,Ian Machado Garry,Estelar,1.33,3.15,4.50,2.70,5.50,9.00,6.00,13.
 
 **`corto_a`/`corto_b` es la única columna que conviene poner a mano**: el sistema
 ya busca los reemplazos en Wikipedia, pero un cambio anunciado hoy todavía no está
-publicado. Marcarlo a mano tiene prioridad sobre el caché.
+publicado. Marcarlo a mano tiene prioridad sobre el caché, y una celda que
+dejes vacía se lee como "no lo sé": para ese peleador se consulta el caché.
 
 **Cuatro reglas que evitan problemas:**
 

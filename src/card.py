@@ -113,6 +113,23 @@ def get_stats(name: str) -> tuple[dict | None, str]:
     return None, "NO_ENCONTRADO"
 
 
+def _corto_aviso(fight: pd.Series, columna: str, nombre: str) -> int:
+    """
+    1 si el peleador entró de reemplazo. Lo que diga el CSV manda; una celda
+    VACÍA es "no lo sé", igual que si la columna no existiera, así que se cae al
+    caché de Wikipedia.
+
+    BUG QUE ESTO ARREGLA: se leía con `int(valor or 0)`. Pandas lee la celda
+    vacía como NaN y NaN es truthy, así que `nan or 0` devolvía nan y el
+    int() tiraba el programa entero (en la UI, la cartelera no cargaba). Pasa
+    en cuanto el usuario marca a un solo peleador y deja el resto en blanco.
+    """
+    valor = pd.to_numeric(fight.get(columna), errors="coerce")
+    if pd.notna(valor):
+        return int(valor != 0)
+    return reemplazos.flag(nombre, pd.Timestamp.now(), dias=21)
+
+
 def _elo(stats: dict) -> float:
     """
     ELO del peleador. Prioridad:
@@ -636,10 +653,8 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         # pasadas; para una futura, Wikipedia puede no estar actualizada todavía.
         # dias=21: el CSV no trae la fecha del evento, así que se busca en las
         # semanas alrededor de hoy (ver reemplazos.flag).
-        ca = int(fight.get("corto_a", 0) or 0) if "corto_a" in card.columns else \
-            reemplazos.flag(a["name"], pd.Timestamp.now(), dias=21)
-        cb = int(fight.get("corto_b", 0) or 0) if "corto_b" in card.columns else \
-            reemplazos.flag(b["name"], pd.Timestamp.now(), dias=21)
+        ca = _corto_aviso(fight, "corto_a", a["name"])
+        cb = _corto_aviso(fight, "corto_b", b["name"])
         feat["reemplazo_diff"] = ca - cb
         X = pd.DataFrame([feat])
         # El modelo de ganador SÍ usa oposición; el de método NO (ver
