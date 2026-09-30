@@ -186,6 +186,54 @@ def load() -> pd.DataFrame:
     return df
 
 
+_KAGGLE: pd.DataFrame | None = None
+
+
+def tabla_elo(hasta=None, df: pd.DataFrame | None = None) -> pd.DataFrame:
+    """
+    El ELO por categoría con las peleas ESTRICTAMENTE anteriores a `hasta`, en
+    el mismo formato que elo_ratings.csv (None = todas, o sea esa misma tabla).
+
+    Existe para el backtest de carteleras. Antes usaba la tabla FINAL, que para
+    cualquier evento anterior al corte de Kaggle ya incluye el resultado de la
+    pelea evaluada: medido en 203 peleas, el ganador tenía más ELO el 72% de las
+    veces con la tabla final y el 58% con el ELO pre-pelea. Es el mismo leakage
+    que ya había inflado el AUC a 0,93.
+
+    La regla es la de build_all, línea por línea (mismo orden, misma nota
+    graduada, mismo get() previo que fija el orden de las filas). La prueba
+    test_sin_corte_reproduce_la_tabla_de_produccion vigila que no se separen.
+    """
+    global _KAGGLE
+    if df is None:
+        if _KAGGLE is None:
+            k = pd.read_csv(C.DATA_RAW / "kaggle_ufc.csv", low_memory=False)
+            k["date"] = pd.to_datetime(k["date"], errors="coerce")
+            _KAGGLE = k.dropna(subset=["date", "R_fighter", "B_fighter", "Winner"])
+        df = _KAGGLE
+    # Ordenar ANTES de recortar, igual que build_all: así el orden dentro de un
+    # mismo día es idéntico al de la tabla de producción.
+    df = df.sort_values("date").reset_index(drop=True)
+    if hasta is not None:
+        df = df[df["date"] < pd.Timestamp(hasta)]
+    method_col = _find_method_col(df)
+
+    elo = EloSystem()
+    for row in df.to_dict("records"):
+        if row["Winner"] not in ("Red", "Blue"):
+            continue
+        wc = row.get("weight_class", "Lightweight")
+        ra, rb = row["R_fighter"], row["B_fighter"]
+        elo.get(ra, wc)
+        elo.get(rb, wc)
+        method = _normalize_method(row[method_col]) if method_col else ""
+        by_finish = method in ("KO/TKO", "Submission") if method else False
+        valor = valor_resultado(row[method_col]) if method_col else None
+        gana, pierde = (ra, rb) if row["Winner"] == "Red" else (rb, ra)
+        elo.update(gana, pierde, wc, by_finish, valor=valor)
+    return elo.to_frame()
+
+
 def _days_since_lookup(df: pd.DataFrame) -> dict[tuple[str, pd.Timestamp], float]:
     """Reconstruye el gap (días desde la pelea anterior) por (peleador, fecha)."""
     long = pd.concat([

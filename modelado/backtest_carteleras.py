@@ -19,6 +19,23 @@ Con --cuotas solo entran carteleras que tengan cuotas reales en el dataset (que
 llega hasta marzo 2026, o sea NO las más recientes) y se comparan tres formas de
 predecir la misma pelea: el modelo solo, el mercado solo y la mezcla calibrada
 que usa card.py cuando le das cuotas.
+
+TRES FUGAS QUE ESTE BACKTEST TUVO (y que no hay que reintroducir). Medido en 203
+peleas con cuota de jun-2025 a mar-2026, el modelo "acertaba" 76-78% cuando
+fuera de muestra acierta 67%:
+  1. ORIENTACIÓN. UFCStats pone al GANADOR primero (100% de las peleas) y la
+     probabilidad salía orientada a él. Como ni el modelo ni el calibrador son
+     perfectamente simétricos, cualquier sesgo hacia la columna A empujaba
+     hacia el resultado real: la mezcla daba 77,8% así y 74,4% simetrizada.
+     Ahora A es la esquina roja cuando Kaggle la conoce (igual que el
+     calibrador, que se ajustó en esa orientación) y si no, el orden alfabético.
+  2. ELO FINAL. Para un evento anterior al corte de Kaggle, la tabla final ya
+     incluye esa pelea: el ganador tenía más ELO el 72% de las veces, contra
+     58% con el ELO pre-pelea. Ahora se reconstruye a la fecha del evento
+     (kaggle_ingest.tabla_elo), con la misma regla que la tabla de producción.
+  3. MODELO QUE YA VIO LA PELEA. El de producción entrena con todo hasta el
+     corte de Kaggle. Para eventos anteriores se usa el de medición (entrenado
+     hasta TRAIN_END_DATE) y los que ninguno de los dos vio quedan fuera.
 """
 from __future__ import annotations
 
@@ -31,9 +48,13 @@ import pandas as pd
 
 warnings.filterwarnings("ignore")
 
+import pickle
+
 import config as C
+from src.card import elo_de_tabla
 from src.control_stats import enriquecer, MIN_PELEAS_FIABLE
 from src.features import columnas_disponibles
+from src.kaggle_ingest import tabla_elo
 from src import oposicion
 from src import reemplazos
 from src.model import load_models
@@ -98,18 +119,56 @@ def _cuotas_lookup() -> dict:
         if pd.isna(r.R_odds) or pd.isna(r.B_odds):
             continue
         ra, rb = str(r.R_fighter).lower(), str(r.B_fighter).lower()
-        out[(r.date, frozenset({ra, rb}))] = {ra: r.R_odds, rb: r.B_odds}
+        # "_rojo" orienta la pelea igual que el dataset con el que se ajustó el
+        # calibrador (esquina roja = columna A), sin mirar quién ganó.
+        out[(r.date, frozenset({ra, rb}))] = {ra: r.R_odds, rb: r.B_odds, "_rojo": ra}
     return out
 
 
-def _elo_a_fecha(nombre: str) -> float:
-    """ELO de la tabla (calculada con datos hasta el corte del dataset Kaggle)."""
-    if C.ELO_TABLE.exists():
-        df = pd.read_csv(C.ELO_TABLE)
-        hit = df[df["fighter"].str.lower() == nombre.lower()]
-        if not hit.empty:
-            return float(hit.iloc[0]["elo"])
-    return C.ELO_BASE
+_ELO_POR_FECHA: dict = {}
+
+
+def _elo_a_fecha(nombre: str, fecha: pd.Timestamp) -> float:
+    """
+    ELO del peleador ANTES del evento: solo cuentan las peleas anteriores a
+    `fecha` (ver la fuga 2 en el docstring del módulo). Se elige la fila con la
+    misma regla que usa card.py al predecir.
+    """
+    if fecha not in _ELO_POR_FECHA:
+        if (C.DATA_RAW / "kaggle_ufc.csv").exists():
+            _ELO_POR_FECHA[fecha] = tabla_elo(hasta=fecha)
+        elif C.ELO_TABLE.exists():
+            _ELO_POR_FECHA[fecha] = pd.read_csv(C.ELO_TABLE)
+        else:
+            _ELO_POR_FECHA[fecha] = pd.DataFrame(columns=["weight_class", "fighter", "elo"])
+    elo = elo_de_tabla(_ELO_POR_FECHA[fecha], nombre)
+    return elo if elo is not None else C.ELO_BASE
+
+
+def _orientar(r, rojo: str | None) -> tuple[str, str]:
+    """
+    (peleador A, peleador B) SIN mirar el resultado. UFCStats lista al ganador
+    primero, así que usar su orden filtraba el resultado (ver la fuga 1).
+    A = la esquina roja si se conoce; si no, el orden alfabético.
+    """
+    x, y = r["fighter_a"], r["fighter_b"]
+    if rojo is not None and str(y).lower() == rojo:
+        return y, x
+    if rojo is not None and str(x).lower() == rojo:
+        return x, y
+    return (x, y) if str(x).lower() <= str(y).lower() else (y, x)
+
+
+def _modelo_para(fecha: pd.Timestamp, fin_produccion: pd.Timestamp) -> str | None:
+    """
+    Qué modelo NO vio este evento (ver la fuga 3): el de producción entrena
+    hasta el final de features.csv; el de medición, hasta TRAIN_END_DATE.
+    """
+    if fecha > fin_produccion:
+        return "produccion"
+    if fecha >= pd.Timestamp(C.TEST_START_DATE):
+        return "medicion"
+    return None
 
 
 def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
@@ -148,8 +207,18 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
         if fechas.empty:
             raise SystemExit("Ninguna cartelera reciente tiene cuotas en el dataset.")
 
+    # Solo eventos que algún modelo NO vio (fuga 3).
+    fin_prod = pd.read_csv(C.FEATURES_CSV, usecols=["date"], parse_dates=["date"])["date"].max()
+    modelos = {"produccion": load_models()[0]}
+    if C.WINNER_MODEL_SPLIT.exists():
+        with open(C.WINNER_MODEL_SPLIT, "rb") as fh:
+            modelos["medicion"] = pickle.load(fh)
+    usable = [_modelo_para(f, fin_prod) in modelos for f in fechas.values]
+    if not all(usable):
+        print(f"  [i] {len(usable) - sum(usable)} carteleras fuera: todos los modelos "
+              f"disponibles ya habían entrenado con ellas.\n")
+    fechas = fechas[usable]
     eventos = fechas.head(n_carteleras)
-    modelo, _ = load_models()
     # marcadores: [modelo, mercado, calibrado]
     tot_ok = np.zeros(3, int)
     tot = 0
@@ -157,16 +226,20 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
 
     for evento, fecha in eventos.items():
         card = res[res.event == evento]
+        modelo = modelos[_modelo_para(fecha, fin_prod)]
         ok = np.zeros(3, int)
         n = conf_ok = conf_n = 0
         filas = []
         for _, r in card.iterrows():
-            a = stats_a_fecha(r.fighter_a, fecha)
-            b = stats_a_fecha(r.fighter_b, fecha)
+            par = cuotas.get((fecha, frozenset({str(r.fighter_a).lower(),
+                                                str(r.fighter_b).lower()})))
+            nom_a, nom_b = _orientar(r, par["_rojo"] if par else None)
+            a = stats_a_fecha(nom_a, fecha)
+            b = stats_a_fecha(nom_b, fecha)
             if a is None or b is None:
                 continue          # debutante absoluto: sin datos previos
-            feat = features_pelea(a, b, _elo_a_fecha(a["name"]),
-                                  _elo_a_fecha(b["name"]))
+            feat = features_pelea(a, b, _elo_a_fecha(a["name"], fecha),
+                                  _elo_a_fecha(b["name"], fecha))
             # Calidad de oposición A LA FECHA DEL EVENTO, no a hoy: usar hoy
             # metería las peleas POSTERIORES al evento y volvería a inflar el
             # acierto, que es justo el leakage que este backtest existe para evitar.
@@ -180,12 +253,10 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
             # mercado y mezcla calibrada (solo si hay cuotas para esta pelea)
             p_mkt = p_cal = None
             if con_cuotas:
-                par = cuotas.get((fecha, frozenset({str(r.fighter_a).lower(),
-                                                    str(r.fighter_b).lower()})))
                 if par:
                     from src.odds import prob_sin_vig
-                    ca = par[str(r.fighter_a).lower()]
-                    cb = par[str(r.fighter_b).lower()]
+                    ca = par[str(nom_a).lower()]
+                    cb = par[str(nom_b).lower()]
                     p_mkt = prob_sin_vig(ca, cb)[0]
                     p_cal = value.combinar(p, p_mkt, calibrador)
             if con_cuotas and p_cal is None:
@@ -193,7 +264,7 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
 
             pocos = [f["name"].split()[-1] for f in (a, b)
                      if int(f.get("n_peleas_hist", 99)) < MIN_PELEAS_FIABLE]
-            # p viene orientada al fighter_a de UFCStats, igual que a["name"]
+            # p viene orientada a `a` (esquina roja o alfabético, nunca el ganador)
             picks, aciertos = [], []
             for prob in (p, p_mkt, p_cal):
                 if prob is None:
@@ -208,7 +279,7 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
             conf = max(usada, 1 - usada) * 100
             if conf >= 60:
                 conf_n += 1; conf_ok += aciertos[2 if p_cal is not None else 0]
-            filas.append((f"{r.fighter_a.split()[-1]} vs {r.fighter_b.split()[-1]}",
+            filas.append((f"{nom_a.split()[-1]} vs {nom_b.split()[-1]}",
                           picks, [p, p_mkt, p_cal], aciertos,
                           r.winner.split()[-1], pocos))
 

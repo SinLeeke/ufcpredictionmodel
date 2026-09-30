@@ -133,6 +133,17 @@ def _corto_aviso(fight: pd.Series, columna: str, nombre: str) -> int:
     return reemplazos.flag(nombre, pd.Timestamp.now(), dias=21)
 
 
+def elo_de_tabla(tabla: pd.DataFrame, nombre: str) -> float | None:
+    """
+    ELO de un peleador en una tabla con el formato de elo_ratings.csv, o None.
+
+    La usan la predicción (tabla final) y backtest_carteleras (tabla a la fecha
+    del evento), así que las dos eligen la fila con la MISMA regla.
+    """
+    hit = tabla[tabla["fighter"].str.lower() == str(nombre).lower()]
+    return float(hit.iloc[0]["elo"]) if not hit.empty else None
+
+
 def _elo(stats: dict) -> float:
     """
     ELO del peleador. Prioridad:
@@ -142,10 +153,9 @@ def _elo(stats: dict) -> float:
     """
     name = stats["name"]
     if C.ELO_TABLE.exists():
-        df = pd.read_csv(C.ELO_TABLE)
-        hit = df[df["fighter"].str.lower() == name.lower()]
-        if not hit.empty:
-            return float(hit.iloc[0]["elo"])
+        elo = elo_de_tabla(pd.read_csv(C.ELO_TABLE), name)
+        if elo is not None:
+            return elo
     # proxy: winrate centrado en .5 + bonus por experiencia
     w, l = float(stats.get("wins", 0)), float(stats.get("losses", 0))
     total = w + l
