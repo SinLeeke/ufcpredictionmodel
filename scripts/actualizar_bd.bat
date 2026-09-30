@@ -7,25 +7,34 @@ echo ==================================================
 echo   Actualizar base de datos y reentrenar el modelo
 echo ==================================================
 echo.
-echo [1/5] Borrando dataset viejo para forzar descarga nueva...
-if exist "data\raw\kaggle_ufc.csv" del "data\raw\kaggle_ufc.csv"
-echo.
-echo [2/5] Actualizando resultados de UFCStats (rapido, ~1 min)...
-echo       Necesario ANTES del paso 3: de aca sale la calidad de oposicion
+echo [1/6] Actualizando resultados de UFCStats (rapido, ~1 min)...
+echo       Necesario ANTES del paso 5: de aca sale la calidad de oposicion
 echo       (ultimas 5 peleas de cada peleador). Sin esto quedaria vieja.
 python -m src.ufcstats_events
 if errorlevel 1 goto error
 echo.
-echo [3/5] Actualizando reemplazos (corto aviso) desde Wikipedia...
+echo [2/6] Fichas de UFCStats de quien debuto (altura, alcance, edad)...
+python -m src.ufcstats_fighters
+if errorlevel 1 goto error
+echo.
+echo [3/6] Estadisticas de las peleas nuevas (golpes, derribos, CONTROL)...
+echo       Solo baja las que faltan. De aca sale el control y la defensa real
+echo       de cada peleador al predecir.
+python -m src.ufcstats_fightstats
+if errorlevel 1 goto error
+echo.
+echo [4/6] Actualizando reemplazos (corto aviso) desde Wikipedia...
 echo       Solo consulta los eventos nuevos, no rebaja todo.
 python -m src.reemplazos
 if errorlevel 1 goto error
 echo.
-echo [4/5] Descargando dataset actualizado y reconstruyendo features/ELO...
-python -m src.scraper
+echo [5/6] Dataset de Kaggle y reconstruccion de features/ELO...
+echo       Intenta bajar la version nueva; si no puede (falta kaggle.json o
+echo       internet), sigue con la copia que ya hay en vez de borrarla.
+python -m src.scraper --refrescar-kaggle
 if errorlevel 1 goto error
 echo.
-echo [5/5] Reentrenando modelos (mira las metricas Acc / Log loss / AUC / Brier)...
+echo [6/6] Reentrenando modelos (mira las metricas Acc / Log loss / AUC / Brier)...
 python -m modelado.train_model
 if errorlevel 1 goto error
 echo.

@@ -46,16 +46,24 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
     Receta(
         id="actualizar_bd",
         nombre="Actualizar BD + reentrenar",
-        descripcion=("Lo de todos los meses. Baja los eventos nuevos de UFCStats y los "
-                     "reemplazos de Wikipedia, reconstruye features/ELO y reentrena los "
-                     "dos modelos. Al final imprime las métricas: míralas."),
+        descripcion=("Lo de todos los meses. Baja de UFCStats los eventos nuevos, sus "
+                     "estadísticas por pelea y las fichas de quien debutó, los reemplazos "
+                     "de Wikipedia y la versión nueva del dataset de Kaggle (si no se "
+                     "puede, sigue con la copia que hay), reconstruye features/ELO y "
+                     "reentrena los dos modelos. Al final imprime las métricas: míralas."),
+        # Todos son incrementales: cada paso pide solo lo que falta. Las stats por
+        # pelea estaban fuera y solo se actualizaban con la descarga profunda, así
+        # que el control y la defensa real de cada peleador al predecir se
+        # quedaban congelados en la última descarga profunda.
         pasos=[
             [sys.executable, "-m", "src.ufcstats_events"],
+            [sys.executable, "-m", "src.ufcstats_fighters"],
+            [sys.executable, "-m", "src.ufcstats_fightstats"],
             [sys.executable, "-m", "src.reemplazos"],
-            [sys.executable, "-m", "src.scraper"],
+            [sys.executable, "-m", "src.scraper", "--refrescar-kaggle"],
             [sys.executable, "-m", "modelado.train_model"],
         ],
-        minutos="3-8 min",
+        minutos="5-12 min",
     ),
     Receta(
         id="entrenar",

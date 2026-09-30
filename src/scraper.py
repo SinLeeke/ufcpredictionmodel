@@ -308,16 +308,30 @@ def load_from_kaggle() -> pd.DataFrame:
 # --------------------------------------------------------------------------- #
 # Orquestador
 # --------------------------------------------------------------------------- #
-def build_fighters_table(source: str = "kaggle") -> pd.DataFrame:
+def build_fighters_table(source: str = "kaggle", refrescar: bool = False) -> pd.DataFrame:
     """
     Consolida datos y deja listos features.csv + fighters.csv.
       source='kaggle' -> descarga (si hace falta) y ejecuta la ingesta real.
       source='scrape' -> combina UFCStats + Sherdog + Tapology (avanzado).
+
+    refrescar=True intenta bajar la versión nueva del dataset aunque ya haya una
+    copia local, y si la descarga falla SIGUE CON LA LOCAL. Reemplaza al viejo
+    `del data\\raw\\kaggle_ufc.csv` de actualizar_bd.bat, que borraba la copia
+    ANTES de saber si la descarga iba a funcionar: sin kaggle.json o sin
+    internet, la base se quedaba sin su única fuente de cuotas históricas.
+    load_from_kaggle solo escribe el CSV después de leerlo entero, así que una
+    descarga a medias tampoco pisa la copia buena.
     """
     if source == "kaggle":
         raw_path = C.DATA_RAW / "kaggle_ufc.csv"
-        if not raw_path.exists():
-            load_from_kaggle()
+        if refrescar or not raw_path.exists():
+            try:
+                load_from_kaggle()
+            except Exception as e:                      # noqa: BLE001
+                if not raw_path.exists():
+                    raise
+                print(f"[!] no pude bajar la versión nueva de Kaggle; sigo con la copia "
+                      f"local.\n    Detalle: {e}")
         # La ingesta real vive en kaggle_ingest para no mezclar responsabilidades.
         from src.kaggle_ingest import build_all
         _, fighters = build_all()
@@ -331,4 +345,5 @@ def build_fighters_table(source: str = "kaggle") -> pd.DataFrame:
 
 if __name__ == "__main__":
     # Ruta por defecto: contingencia Kaggle (descarga + ingesta completa).
-    build_fighters_table(source="kaggle")
+    # --refrescar-kaggle: intenta bajar la versión nueva aunque haya copia local.
+    build_fighters_table(source="kaggle", refrescar="--refrescar-kaggle" in sys.argv)

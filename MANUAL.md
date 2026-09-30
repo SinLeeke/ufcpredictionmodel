@@ -142,10 +142,15 @@ atrasada a propósito:
 scripts\actualizar_bd.bat
 ```
 
-Cinco pasos: borra el dataset viejo → actualiza resultados de UFCStats →
-actualiza reemplazos de Wikipedia → reconstruye features/ELO → reentrena los
-modelos. Unos minutos, porque una corrida típica consulta **1 o 2 eventos**, no
+Seis pasos: resultados de UFCStats → fichas de los que debutaron → estadísticas
+de las peleas nuevas → reemplazos de Wikipedia → versión nueva de Kaggle y
+reconstrucción de features/ELO → reentrenar los modelos. Unos minutos, porque
+todos son incrementales y una corrida típica consulta **1 o 2 eventos**, no
 los 780.
+
+Si Kaggle no se puede bajar (falta `kaggle.json` o no hay internet), el paso 5
+avisa y **sigue con la copia que ya tienes**. Antes el `.bat` borraba esa copia
+primero, y una descarga fallida dejaba la base sin cuotas históricas.
 
 Al final imprime las métricas. **Míralas, son tu control de calidad:**
 

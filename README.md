@@ -628,7 +628,7 @@ ufc_predictor/
 | Archivo | Qué hace | Cuándo |
 |---|---|---|
 | `scripts\lanzar_ui.bat` | interfaz web | siempre |
-| `scripts\actualizar_bd.bat` | los 5 pasos de actualización + reentrenar | 1 vez al mes |
+| `scripts\actualizar_bd.bat` | los 6 pasos de actualización + reentrenar | 1 vez al mes |
 | `scripts\bajar_datos_ufcstats.bat` | descarga profunda de UFCStats | primera vez |
 | `scripts\predecir_cartelera.bat` | predice una cartelera | antes de cada evento |
 | `-m modelado.train_model` | entrena ganador y método | tras cambiar features |
