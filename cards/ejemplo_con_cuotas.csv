@@ -1,13 +1,13 @@
-fighter_a,fighter_b,segment,odds_a,odds_b,odds_a_ko,odds_a_sub,odds_a_dec,odds_b_ko,odds_b_sub,odds_b_dec
-Magomed Ankalaev,Bogdan Guskov,Estelar (LHW 5R),1.44,2.85,275,900,225,450,1400,900
-Steve Erceg,Ramazan Temirov,Co-estelar (FLY),1.62,2.35,600,900,190,700,1100,320
-Islam Dulatov,Wellington Turman,Principal (WW),1.30,3.60,300,700,190,650,1200,700
-Magomed Zaynukov,Damian Rzepecki,Principal (LW),1.55,2.50,450,800,200,600,1000,400
-Rizvan Kuniev,Tyrell Fortune,Principal (HW),1.40,3.00,180,900,450,350,1600,1100
-Abubakar Vagaev,Saygid Izagakhmaev,Principal (WW),2.10,1.75,500,700,400,350,500,350
-Valter Walker,Thomas Petersen,Prelim (HW),1.66,2.25,400,300,350,320,1400,650
-Dustin Jacoby,Muhammad Saidov,Prelim (LHW),3.20,1.36,700,1600,650,240,900,350
-Santiago Ponzinibbio,Sam Patterson,Prelim (WW),2.40,1.58,500,1400,600,450,700,325
-Ismael Bonfim,Axel Sola,Prelim (LW),1.50,2.62,400,700,275,450,1100,500
-Brendson Ribeiro,Magomed Tuchalov,Prelim (LHW),2.05,1.80,350,1200,650,300,1400,500
-Nurullo Aliev,Mike Davis,Prelim (LW),1.36,3.20,600,500,225,700,1200,650
+fighter_a,fighter_b,segment,odds_a,odds_b
+Magomed Ankalaev,Bogdan Guskov,Estelar (LHW 5R),1.44,2.85
+Steve Erceg,Ramazan Temirov,Co-estelar (FLY),1.62,2.35
+Islam Dulatov,Wellington Turman,Principal (WW),1.30,3.60
+Magomed Zaynukov,Damian Rzepecki,Principal (LW),1.55,2.50
+Rizvan Kuniev,Tyrell Fortune,Principal (HW),1.40,3.00
+Abubakar Vagaev,Saygid Izagakhmaev,Principal (WW),2.10,1.75
+Valter Walker,Thomas Petersen,Prelim (HW),1.66,2.25
+Dustin Jacoby,Muhammad Saidov,Prelim (LHW),3.20,1.36
+Santiago Ponzinibbio,Sam Patterson,Prelim (WW),2.40,1.58
+Ismael Bonfim,Axel Sola,Prelim (LW),1.50,2.62
+Brendson Ribeiro,Magomed Tuchalov,Prelim (LHW),2.05,1.80
+Nurullo Aliev,Mike Davis,Prelim (LW),1.36,3.20
