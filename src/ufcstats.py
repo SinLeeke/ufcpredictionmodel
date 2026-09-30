@@ -295,6 +295,41 @@ def _parse_career_stats(soup: BeautifulSoup) -> dict:
     return stats
 
 
+# Columna del MÉTODO en la tabla de historial de la ficha:
+#   W/L | Fighter | Kd | Str | Td | Sub | Event | Method | Round | Time
+_COL_METODO = 7
+
+
+def _metodo_de_celda(cells) -> str:
+    """
+    KO/TKO | Submission | Decision leído SOLO de la celda de método, y de ella
+    solo el código corto (el primer <p>: 'KO/TKO', 'SUB', 'U-DEC'...), no el
+    detalle de abajo.
+
+    BUG QUE ESTO ARREGLA: antes se buscaba "KO" en el texto de TODA la fila,
+    que incluye el nombre del rival, el del propio peleador y el del evento.
+    Kopylov, Volkov, Shevchenko, Malkoun, "UFC Fight Night: Volkov vs..."
+    convertían cada decisión en KO. Medido sobre la base: 3,7% de los
+    resultados mal leídos (siempre decisión -> KO), que le cambiaban
+    win_ko_rate y lost_by_finish_rate al 23% de los peleadores activos, con
+    un error medio de 16 puntos. ufcstats_events.py ya leía la celda y por eso
+    el historial descargado estaba bien: el desfase era solo al predecir.
+
+    DQ, CNC y lo que no se reconozca cuentan como Decision (no es un KO ni una
+    sumisión), que es lo mismo que hacía el código anterior por defecto.
+    """
+    if len(cells) <= _COL_METODO:
+        return "Decision"
+    celda = cells[_COL_METODO]
+    corto = celda.select_one("p") or celda
+    t = corto.get_text(" ", strip=True).upper()
+    if "SUB" in t:
+        return "Submission"
+    if "KO" in t:
+        return "KO/TKO"
+    return "Decision"
+
+
 def _parse_history(soup: BeautifulSoup) -> dict:
     """
     Deriva racha, tasas de finalización y días desde la última pelea desde la
@@ -311,17 +346,9 @@ def _parse_history(soup: BeautifulSoup) -> dict:
         # contaminaría 'days_since_last_fight' (daría 0 = pelea de hoy).
         if not outcome.startswith(("win", "loss", "draw", "nc")):
             continue
-        # la columna de método suele ser la penúltima-ish; buscamos palabras clave
         row_txt = row.get_text(" ", strip=True)
-        method = ""
-        for kw, label in [("SUB", "Submission"), ("KO/TKO", "KO/TKO"),
-                          ("KO", "KO/TKO"), ("DEC", "Decision"), ("U-DEC", "Decision"),
-                          ("S-DEC", "Decision"), ("M-DEC", "Decision")]:
-            if kw in row_txt.upper():
-                method = label
-                break
         outcomes.append(outcome)
-        methods.append(method or "Decision")
+        methods.append(_metodo_de_celda(cells))
         m = re.search(r"[A-Z][a-z]{2}\.?\s+\d{1,2},\s+\d{4}", row_txt)
         dates.append(m.group() if m else None)
 
@@ -400,21 +427,35 @@ def parse_fighter(soup: BeautifulSoup, name_hint: str = "") -> dict:
 # --------------------------------------------------------------------------- #
 # API pública: get_fighter(name) con caché
 # --------------------------------------------------------------------------- #
+# Versión del parser que armó cada ficha del caché. Se sube cuando un arreglo
+# cambia lo que sale de parse_fighter: las fichas guardadas con una versión
+# anterior se vuelven a bajar solas en vez de seguir sirviendo datos malos.
+#   2 -> el método se lee de su celda, no de toda la fila (ver _metodo_de_celda)
+VERSION_PARSER = 2
+
+
 def get_fighter(name: str, use_cache: bool = True) -> Optional[dict]:
     cache = _load_cache()
     key = _norm(name)
-    if use_cache and key in cache:
-        return cache[key]
+    vieja = cache.get(key) if use_cache else None
+    if vieja is not None and vieja.get("_parser") == VERSION_PARSER:
+        return vieja
 
     url = find_fighter_url(name)
-    if url is None:
-        print(f"[!] no encontré '{name}' en UFCStats (¿debutante o nombre distinto?).")
-        return None
-    soup = _get(url)
+    soup = _get(url) if url else None
     if soup is None:
+        # Sin red (o sin ficha): una ficha de una versión anterior es mejor que
+        # nada. Perder al peleador omite la pelea entera de la cartelera.
+        if vieja is not None:
+            print(f"[!] '{name}': no pude refrescar su ficha, uso la guardada "
+                  f"(armada con una versión anterior del parser).")
+            return vieja
+        if url is None:
+            print(f"[!] no encontré '{name}' en UFCStats (¿debutante o nombre distinto?).")
         return None
     data = parse_fighter(soup, name_hint=name)
     data["ufcstats_url"] = url
+    data["_parser"] = VERSION_PARSER
     cache[key] = data
     _save_cache(cache)
     return data
