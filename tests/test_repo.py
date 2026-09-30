@@ -29,6 +29,12 @@ class Ejemplo(unittest.TestCase):
             _, suma = V.mercado_metodo(fila[card.COL_METODO].tolist())
             self.assertGreaterEqual(suma, V.SOBRERREDONDEO_SOSPECHOSO, f"fila {i}: suma {suma:.3f}")
 
+    def test_la_cartelera_por_defecto_viene_en_el_repo(self):
+        # BUG: `python -m src.card` y predecir_cartelera.bat sin argumentos usaban
+        # cards/ankalaev_vs_guskov.csv, que no se versiona: en un clon limpio fallaban.
+        rel = card.DEFAULT_CARD.relative_to(C.ROOT).as_posix()
+        self.assertIn(rel, _versionados())
+
 
 if __name__ == "__main__":
     unittest.main()

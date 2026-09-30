@@ -11,7 +11,7 @@ echo Sugerencia: para usar stats frescos, borra la cache antes:
 echo   del data\raw\ufcstats_cache.json
 echo.
 if "%~1"=="" (
-    echo Sin CSV indicado -^> uso la cartelera por defecto ^(Ankalaev vs Guskov^).
+    echo Sin CSV indicado -^> uso la cartelera de ejemplo ^(cards\ejemplo_con_cuotas.csv^).
     echo Para otra: arrastra un CSV encima de este .bat, o corre:
     echo   python -m src.card cards\mi_evento.csv
     echo.

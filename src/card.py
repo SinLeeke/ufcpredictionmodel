@@ -3,7 +3,7 @@ card.py
 Predice una cartelera COMPLETA de forma autosustentable.
 
 Uso:
-    python -m src.card                              # usa cards/ankalaev_vs_guskov.csv
+    python -m src.card                              # usa cards/ejemplo_con_cuotas.csv
     python -m src.card cards/otro_evento.csv        # cualquier otra cartelera
 
 El CSV de entrada solo lleva NOMBRES:
@@ -55,7 +55,10 @@ import re
 def _slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", s.lower()).strip("_")
 
-DEFAULT_CARD = C.ROOT / "cards" / "ankalaev_vs_guskov.csv"
+# La única cartelera que viene en el repo (.gitignore deja fuera el resto de
+# cards/). Antes apuntaba a una que solo existía en el PC del autor, así que
+# `python -m src.card` sin argumentos fallaba en cualquier clon.
+DEFAULT_CARD = C.ROOT / "cards" / "ejemplo_con_cuotas.csv"
 
 # Columnas opcionales del CSV con las 6 cuotas del mercado de MÉTODO (7 vías).
 COL_METODO = ["odds_a_ko", "odds_a_sub", "odds_a_dec",
