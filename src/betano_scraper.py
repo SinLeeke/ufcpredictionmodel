@@ -235,6 +235,8 @@ def _lado(nombre_sel: str, fa: str, fb: str) -> Optional[str]:
 
 def _metodo(nombre_sel: str) -> Optional[str]:
     low = _fold(nombre_sel)
+    if "finaliz" in low:
+        return "fin"
     if "sumision" in low:
         return "sub"
     if "decision" in low:
@@ -287,13 +289,19 @@ def get_fight_odds(fight: dict) -> dict:
         met = _metodo(sel["name"])
         if met is None:
             continue
-        if met in ("ko", "sub") and not es_7way:
-            # 5-way: la cuota de "ko" acá es en realidad KO+TKO+DQ+Sumisión
-            # combinados, o sea "gana por finalización". No se puede repartir
-            # entre odds_*_ko y odds_*_sub sin inventar números, pero sí es una
-            # cuota real y apostable, así que va a su propia columna.
-            if met == "ko":
-                row[f"odds_{lado}_fin"] = sel["price"]
+        if met in ("ko", "sub", "fin") and not es_7way:
+            # 5-way: la selección de finalización es KO+TKO+DQ+Sumisión
+            # combinados. No se puede repartir entre odds_*_ko y odds_*_sub sin
+            # inventar números, pero sí es una cuota real y apostable, así que
+            # va a su propia columna.
+            #
+            # BUG QUE ESTO ARREGLA: antes solo se guardaba si _metodo() decía
+            # "ko". Pero el nombre combinado lleva "Sumisión", que _metodo()
+            # detecta primero, así que la cuota se perdía SIEMPRE. Y como
+            # analizar_metodo5 exige las 4 cuotas, la pelea quedaba fuera del
+            # 5 vías entero, incluida la decisión, que es la apuesta probada.
+            # Rastro en los CSV viejos: decisión llena y finalización vacía.
+            row[f"odds_{lado}_fin"] = sel["price"]
             continue
         row[f"odds_{lado}_{met}"] = sel["price"]
     return row
