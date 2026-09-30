@@ -77,11 +77,20 @@ def listar_csvs():
                        "kb": round(p.stat().st_size / 1024, 1)} for p in archivos]}
 
 
+def _dentro_de(ruta: Path, carpeta: Path) -> bool:
+    """
+    True si `ruta` (ya resuelta) cae dentro de `carpeta`. Comparar prefijos de
+    texto no sirve: "cards_x" también empieza con "cards", y "../cards_x/a.csv"
+    pasaba el chequeo viejo.
+    """
+    return ruta.is_relative_to(carpeta.resolve())
+
+
 @app.post("/api/cartelera/csv")
 def cargar_csv(body: CargaCSV):
     ruta = (C.ROOT / "cards" / body.nombre).resolve()
     # El nombre viene del navegador: hay que verificar que no se salga de cards/.
-    if not str(ruta).startswith(str((C.ROOT / "cards").resolve())) or not ruta.exists():
+    if not _dentro_de(ruta, C.ROOT / "cards") or not ruta.exists():
         raise HTTPException(404, f"No existe cards/{body.nombre}")
     if engine.ESTADO.cargando:
         raise HTTPException(409, "Ya hay una carga en curso.")
@@ -94,11 +103,13 @@ async def subir_csv(archivo: UploadFile = File(...)):
     nombre = Path(archivo.filename or "cartelera.csv").name
     if not nombre.lower().endswith(".csv"):
         raise HTTPException(400, "Tiene que ser un .csv")
+    # ANTES de escribir: si no, con una carga en curso el usuario recibía el
+    # 409 con su archivo de cards/ ya pisado por el nuevo.
+    if engine.ESTADO.cargando:
+        raise HTTPException(409, "Ya hay una carga en curso.")
     destino = C.ROOT / "cards" / nombre
     destino.parent.mkdir(exist_ok=True)
     destino.write_bytes(await archivo.read())
-    if engine.ESTADO.cargando:
-        raise HTTPException(409, "Ya hay una carga en curso.")
     engine.cargar("csv", nombre, destino)
     return {"ok": True, "nombre": nombre}
 
@@ -236,7 +247,7 @@ def salud():
 @app.get("/reportes/{evento}/{archivo}")
 def reporte(evento: str, archivo: str):
     ruta = (C.OUTPUTS / evento / archivo).resolve()
-    if not str(ruta).startswith(str(C.OUTPUTS.resolve())) or not ruta.exists():
+    if not _dentro_de(ruta, C.OUTPUTS) or not ruta.exists():
         raise HTTPException(404, "No existe ese reporte.")
     return FileResponse(ruta)
 
