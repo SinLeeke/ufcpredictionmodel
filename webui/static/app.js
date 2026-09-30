@@ -248,7 +248,9 @@ function pintarCartelera(d, mov) {
 function recolectarApuestas(d) {
   const out = [];
   d.peleas.forEach(p => {
-    (p.metodo6 || []).filter(o => o.apostar && o.clase.endsWith('DEC')).forEach(o =>
+    // La decisión es la misma apuesta en el mercado de 7 y de 5 vías.
+    [...(p.metodo6 || []), ...(p.metodo5 || [])]
+      .filter(o => o.apostar && o.clase.endsWith('DEC')).forEach(o =>
       out.push({ orden:0, tier:'A', pelea:`${p.a} vs ${p.b}`,
         que:`${o.clase[0]==='A'?p.a:p.b} gana por decisión`,
         cuota:o.cuota_decimal, ev:o.ev, kelly:o.kelly, pocos:p.pocos }));

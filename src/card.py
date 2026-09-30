@@ -491,7 +491,10 @@ def _imprimir_consenso(consenso: list[dict], con_cuotas: bool,
 
         accion, mejor = "-", None
         if con_cuotas:
-            dec = [o for o in (c["metodo6"] or [])
+            # La decisión es LA MISMA apuesta en el mercado de 7 y de 5 vías, con
+            # el mismo respaldo; antes solo se miraba el de 7 y la de 5 vías no
+            # aparecía nunca aunque tuviera valor.
+            dec = [o for o in (c["metodo6"] or []) + (c.get("metodo5") or [])
                    if o["apostar"] and o["clase"].endswith("DEC")]
             if dec:
                 o = max(dec, key=lambda o: o["ev"])

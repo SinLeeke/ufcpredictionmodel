@@ -1,4 +1,6 @@
 """Pruebas de src/ufcstats.py: parseo de la ficha y caché."""
+import contextlib
+import io
 import json
 import tempfile
 import unittest
@@ -78,7 +80,8 @@ class CacheDeFichas(unittest.TestCase):
             cache = Path(tmp) / "cache.json"
             cache.write_text(json.dumps({"peleador prueba": {"name": "Peleador Prueba"}}))
             with mock.patch.object(U, "CACHE_PATH", cache), \
-                    mock.patch.object(U, "find_fighter_url", lambda n: None):
+                    mock.patch.object(U, "find_fighter_url", lambda n: None), \
+                    contextlib.redirect_stdout(io.StringIO()):
                 d = U.get_fighter("Peleador Prueba")
             self.assertEqual(d["name"], "Peleador Prueba")
 

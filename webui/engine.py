@@ -194,14 +194,17 @@ def _serializar(res: dict, csv_path: Path) -> tuple[dict, list[P.Pata]]:
                 "lado": v.lado, "cuota": _num(v.cuota_decimal),
                 "ev": _num(v.ev), "kelly": _num(v.kelly), "veredicto": v.veredicto,
             }
-        if c.get("metodo6"):
-            pelea["metodo6"] = [
-                {k: (_num(o[k]) if k in ("p_modelo", "p_mercado", "p_final",
-                                         "cuota_decimal", "ev", "kelly", "sobrerredondeo")
-                     else o[k])
-                 for k in o}
-                for o in c["metodo6"] if "error" not in o
-            ]
+        # Los dos mercados de método viajan igual: la decisión es la misma apuesta
+        # en los dos y "Qué apostar" tiene que verla venga de donde venga.
+        for mercado in ("metodo6", "metodo5"):
+            if c.get(mercado):
+                pelea[mercado] = [
+                    {k: (_num(o[k]) if k in ("p_modelo", "p_mercado", "p_final",
+                                             "cuota_decimal", "ev", "kelly", "sobrerredondeo")
+                         else o[k])
+                     for k in o}
+                    for o in c[mercado] if "error" not in o
+                ]
         peleas.append(pelea)
 
     patas = P.patas_de_cartelera(consenso)
