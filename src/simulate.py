@@ -13,10 +13,13 @@ Nota honesta de diseño (importante):
        muestra efectivo). Así obtenemos un INTERVALO CREÍBLE de la probabilidad,
        no un número puntual frágil.
 
-    2) MUESTREAMOS EL MÉTODO. Dado un ganador en cada simulación, sorteamos el
-       método (KO/TKO, Sub, Decisión) desde las probabilidades del method_model.
-       Al agregar 10.000 corridas obtenemos la distribución estable de cómo
-       termina la pelea y la probabilidad de que termine antes del límite.
+    2) LOS VALORES PUNTUALES SON LOS EXACTOS, no los promedios de los sorteos.
+       Antes se reportaba la frecuencia de victorias y de cada método en las
+       10.000 corridas, que solo recuperan p y las probabilidades de método con
+       ruido: medido, hasta 0,9 pts en p_a. Ese ruido no es incertidumbre, es
+       error de redondeo del muestreo, y llegaba al EV de las patas del parlay
+       (que no coincidía con el de "Qué apostar", calculado con la p exacta).
+       La simulación queda para lo único que aporta: el intervalo creíble.
 """
 from __future__ import annotations
 
@@ -75,25 +78,16 @@ def monte_carlo(
     """
     rng = np.random.default_rng(seed)
 
-    # 1) Incertidumbre sobre p: una p distinta por simulación
+    # Incertidumbre sobre p: una p distinta por simulación -> intervalo creíble
     alpha, beta = _beta_params(p_a, concentration)
     p_samples = rng.beta(alpha, beta, size=n)
-
-    # 2) Ganador por simulación
-    a_wins = rng.random(n) < p_samples          # True si gana A
-
-    # 3) Método por simulación (sorteo multinomial desde method_probs)
-    methods = list(method_probs.keys())
-    probs = np.array([method_probs[m] for m in methods], dtype=float)
-    probs = probs / probs.sum()
-    method_draws = rng.choice(len(methods), size=n, p=probs)
-
-    # --- Agregación ---
-    p_a_mean = float(a_wins.mean())
     ci = (float(np.percentile(p_samples, 2.5)), float(np.percentile(p_samples, 97.5)))
 
-    counts = np.bincount(method_draws, minlength=len(methods))
-    method_dist = {m: round(counts[i] / n, 4) for i, m in enumerate(methods)}
+    # Puntuales EXACTOS (ver la nota del módulo): la media de la Beta es p, y la
+    # frecuencia esperada de cada método es su probabilidad.
+    p_a_mean = float(p_a)
+    total = sum(float(v) for v in method_probs.values())
+    method_dist = {m: round(float(v) / total, 4) for m, v in method_probs.items()}
     p_decision = method_dist.get("Decision", 0.0)
     p_finish = round(1.0 - p_decision, 4)
 

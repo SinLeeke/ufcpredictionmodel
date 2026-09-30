@@ -301,9 +301,10 @@ La señal del modelo de método es buena y conviene no confundirla con su presen
 | Dado que finaliza, ¿KO o sumisión? | **0,753** |
 
 **Monte Carlo.** 10.000 simulaciones que no repiten la `p` de XGBoost: muestrean
-`p_i ~ Beta(α, β)` centrada en `p` para propagar la **incertidumbre** del modelo, y sortean
-el método en cada simulación. De ahí sale un intervalo creíble en vez de un número puntual
-frágil.
+`p_i ~ Beta(α, β)` centrada en `p` para propagar la **incertidumbre** del modelo. De ahí
+sale un intervalo creíble en vez de un número puntual frágil. Los valores puntuales que se
+muestran son los **exactos**: antes se reportaba la frecuencia de los sorteos, que solo
+recupera la `p` con ruido (hasta 0,9 pts), y ese ruido llegaba al EV de las combinadas.
 
 **Mezcla con el mercado.** Si el CSV trae cuotas, la probabilidad que manda es la calibrada:
 
