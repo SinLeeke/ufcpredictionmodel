@@ -855,9 +855,11 @@ cartelera, no porque falte un dato.
   desenlaces que la hacen ganar (sobre KO/sumisión/decisión de cada peleador).
   Si dos conjuntos no se tocan son excluyentes; si se tocan, similares.
 
-- **"Sugerir"** arma la mejor combinada posible: solo patas con respaldo, EV
-  positivo, sin avisos y sin choques. Que no sugiera nada es un resultado
-  normal.
+- **"Sugerir"** arma la mejor combinada posible: solo selecciones que el propio
+  sistema marca *Conviene* o *Se puede*, una por pelea, hasta 4, y nunca una
+  combinada que el evaluador califique de *floja*. Por eso una cartelera con
+  solo apuestas al ganador no sugiere nada: ese mercado no tiene ventaja
+  probada. Que no sugiera nada es un resultado normal.
 
 ### El número que hay que mirar
 

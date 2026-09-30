@@ -579,19 +579,38 @@ def _veredicto(patas: list[Pata], r: dict) -> tuple[str, str, list[str]]:
     return ver, nivel, motivos
 
 
-def sugerir(patas: list[Pata], max_patas: int = MAX_PATAS) -> list[str]:
+# Tope de la SUGERENCIA, no de lo que el usuario puede armar a mano (eso sigue
+# en MAX_PATAS). Es el mismo consejo que da _veredicto: de 2 a 4 selecciones con
+# respaldo rinden casi lo mismo por unidad de riesgo y cobran mucho más seguido.
+MAX_SUGERIDAS = 4
+
+
+def sugerir(patas: list[Pata], max_patas: int = MAX_SUGERIDAS) -> list[str]:
     """
-    La mejor combinada que se puede armar con lo que hay: solo patas con
-    respaldo (tier A y B), EV positivo, sin avisos, y una sola por pelea.
-    Devuelve los ids.
+    La mejor combinada que se puede armar con lo que hay. Devuelve los ids, o
+    una lista vacía, que es un resultado normal.
+
+    Tres reglas, las tres para no contradecir al resto de la pantalla:
+      * solo selecciones que la propia UI marca "Conviene" o "Se puede"
+        (veredicto "si"/"quizas"), una por pelea;
+      * hasta MAX_SUGERIDAS, empezando por las de más respaldo y más valor;
+      * si el evaluador calificaría la combinada de "flojo" o "malo", se van
+        sacando las de menos respaldo; si no queda una combinada sana, nada.
+
+    BUG QUE ESTO ARREGLA: antes filtraba por `apostable` (EV > 0) y el tope era
+    13. Las de ganador con EV entre 0 y 3% la UI las marca "No conviene", y aun
+    así entraban: en mkv.csv sugería 4 patas y las 4 decían "No conviene", y con
+    12 peleas armaba combinadas de 12 que el evaluador calificaba de "flojo".
     """
     vistas: set[str] = set()
     elegidas: list[Pata] = []
     for p in sorted(patas, key=lambda x: (TIERS[x.tier]["orden"], -x.ev)):
-        if not p.apostable or p.fight_id in vistas:
+        if p.veredicto() not in ("si", "quizas") or p.fight_id in vistas:
             continue
         vistas.add(p.fight_id)
         elegidas.append(p)
         if len(elegidas) >= max_patas:
             break
-    return [p.id for p in elegidas]
+    while len(elegidas) >= MIN_PATAS and evaluar(elegidas)["nivel"] in ("flojo", "malo"):
+        elegidas.pop()
+    return [p.id for p in elegidas] if len(elegidas) >= MIN_PATAS else []
