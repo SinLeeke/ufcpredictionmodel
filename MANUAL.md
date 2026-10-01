@@ -696,6 +696,11 @@ mientras la uses: ahí corre el servidor. Ctrl+C para cerrarlo.
 Escucha solo en `127.0.0.1`, o sea **solo tu PC**: maneja tu bankroll y no tiene
 contraseña, así que no hay motivo para exponerla a la red.
 
+**Sin base de datos**: `python -m webui.server --demo` abre la interfaz con una de las
+carteleras ya predichas de `webui/demo/` (`--demo gamrot`, `--demo manual`, `--demo medic`
+para elegir). Sirve para ver o modificar la interfaz en un clon recién bajado, sin
+construir la base. Son fotos de corridas reales, no se pueden refrescar ni repredecir.
+
 ### Las cinco pestañas
 
 | Pestaña | Qué hay |

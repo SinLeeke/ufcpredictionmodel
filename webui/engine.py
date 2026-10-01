@@ -492,6 +492,8 @@ def refrescar() -> str:
         origen, consulta, ruta = ESTADO.origen, ESTADO.consulta, ESTADO.csv_path
     if not origen:
         return "No hay ninguna cartelera cargada todavía."
+    if origen == "demo":
+        return "Modo demo: no hay cuotas que refrescar."
     cargar(origen, consulta, ruta)
     return ""
 
@@ -608,6 +610,46 @@ def refrescar_linea() -> str:
         return f"{movidas} cuotas movidas" if movidas else "sin cambios"
     except Exception as e:                            # noqa: BLE001
         return f"falló: {e}"
+
+
+# --------------------------------------------------------------------------- #
+# Modo demo: carteleras ya predichas, sin modelos ni base de datos
+# --------------------------------------------------------------------------- #
+# data/ y models/ no se versionan, así que en un clon limpio (o en una sesión de
+# Claude Code en la nube) la UI no puede predecir nada. Para poder trabajar la
+# INTERFAZ igual, webui/demo/ guarda la salida real de tres carteleras tal como
+# la dejó _serializar(): misma forma JSON que /api/estado. No es un modelo
+# alternativo ni números inventados: es una foto de una corrida real.
+DEMO_DIR = ROOT / "webui" / "demo"
+
+
+def ruta_demo(nombre: str | None = None) -> Path | None:
+    """El JSON de demo cuyo nombre contiene `nombre` (o el primero si no se da)."""
+    archivos = sorted(DEMO_DIR.glob("*.json"))
+    if nombre:
+        archivos = [a for a in archivos if nombre.lower() in a.stem.lower()]
+    return archivos[0] if archivos else None
+
+
+def cargar_demo(ruta: Path) -> None:
+    """Deja en ESTADO una cartelera de webui/demo/ como si se acabara de predecir."""
+    import json
+    from dataclasses import fields
+    d = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    campos = {f.name for f in fields(P.Pata)}
+    patas = [P.Pata(**{k: v for k, v in p.items() if k in campos}) for p in d["datos"]["patas"]]
+    with ESTADO.lock:
+        ESTADO.origen = "demo"
+        ESTADO.consulta = d.get("csv", "")
+        ESTADO.csv_path = None
+        ESTADO.titulo = f"DEMO · {d.get('titulo', Path(ruta).stem)}"
+        ESTADO.datos = d["datos"]
+        ESTADO.patas = patas
+        ESTADO.movimiento = d.get("movimiento", {})
+        ESTADO.predicho_en = time.time()
+        ESTADO.cuotas_en = None
+        ESTADO.error = ""
+        ESTADO.progreso = f"{len(d['datos']['peleas'])} peleas (modo demo)"
 
 
 # --------------------------------------------------------------------------- #

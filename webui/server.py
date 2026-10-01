@@ -275,6 +275,17 @@ app.mount("/", StaticFiles(directory=str(STATIC), html=True), name="static")
 
 def main() -> None:
     import uvicorn
+    # --demo [nombre]: arranca con una cartelera ya predicha de webui/demo/, sin
+    # necesitar data/ ni models/. Sirve para trabajar la interfaz en un clon
+    # limpio o en una sesión en la nube. Ver engine.cargar_demo.
+    if "--demo" in sys.argv:
+        i = sys.argv.index("--demo")
+        nombre = sys.argv[i + 1] if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("-") else None
+        ruta = engine.ruta_demo(nombre)
+        if ruta is None:
+            raise SystemExit(f"No hay ninguna demo que contenga '{nombre}' en webui/demo/.")
+        engine.cargar_demo(ruta)
+        print(f"  [demo] {ruta.name}")
     engine.arrancar_auto()
     puerto = 8000
     print("=" * 60)

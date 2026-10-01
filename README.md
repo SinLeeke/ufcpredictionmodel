@@ -73,6 +73,7 @@
 ```bash
 pip install -r requirements.txt
 scripts\lanzar_ui.bat            # interfaz web en 127.0.0.1:8000
+python -m webui.server --demo    # la interfaz con carteleras ya predichas, sin construir la base
 ```
 
 O desde la consola, antes de cada cartelera:
