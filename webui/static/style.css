@@ -596,7 +596,9 @@ tbody tr:last-child td{border-bottom:none}
 .pata-estado{display:grid;place-items:center;width:26px;height:26px;border:1.5px solid var(--linea);color:var(--txt2)}
 .pata-estado .ico{width:14px;height:14px}
 .pata:hover:not(.bloqueada) .pata-estado{border-color:var(--txt);color:var(--txt)}
-.pata.elegida .pata-estado{background:var(--txt);border-color:var(--txt);color:var(--bg)}
+/* También con hover: si no, el hover de arriba (más específico) pintaba el
+   visto del mismo color que el fondo y la pata elegida parecía un cuadro negro. */
+.pata.elegida .pata-estado,.pata.elegida:hover .pata-estado{background:var(--txt);border-color:var(--txt);color:var(--bg)}
 .pata.bloqueada .pata-estado{opacity:1;border-color:var(--linea);color:var(--tenue)}
 .pata .probs{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--tenue)}
 .pata .probs b{color:var(--txt);font:700 15px/1 var(--display)}
