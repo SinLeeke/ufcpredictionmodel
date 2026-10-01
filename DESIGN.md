@@ -5,14 +5,47 @@ description: Pronósticos de UFC que dicen dónde hay valor y, sobre todo, dónd
 
 # Design System: UFC Predictor
 
-> **Estado: borrador de la Fase 3.** Paleta elegida en el paso 3 (Cartel); la dirección
-> visual se elige en el paso 4. Ambas las decide el dueño. Los tokens (frontmatter) se
+> **Estado: en construcción (Fase 3).** Paleta elegida en el paso 3 (Cartel) y dirección
+> elegida en el paso 4 (Transmisión), ambas por el dueño. Los tokens (frontmatter) se
 > escriben cuando el mundo visual esté construido, no antes: una regla escrita antes del
 > build termina defendiéndose contra la realidad.
 
 ## Overview
 
-**Creative North Star: pendiente (paso 4).**
+**Creative North Star: "La transmisión de la noche de pelea".**
+
+La interfaz habla como la gráfica que el usuario ve en la tele la noche del evento: la
+barra de información con los datos clave, los zócalos que entran de costado con un
+nombre y un número, el cara a cara con los dos retratos enfrentados y las estadísticas
+en espejo por el medio. Es la dirección **B · Transmisión**, elegida en el paso 4 entre
+tres (A · Lona, cenital y con chaflanes; C · Tarjeta del juez, acta con cuadrícula).
+
+### Dirección elegida: B · Transmisión
+
+- **Cabecera** siempre oscura, como la barra de un canal, en los dos temas: marca
+  propia, pestañas en mayúsculas condensadas y la pestaña activa como un bloque hueso
+  inclinado. Debajo, una regla roja.
+- **KPIs** en una sola barra de información partida en cuatro, con separadores
+  inclinados y cifras condensadas grandes.
+- **Qué apostar** como zócalos: el sello de evidencia a la izquierda (Probado en sólido,
+  Sin ventaja clara en neutro), la selección en mayúsculas, y a la derecha cuánto
+  apostar, cuánto paga y el valor. La explicación de cada nivel de evidencia va una vez
+  por grupo, no repetida en cada fila.
+- **Tarjeta de pelea** como cara a cara: los dos retratos ocupan **todo el alto** de la
+  tarjeta a cada lado (la cara arriba y centrada, nunca hundida al fondo del encuadre);
+  al medio los nombres, los porcentajes enfrentados, la barra y las filas en espejo
+  (peleas en UFC, cuota, lo que da la casa, el modelo solo). Abajo, cómo termina.
+- **Movimiento** de transmisión: barridos de entrada, barras que crecen, cifras que
+  cambian en EN VIVO sin mover nada alrededor.
+- **Inclinación de 12°** como único gesto de forma (pestaña activa, sellos, botones,
+  separadores). Todo lo demás es recto y sin redondeo.
+
+### Estilo opcional: C · Tarjeta del juez
+
+El dueño la quiere como **estilo alternativo elegible en Opciones**, para quien conozca
+las tarjetas de los jueces, pero con **más detalle** que la maqueta (que se veía pobre):
+cuadrícula de formulario, campos rotulados, timbres y filas trazadas. Se hace al final,
+cuando las cinco pestañas ya estén en B, como una capa de estilo sobre el mismo HTML.
 
 Es una herramienta para operar, no una página para persuadir: el usuario viene a leer una
 cartelera y decidir. La expresión vive en los detalles precisos (tipografía, reglas,
@@ -104,17 +137,22 @@ etiqueta favorable.
 
 ## Typography
 
-**Pendiente (paso 4).** Requisitos: una cara de cartel para títulos y cifras grandes con
-cifras tabulares, una cara de lectura para los párrafos explicativos (hay mucho texto que
-leer en la Guía y en los avisos), y archivos `woff2` servidos desde `webui/static`.
+**Barlow Condensed** (600, 700, 800) para títulos, rótulos, pestañas y cifras grandes;
+**Barlow** (400 a 700) para leer. Ambas de Google Fonts, servidas como `woff2` desde
+`webui/static/fuentes/` (la UI abre sin internet) con respaldo del sistema. Las dos traen
+cifras tabulares (`tnum`), verificado en el archivo.
 
 **Cifras:** coma decimal en toda la interfaz, como en `es-CL` y como ya escribía la Guía:
 `65,0 %`, cuota `1,57`, `+11,9 %`. Miles con punto (`$2.500`).
 
 ## Layout
 
-**Pendiente (paso 4).** Requisitos: sin scroll horizontal a 390 px; la barra superior se
-sigue escondiendo al bajar; el boleto de la Combinada sigue pegado al hacer scroll.
+Contenedor de 1240 px centrado. Sin scroll horizontal a 390 px; la barra superior se
+sigue escondiendo al bajar.
+
+**Combinada a la altura de la pantalla** (pedido del dueño): la lista de selecciones
+tiene su propia barra de scroll y la sección completa mide lo que la ventana, así la
+página no se alarga hacia abajo y el boleto queda siempre a la vista al lado.
 
 ## Do's and Don'ts
 
