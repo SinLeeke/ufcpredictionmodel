@@ -1,6 +1,6 @@
 """
 betano_scraper.py
-Scraper de cuotas de Betano (lat.betano.com) para carteleras de MMA/UFC.
+Scraper de cuotas de Betano (www.betanosports.com) para carteleras de MMA/UFC.
 
 Genera un CSV con el formato que usa cards/ (ver src/card.py):
     fighter_a,fighter_b,segment,odds_a,odds_b,
@@ -40,7 +40,7 @@ import sys
 import time
 import unicodedata
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 import pandas as pd
@@ -321,12 +321,21 @@ def _por_fecha(fights: list[dict]) -> dict:
 
 
 def scrape_card(query: str, out_path: Optional[str] = None,
-                fecha: Optional[str] = None) -> Path:
+                fecha: Optional[str] = None,
+                progreso: Callable[[dict], None] | None = None) -> Path:
+    """Baja la cartelera; progreso es opcional y recibe avances por pelea."""
+    def avisar(etapa, detalle, completadas=0, total=None, **extra):
+        if progreso is not None:
+            progreso({"etapa": etapa, "detalle": detalle,
+                      "completadas": completadas, "total": total, **extra})
+
+    avisar("buscando", f"Buscando la cartelera {query} en Betano…")
     card = find_card(query)
     if card is None:
-        raise SystemExit(1)
+        raise SystemExit(f"No encontré una cartelera de MMA que contenga '{query}' en Betano.")
     print(f"[i] cartelera: {card['name']} ({C.BETANO_BASE}{card['url']})")
 
+    avisar("buscando", f"Consultando las peleas de {card['name']}…", titulo=card["name"])
     fights = list_fights(card["url"])
     if not fights:
         raise SystemExit(f"[!] no encontré peleas en {card['name']}.")
@@ -355,7 +364,14 @@ def scrape_card(query: str, out_path: Optional[str] = None,
 
     print(f"[i] {len(fights)} peleas encontradas, pidiendo cuotas de cada una...")
 
-    rows = [get_fight_odds(f) for f in fights]
+    total = len(fights)
+    avisar("cuotas", f"{total} peleas encontradas; descargando sus cuotas…", 0, total)
+    rows = []
+    for indice, fight in enumerate(fights):
+        pelea = f"{fight['fighter_a']} vs {fight['fighter_b']}"
+        avisar("cuotas", f"Cuotas {indice + 1}/{total}: {pelea}…", indice, total)
+        rows.append(get_fight_odds(fight))
+        avisar("cuotas", f"Cuotas {indice + 1}/{total} consultadas: {pelea}.", indice + 1, total)
     df = pd.DataFrame(rows, columns=COLUMNS)
 
     if out_path is None:
@@ -372,7 +388,9 @@ def scrape_card(query: str, out_path: Optional[str] = None,
         if not out_path.is_absolute():
             out_path = C.ROOT / out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    avisar("guardando", "Guardando el archivo de cuotas de Betano…")
     df.to_csv(out_path, index=False)
+    avisar("guardando", "Archivo de cuotas guardado.")
 
     con_ganador = (df["odds_a"] != "").sum()
     con_metodo = ((df["odds_a_dec"] != "") | (df["odds_a_ko"] != "")).sum()

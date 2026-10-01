@@ -152,16 +152,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .marca-txt{font:800 21px/1 var(--display);text-transform:uppercase;letter-spacing:.01em;white-space:nowrap}
 .marca-txt b{font-weight:800;color:var(--cab-regla)}
 
-.tabs{display:flex;align-self:stretch;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs{display:flex;align-self:stretch;min-width:0;gap:2px;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tab{
   background:none;border:0;color:var(--cab-tenue);padding:0 15px;
   font:700 15px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;
-  position:relative;transition:color .16s ease;
+  position:relative;flex:none;transition:color .16s ease;
 }
 .tab:not(.activa):hover{color:var(--cab-txt)}
+.tab:focus-visible{outline-color:var(--cab-txt);outline-offset:-2px}
 /* La pestaña activa es un bloque hueso inclinado, como la etiqueta de la gráfica. */
-.tab::before{content:"";position:absolute;inset:12px 0;background:var(--cab-txt);z-index:-1;
+.tab::before{content:"";position:absolute;inset:12px 4px;background:var(--cab-txt);z-index:-1;
   transform:skewX(calc(var(--incl) * -1)) scaleX(.6);opacity:0;
   transition:opacity .2s ease,transform 200ms var(--ease-out)}
 .tab{z-index:0}
@@ -256,6 +257,31 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .barra.visible{cursor:pointer}               /* un clic lo cierra (app.js) */
 
 main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 auto}
+/* El avance ocupa un bloque propio: las esperas de red pueden durar minutos. */
+.carga-cartelera{background:var(--sup);border-top:3px solid var(--marca);padding:20px 24px;margin-bottom:26px}
+.carga-rotulo{font:700 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue);margin:0 0 8px}
+.carga-cartelera h2{font-size:26px}
+.carga-detalle{color:var(--txt2);margin:10px 0 18px;overflow-wrap:anywhere}
+.carga-medida{display:flex;justify-content:space-between;align-items:baseline;gap:16px;font-size:13px;margin-bottom:7px}
+.carga-medida label{color:var(--txt2)}
+#carga-unidades{font-weight:700}
+#carga-porcentaje{font-weight:700;white-space:nowrap}
+.carga-pista{position:relative;height:9px;overflow:hidden;background:var(--linea)}
+#carga-barra{display:block;width:100%;height:100%;border:0;border-radius:0;background:var(--linea);accent-color:var(--marca);appearance:none}
+#carga-barra::-webkit-progress-bar{background:var(--linea)}
+#carga-barra::-webkit-progress-value{background:var(--marca);transition:width .3s ease}
+#carga-barra::-moz-progress-bar{background:var(--marca)}
+#carga-barra:indeterminate{background:var(--linea)}
+.carga-indeterminada{display:none;position:absolute;left:0;top:0;bottom:0;width:30%;background:var(--marca);pointer-events:none}
+#carga-barra:indeterminate + .carga-indeterminada{display:block;animation:carga-espera 1.8s ease-in-out infinite alternate}
+@keyframes carga-espera{from{transform:translateX(-100%)}to{transform:translateX(335%)}}
+.carga-tiempos{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 20px;margin-top:12px;font-size:13px}
+.carga-tiempos p{margin:0}
+#carga-transcurrido{color:var(--tenue)}
+.carga-aviso{color:var(--txt2);font-size:13px;margin:12px 0 0}
+.carga-cartelera[data-estado="error"]{border-color:var(--error)}
+@media(max-width:600px){.carga-cartelera{padding:16px}.carga-medida{gap:8px;align-items:flex-start}}
+@media(prefers-reduced-motion:reduce){#carga-barra:indeterminate + .carga-indeterminada{animation:none;transform:translateX(110%)}#carga-barra::-webkit-progress-value{transition:none}}
 .panel{display:none}
 /* Al cambiar de pestaña, solo entra la nueva (nunca hay que esperar que la
    otra salga): sube 4 px y se funde en 150 ms. Es navegación frecuente, así
@@ -360,16 +386,21 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
 /* ------------------------- tarjeta cara a cara ------------------------- */
 .peleas-lista{display:grid;gap:14px}
 .pelea{background:var(--sup);position:relative}
-.cara-top{position:absolute;top:12px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:8px;z-index:2;pointer-events:none}
+.cara-top{position:relative;display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;
+  padding:10px 22px;border-bottom:1px solid var(--linea);z-index:2;pointer-events:none}
 .cara-top>*{pointer-events:auto}
 .cara-seg{font:700 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue);margin-right:4px}
+.pelea-debut{display:inline-block;padding:7px 10px;background:#f7c948;color:#211a08;
+  font:700 13px/1.15 var(--display);letter-spacing:.04em;text-transform:uppercase}
+.acta>.pelea-debut{align-self:flex-start;margin-bottom:8px}
+td .pelea-debut{display:block;width:fit-content;margin-top:5px}
 /* El cuadro mide 26 px, pero el área que responde al toque mide 44 (::after). */
 .btn-q::after{content:"";position:absolute;inset:-9px}
 .btn-q{position:relative;width:26px;height:26px;padding:0;justify-content:center;font:800 14px/1 var(--display);
   background:var(--sup);color:var(--txt2);border:1.5px solid var(--linea)}
 .cara{display:grid;grid-template-columns:184px minmax(0,1fr) 184px;align-items:stretch}
 .cara .retrato{min-height:262px}
-.centro{padding:50px 26px 18px;min-width:0}
+.centro{padding:20px 26px 18px;min-width:0}
 .vs-nombres{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:end}
 .vs-nombres .n{font:800 27px/1 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
 .vs-nombres .b{text-align:right}
@@ -413,7 +444,7 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
    de adentro se mide en unidades del propio octágono (cqw), así las cifras
    crecen con él y la estelar nunca se ve más chica que una pelea común. */
 .estelar{background:var(--sup)}
-.estelar-cab{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:52px;padding:10px 22px;border-bottom:1px solid var(--linea)}
+.estelar-cab{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;min-height:52px;padding:10px 22px;border-bottom:1px solid var(--linea)}
 .estelar-kicker{font:800 20px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
 .estelar-kicker::before{content:"";width:10px;height:20px;background:var(--marca);transform:skewX(calc(var(--incl) * -1))}
 .estelar-kicker small{font:700 15px/1 var(--display);color:var(--tenue);letter-spacing:.06em}
@@ -552,6 +583,8 @@ tbody tr:last-child td{border-bottom:none}
   .z-dato{padding:6px 12px 10px}
   .z-dato:first-of-type{border-left:0}
   .grupo-motivo{margin-left:0;padding-left:0}
+  .cara{grid-template-columns:minmax(80px,18%) minmax(0,1fr) minmax(80px,18%)}
+  .centro{padding-inline:18px}
 }
 @media (max-width:640px){
   .cab{padding:0 14px;gap:12px;min-height:54px}
@@ -590,11 +623,8 @@ tbody tr:last-child td{border-bottom:none}
 }
 
 /* ------------------------------ combinada ----------------------------- */
-/* Mide lo que la ventana (menos la cabecera): la lista de selecciones tiene su
-   propio scroll y el boleto queda siempre a la vista al lado, sin que la página
-   se alargue hacia abajo. Pedido del dueño. */
-.combinada{display:grid;grid-template-rows:auto minmax(0,1fr);gap:14px;
-  height:calc(100dvh - var(--alto-cab,84px) - 52px);min-height:560px}
+/* Una sola barra de scroll: todas las selecciones forman parte de la página. */
+.combinada{display:grid;grid-template-rows:auto auto;gap:14px}
 .explicacion-tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;background:var(--sup)}
 .tier-mini{padding:12px 18px;min-width:0}
 .tier-mini+.tier-mini{border-left:1px solid var(--linea)}
@@ -602,7 +632,7 @@ tbody tr:last-child td{border-bottom:none}
 .tier-mini-cab b{font:700 15px/1.1 var(--display);letter-spacing:.02em}
 .tier-mini p{font-size:13px;line-height:1.45;color:var(--txt2);margin:7px 0 0}
 
-.parlay-grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;min-height:0}
+.parlay-grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:start}
 .col-patas{display:flex;flex-direction:column;min-height:0;background:var(--sup)}
 .patas-cab{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
   padding:14px 18px 12px;border-bottom:3px solid var(--txt)}
@@ -621,13 +651,13 @@ tbody tr:last-child td{border-bottom:none}
 .chk:has(input:focus-visible){outline:2px solid var(--marca);outline-offset:2px}
 .chk-texto{margin-left:auto;padding:5px 10px;border:1.5px solid var(--linea);font-weight:600;color:var(--txt2)}
 .chk-texto:has(input:checked){border-color:var(--txt);background:var(--txt);color:var(--bg)}
-.lista-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 18px 18px;
-  scrollbar-width:thin;scrollbar-color:var(--linea) transparent}
+.lista-scroll{padding:0 18px 18px}
 .lista-vacia{color:var(--txt2);padding:24px 0}
 
 /* El nombre del mercado se queda arriba mientras bajas por sus peleas. */
 .mercado-bloque{margin:0 0 6px}
-.mercado-cab{position:sticky;top:0;z-index:2;background:var(--sup);margin:0 -18px;padding:14px 18px 10px;border-bottom:1px solid var(--linea)}
+.mercado-cab{position:sticky;top:var(--alto-cab,84px);z-index:2;background:var(--sup);margin:0 -18px;padding:14px 18px 10px;border-bottom:1px solid var(--linea)}
+.cab-oculta .mercado-cab{top:0}
 .mercado-cab h3{margin:0;font-size:21px;color:var(--txt);display:flex;align-items:center;gap:10px;letter-spacing:.03em}
 .mercado-cab .cuenta{font:700 14px/1 var(--display);color:var(--tenue)}
 .mercado-cab p{margin:4px 0 0;font-size:13px;color:var(--tenue);line-height:1.5;max-width:90ch}
@@ -669,16 +699,16 @@ tbody tr:last-child td{border-bottom:none}
   padding:8px 10px;font-size:12.5px;line-height:1.45;background:var(--error-sup);color:var(--txt)}
 .pata .choque .ico{width:15px;height:15px;color:var(--error);margin-top:1px}
 
-/* El boleto: oscuro arriba como la barra del canal, con su propio scroll. */
-.col-boleto{min-height:0;display:flex}
+/* El boleto acompaña el recorrido de las selecciones en escritorio. */
+.col-boleto{display:flex;position:sticky;top:calc(var(--alto-cab,84px) + 16px)}
+.cab-oculta .col-boleto{top:16px}
 .boleto-caja{display:flex;flex-direction:column;min-height:0;flex:1;background:var(--sup)}
 .boleto-cab{display:flex;align-items:center;gap:10px;padding:13px 16px;background:var(--cab-bg);color:var(--cab-txt);
   border-bottom:3px solid var(--cab-regla)}
 .boleto-cab .ico{width:22px;height:22px;color:var(--cab-regla)}
 .boleto-cab h2{font-size:24px;color:var(--cab-txt)}
 .boleto-cab .badge{margin-left:auto;font:800 20px/1 var(--display);color:var(--cab-txt)}
-.boleto-cuerpo{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:14px 16px 18px;
-  scrollbar-width:thin;scrollbar-color:var(--linea) transparent}
+.boleto-cuerpo{padding:14px 16px 18px}
 #boleto{margin-bottom:14px}
 .boleto-item{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;
   padding:9px 0;border-bottom:1px dashed var(--linea)}
@@ -715,9 +745,8 @@ tbody tr:last-child td{border-bottom:none}
 .motivos li{margin:6px 0}
 
 @media (max-width:1080px){
-  .combinada{height:auto;min-height:0}
   .parlay-grid{grid-template-columns:1fr}
-  .lista-scroll{max-height:70dvh}
+  .col-boleto{position:static}
   .explicacion-tiers{grid-template-columns:1fr}
   .tier-mini+.tier-mini{border-left:0;border-top:1px solid var(--linea)}
 }
@@ -939,6 +968,7 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   .guia-marco{grid-template-columns:minmax(0,1fr);gap:20px}
   /* Angosto: el índice pasa a una fila de chips que se desliza de lado. */
   .guia-indice{position:static;display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+  .cab-oculta .guia-indice{translate:none}
   .guia-indice::-webkit-scrollbar{display:none}
   .guia-indice-tit{display:none}
   .guia-indice a{white-space:nowrap;padding:7px 11px;border:1.5px solid var(--linea);font-size:13.5px;
@@ -1087,7 +1117,7 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 /* --- las peleas: un fajo de tarjetas, dos por fila; la estelar y la
    coestelar ocupan todo el ancho --- */
 [data-estilo="juez"] .peleas-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:stretch}
-[data-estilo="juez"] .acta.estelar,[data-estilo="juez"] .acta.coestelar{grid-column:1/-1}
+[data-estilo="juez"] .peleas-lista>.estelar,[data-estilo="juez"] .acta.coestelar{grid-column:1/-1}
 
 /* La hoja: borde de papel, el marco impreso con doble filete y, a la
    izquierda, las perforaciones de la carpeta. */

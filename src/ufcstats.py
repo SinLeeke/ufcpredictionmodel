@@ -25,7 +25,6 @@ import hashlib
 import json
 import re
 import time
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -37,6 +36,8 @@ from bs4 import BeautifulSoup
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src.fighter_names import canonical_key, name_variants, normalize_name
+from src.ufc_history import HISTORY_METADATA_VERSION, is_ufc_event
 
 CACHE_PATH = C.DATA_RAW / "ufcstats_cache.json"
 
@@ -63,9 +64,20 @@ def _solve_challenge(html: str) -> bool:
     if not (m_nonce and m_target):
         return False
     nonce = m_nonce.group(1)
-    prefix = "0" * int(m_target.group(1))
+    dificultad_texto = m_target.group(1)
+    # SHA256 tiene 64 caracteres hexadecimales. Rechazar datos inválidos antes
+    # de construir el prefijo evita una búsqueda imposible o una asignación enorme.
+    if len(dificultad_texto) > 2 or not 1 <= int(dificultad_texto) <= 64:
+        print("[!] challenge anti-bot: dificultad inválida")
+        return False
+    prefix = "0" * int(dificultad_texto)
+    limite = float(C.REQUEST_TIMEOUT_SEC)
+    deadline = time.monotonic() + limite
     n = 0
     while not hashlib.sha256(f"{nonce}:{n}".encode()).hexdigest().startswith(prefix):
+        if n % 1024 == 0 and time.monotonic() >= deadline:
+            print(f"[!] challenge anti-bot: se agotó el límite de {limite:g} s")
+            return False
         n += 1
     try:
         r = _SESSION.post(
@@ -114,20 +126,9 @@ def _save_cache(cache: dict):
     CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-# Letras que NFKD NO descompone (no son 'letra + acento', son letras propias).
-# Sin esto, 'Błachowicz' -> 'Bachowicz' y nunca hace match con UFCStats.
-_SPECIAL = str.maketrans({
-    "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "đ": "d", "Đ": "D",
-    "ð": "d", "Ð": "D", "þ": "th", "Þ": "Th", "ß": "ss",
-    "æ": "ae", "Æ": "Ae", "œ": "oe", "Œ": "Oe", "ı": "i",
-})
-
-
 def _norm(s: str) -> str:
     """minúsculas, sin acentos, sin puntuación -> para comparar nombres."""
-    s = str(s).translate(_SPECIAL)
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+    return normalize_name(s)
 
 
 # --------------------------------------------------------------------------- #
@@ -167,7 +168,8 @@ def find_fighter_url(name: str) -> Optional[str]:
     """
     Busca al peleador por nombre, primero con el buscador de UFCStats y como
     respaldo con el listado alfabético /statistics/fighters?char=X&page=all.
-    Hace match por nombre normalizado (exacto y luego 'contiene').
+    Hace match por identidad normalizada, incluidos alias verificados (exacto
+    y luego 'contiene'). Bobby Green y King Green comparten la misma ficha.
 
     BUG REAL que costó caro: "Ian Garry" no aparecía nunca. UFCStats lo
     guarda como First="Ian" / Last="Machado Garry" -> queda indexado en el
@@ -203,7 +205,7 @@ def find_fighter_url(name: str) -> Optional[str]:
     if not rows:
         return None
 
-    target = _norm(name)
+    target = canonical_key(name)
     exactos, parciales = [], []
     for row in rows:
         links = row.select("a.b-link")
@@ -213,7 +215,7 @@ def find_fighter_url(name: str) -> Optional[str]:
         # primeras dos columnas suelen ser First y Last name
         first = links[0].get_text(strip=True)
         lastn = links[1].get_text(strip=True)
-        full = _norm(f"{first} {lastn}")
+        full = canonical_key(f"{first} {lastn}")
         if full == target:
             exactos.append((_riqueza_fila(row), url))
         elif target in full or all(w in full for w in target.split()):
@@ -336,15 +338,33 @@ def _parse_history(soup: BeautifulSoup) -> dict:
     tabla de historial. Best-effort: si la estructura no calza, cae a defaults.
     """
     outcomes, methods, dates = [], [], []
+    historial_presente, historial_clasificado = False, True
+    n_ufc = 0
     for row in soup.select("tr.b-fight-details__table-row"):
         flag = row.select_one("i.b-flag__text") or row.select_one("a.b-flag__text")
         cells = row.select("td.b-fight-details__table-col")
-        if not flag or not cells:
+        if not cells:
             continue
+        if not flag:
+            historial_clasificado = False
+            continue
+        historial_presente = True
         outcome = flag.get_text(strip=True).lower()   # win / loss / draw / nc
+        terminado = outcome.startswith(("win", "loss", "draw", "nc"))
+        # Event es la columna 6. La primera línea contiene el nombre, la segunda
+        # la fecha. No confundir el récord completo con el contador solo UFC.
+        if len(cells) < 10 or (not terminado and outcome != "next"):
+            historial_clasificado = False
+        else:
+            evento = cells[6].select_one("p") or cells[6]
+            ufc = is_ufc_event(evento.get_text(" ", strip=True))
+            if ufc is None:
+                historial_clasificado = False
+            elif terminado and ufc:
+                n_ufc += 1
         # Salta la fila de la pelea FUTURA ('next'): no tiene resultado y su fecha
         # contaminaría 'days_since_last_fight' (daría 0 = pelea de hoy).
-        if not outcome.startswith(("win", "loss", "draw", "nc")):
+        if not terminado:
             continue
         row_txt = row.get_text(" ", strip=True)
         outcomes.append(outcome)
@@ -352,10 +372,15 @@ def _parse_history(soup: BeautifulSoup) -> dict:
         m = re.search(r"[A-Z][a-z]{2}\.?\s+\d{1,2},\s+\d{4}", row_txt)
         dates.append(m.group() if m else None)
 
+    confirmado = historial_presente and historial_clasificado
+    metadata = {"n_peleas_ufc": n_ufc if confirmado else None,
+                "historial_ufc_confirmado": confirmado,
+                "_historial_ufc_version": HISTORY_METADATA_VERSION}
     if not outcomes:
         return {"streak": 1, "win_ko_rate": 0.4, "win_sub_rate": 0.2,
                 "win_dec_rate": 0.4, "lost_by_finish_rate": 0.4,
-                "days_since_last_fight": 0.0, "wins": 0, "losses": 0}
+                "days_since_last_fight": 0.0, "wins": 0, "losses": 0,
+                **metadata}
 
     wins_idx = [i for i, o in enumerate(outcomes) if o.startswith("win")]
     loss_idx = [i for i, o in enumerate(outcomes) if o.startswith("loss")]
@@ -395,6 +420,7 @@ def _parse_history(soup: BeautifulSoup) -> dict:
         "days_since_last_fight": days,
         "wins": len(wins_idx),
         "losses": len(loss_idx),
+        **metadata,
     }
 
 
@@ -436,10 +462,33 @@ VERSION_PARSER = 2
 
 def get_fighter(name: str, use_cache: bool = True) -> Optional[dict]:
     cache = _load_cache()
-    key = _norm(name)
-    vieja = cache.get(key) if use_cache else None
+    key = canonical_key(name)
+    # Una cuota puede usar el nombre anterior y la ficha el actual. Recuperar
+    # ambas claves evita bajar otra vez al mismo peleador o perderlo sin red.
+    claves = dict.fromkeys([key, *(_norm(n) for n in name_variants(name))])
+    guardadas = [cache[k] for k in claves if use_cache and k in cache]
+    vieja = next((d for d in guardadas if d.get("_parser") == VERSION_PARSER),
+                 guardadas[0] if guardadas else None)
     if vieja is not None and vieja.get("_parser") == VERSION_PARSER:
-        return vieja
+        # No invalida el caché global. Solo una ficha sin resultados necesita
+        # verificar su tabla para diferenciar un debut de una página vacía.
+        necesita_historial = (vieja.get("_historial_ufc_version") != HISTORY_METADATA_VERSION
+                              and vieja.get("wins") == 0 and vieja.get("losses") == 0
+                              and vieja.get("ufcstats_url"))
+        if not necesita_historial:
+            return vieja
+        url = vieja["ufcstats_url"]
+        soup = _get(url)
+        if soup is None:
+            return vieja
+        # Conserva golpeo/biometría/récord cacheados: esta comprobación añade
+        # únicamente metadatos, sin cambiar la entrada del modelo.
+        hist = _parse_history(soup)
+        data = {**vieja, **{k: hist[k] for k in
+                ("n_peleas_ufc", "historial_ufc_confirmado", "_historial_ufc_version")}}
+        cache[key] = data
+        _save_cache(cache)
+        return data
 
     url = find_fighter_url(name)
     soup = _get(url) if url else None
@@ -451,7 +500,7 @@ def get_fighter(name: str, use_cache: bool = True) -> Optional[dict]:
                   f"(armada con una versión anterior del parser).")
             return vieja
         if url is None:
-            print(f"[!] no encontré '{name}' en UFCStats (¿debutante o nombre distinto?).")
+            print(f"[!] no encontré '{name}' en UFCStats (revisa nombre, datos o conexión).")
         return None
     data = parse_fighter(soup, name_hint=name)
     data["ufcstats_url"] = url

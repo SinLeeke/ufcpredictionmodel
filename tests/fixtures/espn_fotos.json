@@ -1,0 +1,36 @@
+{
+ "source": "https://site.web.api.espn.com/apis/search/v2?query=Ilia%20Topuria&type=player&limit=20",
+ "consultado": "2026-10-01",
+ "players": {
+  "topuria": {
+   "uid": "s:3301~a:4350812", "type": "player", "sport": "mma", "displayName": "Ilia Topuria",
+   "link": {"web": "https://www.espn.com/mma/fighter/_/id/4350812/ilia-topuria"},
+   "image": {"default": "https://a.espncdn.com/i/headshots/mma/players/full/4350812.png"}
+  },
+  "king": {
+   "uid": "s:3301~a:2502364", "type": "player", "sport": "mma", "displayName": "King Green",
+   "link": {"web": "https://www.espn.com/mma/fighter/_/id/2502364/king-green"},
+   "image": {"default": "https://a.espncdn.com/i/headshots/mma/players/full/2502364.png"}
+  },
+  "garry": {
+   "uid": "s:3301~a:4738092", "type": "player", "sport": "mma", "displayName": "Ian Machado Garry",
+   "link": {"web": "https://www.espn.com/mma/fighter/_/id/4738092/ian-machado-garry"},
+   "image": {"default": "https://a.espncdn.com/i/headshots/mma/players/full/4738092.png"}
+  },
+  "medic": {
+   "uid": "s:3301~a:4685870", "type": "player", "sport": "mma", "displayName": "Uroš Medić",
+   "link": {"web": "https://www.espn.com/mma/fighter/_/id/4685870/uros-medic"},
+   "image": {"default": "https://a.espncdn.com/i/headshots/mma/players/full/4685870.png"}
+  },
+  "mike_mma": {
+   "uid": "s:3301~a:4339145", "type": "player", "sport": "mma", "displayName": "Mike Davis",
+   "link": {"web": "https://www.espn.com/mma/fighter/_/id/4339145/mike-davis"},
+   "image": {"default": "https://a.espncdn.com/i/headshots/mma/players/full/4339145.png"}
+  },
+  "mike_nfl": {
+   "uid": "s:20~l:28~a:3025433", "type": "player", "sport": "football", "displayName": "Mike Davis",
+   "link": {"web": "https://www.espn.com/nfl/player/_/id/3025433/mike-davis"},
+   "image": {"default": "https://a.espncdn.com/i/headshots/nfl/players/full/3025433.png"}
+  }
+ }
+}

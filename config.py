@@ -67,7 +67,8 @@ MAX_RETRIES = 3
 UFCSTATS_BASE = "http://ufcstats.com"
 SHERDOG_BASE = "https://www.sherdog.com"
 TAPOLOGY_BASE = "https://www.tapology.com"
-BETANO_BASE = "https://lat.betano.com"
+# Dominio vigente para Chile; lo comparten el scraper y el refresco de la UI.
+BETANO_BASE = "https://www.betanosports.com"
 
 # Dataset de contingencia / entrenamiento en Kaggle (ver scraper.py -> load_from_kaggle).
 # Usamos 'mdabbert/ultimate-ufc-dataset' porque:

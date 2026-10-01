@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -49,6 +50,8 @@ from src.visuals import build_report
 from src import ufcstats
 from src import oposicion
 from src import reemplazos
+from src.fighter_names import canonical_key, normalize_name, preferred_name
+from src.ufc_history import confirmed_ufc_debut
 
 import re
 
@@ -78,10 +81,21 @@ def _from_fighters_csv(name: str) -> dict | None:
     if not C.FIGHTERS_CSV.exists():
         return None
     df = pd.read_csv(C.FIGHTERS_CSV)
-    hit = df[df["name"].str.lower() == name.lower()]
+    identidades = df["name"].map(canonical_key)
+    hit = df[identidades == canonical_key(name)]
     if hit.empty:
-        hit = df[df["name"].str.lower().str.contains(name.lower(), na=False)]
+        hit = df[identidades.str.contains(canonical_key(name), na=False, regex=False)]
+    if not hit.empty:
+        vigente = hit[hit["name"].map(normalize_name) == normalize_name(preferred_name(name))]
+        if not vigente.empty:
+            hit = vigente
     return hit.iloc[0].to_dict() if not hit.empty else None
+
+
+def _conteo_historial(stats: dict) -> int | None:
+    """Un historial ausente no equivale a un debut confirmado."""
+    n = pd.to_numeric(stats.get("n_peleas_hist"), errors="coerce")
+    return int(n) if pd.notna(n) and np.isfinite(n) and n >= 0 else None
 
 
 def get_stats(name: str) -> tuple[dict | None, str]:
@@ -101,7 +115,8 @@ def get_stats(name: str) -> tuple[dict | None, str]:
         # carrera entera (Sherdog trae Bellator, PFL, KSW, ligas regionales).
         # Sin esto un debutante con 15 peleas profesionales figuraba como
         # desconocido y el modelo lo trataba como el promedio.
-        if int(d.get("n_peleas_hist", 99)) < 3:
+        n_hist = _conteo_historial(d)
+        if n_hist is not None and n_hist < 3:
             try:
                 from src import sherdog
                 antes = d.get("wins", 0)
@@ -113,6 +128,10 @@ def get_stats(name: str) -> tuple[dict | None, str]:
         return d, "ufcstats"
     d = _from_fighters_csv(name)
     if d:
+        # El fallback también puede traer una variante antigua del nombre o
+        # un contador generado antes de descargar el historial de UFCStats.
+        from src.control_stats import enriquecer
+        d = enriquecer(d)
         return d, "kaggle"
     return None, "NO_ENCONTRADO"
 
@@ -154,13 +173,16 @@ def elo_de_tabla(tabla: pd.DataFrame, nombre: str, division: str | None = None) 
     La usan la predicción (tabla final) y backtest_carteleras (tabla a la fecha
     del evento), así que las dos eligen la fila con la MISMA regla.
     """
-    hit = tabla[tabla["fighter"].str.lower() == str(nombre).lower()]
+    hit = tabla[tabla["fighter"].map(canonical_key) == canonical_key(nombre)]
     if hit.empty:
         return None
     if division:
         en_div = hit[hit["weight_class"] == division]
         if not en_div.empty:
-            return float(en_div.iloc[0]["elo"])
+            hit = en_div
+    vigente = hit[hit["fighter"].map(normalize_name) == normalize_name(preferred_name(nombre))]
+    if not vigente.empty:
+        hit = vigente
     return float(hit.iloc[0]["elo"])
 
 
@@ -621,7 +643,8 @@ def _imprimir_consenso(consenso: list[dict], con_cuotas: bool,
 # Orquestador
 # --------------------------------------------------------------------------- #
 def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
-                 detalle: bool = False, devolver_todo: bool = False):
+                 detalle: bool = False, devolver_todo: bool = False,
+                 progreso: Callable[[dict], None] | None = None):
     """
     Predice una cartelera completa. Si reports=True, además de la tabla CSV
     genera un reporte visual (donut + barras) por pelea en outputs/ (Plotly vía
@@ -634,7 +657,16 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     (rows/valores/metodos/consenso/missing) en vez de solo el DataFrame. Lo usa
     la UI web para no re-implementar este bucle: es la MISMA corrida que el CLI,
     solo que además entrega los objetos en vez de imprimirlos y tirarlos.
+
+    progreso recibe avances de etapa/pelea, antes de cada consulta de ficha y
+    después de cada pelea (también las omitidas). No cambia la salida del CLI.
     """
+    def avisar(etapa, detalle, completadas=0, total=None):
+        if progreso is not None:
+            progreso({"etapa": etapa, "detalle": detalle,
+                      "completadas": completadas, "total": total})
+
+    avisar("preparando", "Leyendo la cartelera y cargando los modelos…")
     card = pd.read_csv(card_csv)
     model, method_model = _load_models()
     src_lbl = "XGBoost entrenado" if model is not None else "heurístico (corre 'python -m src.model' para usar el modelo)"
@@ -664,16 +696,26 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     print()
 
     rows, missing, valores, metodos, consenso = [], [], [], [], []
-    for _, fight in card.iterrows():
+    total = len(card)
+    avisar("prediccion", "Preparando las fichas de los peleadores…", 0, total)
+    for indice, (_, fight) in enumerate(card.iterrows()):
         na, nb = fight["fighter_a"], fight["fighter_b"]
         seg = fight.get("segment", "")
+        avisar("prediccion", f"Pelea {indice + 1}/{total}: consultando la ficha de {na}…",
+               indice, total)
         a, sa = get_stats(na)
+        avisar("prediccion", f"Pelea {indice + 1}/{total}: consultando la ficha de {nb}…",
+               indice, total)
         b, sb = get_stats(nb)
         if a is None or b is None:
             missing += [n for n, s in [(na, sa), (nb, sb)] if s == "NO_ENCONTRADO"]
             print(f"[skip] {na} vs {nb}: falta data ({sa}/{sb})")
+            avisar("prediccion", f"Pelea {indice + 1}/{total} omitida: faltan datos de {na} vs {nb}.",
+                   indice + 1, total)
             continue
 
+        avisar("prediccion", f"Pelea {indice + 1}/{total}: analizando {na} vs {nb}…",
+               indice, total)
         opciones = None
         opciones5 = None
         # features con el MISMO cálculo que el entrenamiento (incluye grappling)
@@ -761,14 +803,17 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         # ningún aviso. Ganó Urbina por TKO.
         # Ahora se marca también n=0, y además se detecta la ficha FANTASMA por
         # sus stats: un peleador real no tiene slpm=0 y alcance=0 a la vez.
-        # (El 99 por defecto es para cuando la clave no existe -> no avisar.)
+        # Si el historial no está disponible, se mantiene la advertencia sin
+        # afirmar que el peleador tiene cero peleas en UFC.
         def _sin_datos(f) -> bool:
-            if int(f.get("n_peleas_hist", 99)) < 3:
+            n_hist = _conteo_historial(f)
+            if not f.get("historial_disponible", True) or n_hist is None or n_hist < 3:
                 return True
             return float(f.get("slpm", 1) or 0) == 0 and float(f.get("reach_cm", 1) or 0) == 0
 
         pocos = [f["name"].split()[-1] for f in (a, b) if _sin_datos(f)]
         fila = {
+            "orden_cartelera": indice, "total_cartelera": total,
             # p del modelo con el flag neutralizado / con el flag real, y quién
             # entró de reemplazo. Alimentan las tablas 1 y 3 del reporte.
             "p_sin_corto_A": p_sin, "p_con_corto_A": p_con,
@@ -829,16 +874,24 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         # una pelea sale marcada como poco fiable ("solo 1 pelea en UFC", "sin
         # stats de golpeo") en vez de limitarse a mostrar la etiqueta.
         def _info(f, src):
-            return {"n_peleas_hist": int(f.get("n_peleas_hist", 0) or 0),
+            n_hist = _conteo_historial(f)
+            return {"n_peleas_hist": n_hist,
+                    "historial_disponible": bool(f.get("historial_disponible", n_hist is not None)),
+                    "n_peleas_ufc": _conteo_historial({"n_peleas_hist": f.get("n_peleas_ufc")}),
+                    "historial_ufc_confirmado": f.get("historial_ufc_confirmado") is True,
+                    "debut_ufc_confirmado": confirmed_ufc_debut(f),
                     "slpm": float(f.get("slpm", 0) or 0),
                     "wins": int(f.get("wins", 0) or 0),
                     "losses": int(f.get("losses", 0) or 0),
                     "sherdog": bool(f.get("_sherdog")), "fuente": src}
 
         consenso.append({"a": a["name"], "b": b["name"], "sim": sim,
+                         "orden_cartelera": indice, "total_cartelera": total,
                          "method": method, "pocos": pocos, "v": v,
                          "metodo6": opciones, "metodo5": opciones5,
                          "info_a": _info(a, sa), "info_b": _info(b, sb)})
+        avisar("prediccion", f"Pelea {indice + 1}/{total} lista: {na} vs {nb}.",
+               indice + 1, total)
 
     if not rows:
         print("No se pudo predecir ninguna pelea (revisa nombres o conexión).")
@@ -847,6 +900,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
                 "con_metodo": con_metodo, "con_metodo5": con_metodo5,
                 "evento": event} if devolver_todo else None
 
+    avisar("informes", "Armando el resumen y guardando el reporte de la cartelera…")
     # --- Las tres miradas, por separado ---
     # Se imprimen aparte a propósito. Cuando iban mezcladas en una sola columna,
     # un pick donde el MODELO iba tibio (59%) y la CASA muy convencida (72%)
@@ -863,7 +917,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         _tabla_mezcla(rows, valores, hay_corto)
 
     if missing:
-        print(f"\n[!] no encontrados en ninguna fuente (debutantes, probablemente): {sorted(set(missing))}")
+        print(f"\n[!] no encontrados en ninguna fuente (revisa datos, nombres o conexión): {sorted(set(missing))}")
     print("  ~ = stats del dataset Kaggle (no UFCStats en vivo) -> algo más viejos")
 
     # El resumen accionable va PRIMERO; las tablas largas solo si las pides.
@@ -885,6 +939,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "tabla_predicciones.csv"
     pd.DataFrame(rows).to_csv(out, index=False)
+    avisar("informes", "Reporte de la cartelera guardado.")
     print(f"\n[ok] tabla -> {out}")
     print(f"[ok] todo el reporte de esta cartelera -> {out_dir}")
     if devolver_todo:

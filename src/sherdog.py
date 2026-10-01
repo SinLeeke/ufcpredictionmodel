@@ -24,7 +24,6 @@ import json
 import re
 import sys
 import time
-import unicodedata
 from pathlib import Path
 
 import requests
@@ -32,6 +31,7 @@ from bs4 import BeautifulSoup
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src.fighter_names import canonical_key, name_variants, normalize_name
 
 BASE = "https://www.sherdog.com"
 CACHE = C.DATA_RAW / "sherdog_cache.json"
@@ -52,8 +52,7 @@ _sesion.headers.update(HEADERS)
 
 
 def _norm(s: str) -> str:
-    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+    return canonical_key(s)
 
 
 def buscar(nombre: str) -> str | None:
@@ -98,8 +97,10 @@ def historial(nombre: str, usar_cache: bool = True) -> dict | None:
     """
     cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
     k = _norm(nombre)
-    if usar_cache and k in cache:
-        return cache[k]
+    if usar_cache:
+        for clave in dict.fromkeys([k, *(normalize_name(n) for n in name_variants(nombre))]):
+            if clave in cache:
+                return cache[clave]
 
     url = buscar(nombre)
     if not url:
@@ -219,7 +220,8 @@ def completar(stats: dict, min_ufc: int = 3, hasta=None) -> dict:
     finalización con la carrera entera (Sherdog). Los que ya tienen historial
     suficiente en UFC se dejan como están: ahí el dato de UFC es mejor.
     """
-    if int(stats.get("n_peleas_hist", 99)) >= min_ufc:
+    n_ufc = stats.get("n_peleas_hist", stats.get("n_peleas_ufc"))
+    if n_ufc is None or int(n_ufc) >= min_ufc:
         return stats
     h = historial(stats.get("name", ""))
     if not h:

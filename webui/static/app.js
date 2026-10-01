@@ -9,12 +9,16 @@ const $  = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 const S = { datos:null, patas:[], elegidas:[], job:null, logLeidas:0,
-            proximoAuto:null, origen:'', vista:'tarjetas' };
+            proximoAuto:null, origen:'', vista:'tarjetas', carga:null, cargaRecibida:0 };
 
 const api = async (url, opts) => {
   const r = await fetch(url, opts);
   const txt = await r.text();
-  let body; try { body = JSON.parse(txt); } catch { body = { detail: txt }; }
+  let body; try { body = JSON.parse(txt); } catch {
+    body = { detail: /^\s*</.test(txt)
+      ? `El servidor devolvió una página de error (HTTP ${r.status}). Comprueba que esté iniciado el backend de UFC Predictor.`
+      : txt };
+  }
   if (!r.ok) throw new Error(body.detail || `HTTP ${r.status}`);
   return body;
 };
@@ -265,6 +269,70 @@ function evento(e) {
            crudo: e.titulo || e.csv || '' };
 }
 
+/* La barra mide unidades reales de la etapa actual. La estimación aparece
+   cuando el servidor ya tiene una muestra; nunca inventamos un minuto fijo. */
+const ETAPAS_CARGA = {
+  buscando:'Buscando la cartelera', cuotas:'Descargando cuotas', guardando:'Guardando cuotas',
+  preparando:'Preparando el análisis', prediccion:'Analizando las peleas',
+  informes:'Generando los informes', serializando:'Preparando los resultados', lista:'Cartelera lista',
+};
+function duracionCarga(segundos) {
+  const s = Math.max(0, Math.ceil(segundos));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), resto = s % 60;
+  return h ? `${h} h ${m} min` : m ? `${m} min ${resto} s` : `${resto} s`;
+}
+function pintarCarga(e) {
+  const anterior = S.carga?.estado;
+  S.carga = e.carga || (e.cargando ? {
+    estado:'cargando', etapa:'preparando', detalle:e.progreso || 'Preparando la cartelera…',
+    porcentaje:null, total:null, transcurrido_seg:0, restante_seg:null, sin_avance_seg:0,
+  } : null);
+  S.cargaRecibida = performance.now();
+  S.cargaConectada = true;
+  const c = S.carga, panel = $('#carga-cartelera');
+  if (c?.estado === 'completada' && anterior !== 'completada')
+    $('#carga-final').textContent = `Cartelera lista. ${c.detalle || ''}`;
+  else if (c?.estado !== 'completada') $('#carga-final').textContent = '';
+  const visible = c && (e.cargando || c.estado === 'error');
+  panel.classList.toggle('oculto', !visible);
+  if (!visible) return;
+  panel.dataset.estado = c.estado;
+  $('#carga-titulo').textContent = c.estado === 'error'
+    ? 'No se pudo cargar la cartelera' : ETAPAS_CARGA[c.etapa] || 'Cargando la cartelera';
+  const detalle = c.detalle || e.progreso || '';
+  if ($('#carga-detalle').textContent !== detalle) $('#carga-detalle').textContent = detalle;
+  const unidades = c.total != null && c.total > 0
+    ? ` · ${c.completadas} de ${c.total} peleas` : '';
+  $('#carga-unidades').textContent = unidades;
+  const progreso = $('#carga-barra');
+  if (c.porcentaje == null) progreso.removeAttribute('value');
+  else progreso.value = c.porcentaje;
+  $('#carga-porcentaje').textContent = c.porcentaje == null ? 'En curso' : `${c.porcentaje} %`;
+  $('#carga-pista').classList.toggle('oculto', c.estado === 'error');
+  $('.carga-medida').classList.toggle('oculto', c.estado === 'error');
+  pintarTiempoCarga();
+}
+function pintarTiempoCarga() {
+  const c = S.carga;
+  if (!c || $('#carga-cartelera').classList.contains('oculto')) return;
+  const activa = c.estado === 'cargando';
+  const desdeRespuesta = activa ? (performance.now() - S.cargaRecibida) / 1000 : 0;
+  $('#carga-transcurrido').textContent = `Tiempo transcurrido: ${duracionCarga(c.transcurrido_seg + desdeRespuesta)}`;
+  const resto = c.restante_seg == null ? null : c.restante_seg - desdeRespuesta;
+  const sinConexion = activa && (!S.cargaConectada || desdeRespuesta > 6);
+  $('#carga-restante').textContent = !activa ? 'La carga se detuvo.'
+    : sinConexion ? 'Tiempo restante estimado: esperando conexión con el servidor…'
+    : resto == null ? 'Tiempo restante estimado de esta etapa: calculando…'
+    : resto <= 0 ? 'Tiempo restante estimado de esta etapa: recalculando…'
+    : `Tiempo restante estimado de esta etapa: aprox. ${duracionCarga(resto)}`;
+  const aviso = $('#carga-aviso');
+  const lento = activa && c.sin_avance_seg + desdeRespuesta >= 45;
+  aviso.classList.toggle('oculto', !activa || (!sinConexion && !lento && c.etapa !== 'prediccion'));
+  aviso.textContent = sinConexion ? 'No se está recibiendo el estado del servidor. Se reintentará automáticamente.'
+    : lento ? 'La consulta está tardando más de lo habitual. Arriba puedes ver qué ficha o etapa está esperando.'
+    : 'La primera carga puede tardar más porque descarga las fichas de los peleadores. La estimación se ajusta con cada pelea procesada.';
+}
+
 async function tick() {
   try {
     const e = await api('/api/estado');
@@ -279,9 +347,9 @@ async function tick() {
     $('#btn-soltar').classList.toggle('oculto', !hayCartelera);
     $('#btn-refresh').disabled = e.cargando || !e.origen;
 
-    if (e.error)         barra(e.error, 'error', 0);
-    else if (e.cargando) barra(e.progreso || 'trabajando…', '', 0);
-    else                 barra('');
+    pintarCarga(e);
+    if (e.error && e.carga?.estado !== 'error') barra(e.error, 'error', 0);
+    else barra('');
 
     if (e.datos && JSON.stringify(e.datos) !== JSON.stringify(S.datos)) {
       const previo = S.datos;
@@ -305,7 +373,11 @@ async function tick() {
     } else if (!e.datos && !e.cargando && S.datos === null) {
       mostrarVacio();
     }
-  } catch (err) { barra('No pude hablar con el servidor: ' + err.message, 'error'); }
+  } catch (err) {
+    S.cargaConectada = false;
+    pintarTiempoCarga();
+    barra('No pude hablar con el servidor: ' + err.message, 'error');
+  }
 }
 
 // Sin cartelera (al abrir, o después de soltarla con la ×) vuelve la
@@ -333,6 +405,7 @@ $('#chk-vivo').onchange = async (e) => {
 };
 
 function reloj() {
+  pintarTiempoCarga();
   const r = $('#reloj');
   if (!S.origen) { $('#reloj-caja').classList.add('oculto'); $('#vivo-caja').classList.add('oculto'); return; }
   $('#reloj-caja').classList.remove('oculto');
@@ -432,7 +505,7 @@ function pintarCartelera(d, mov) {
   if (d.con_cuotas && !hayMetodo) av.push(['warn','info',
     '<b>Betano todavía no abre el mercado de método para esta cartelera.</b> Por ahora solo publica "Ganador", que es precisamente el mercado donde las pruebas <b>no</b> encontraron ventaja; por eso todas las selecciones salen como <i>sin ventaja clara</i>. No es un fallo del modelo ni falta de datos. Los mercados de método (KO / sumisión / decisión) suelen abrirse en los días previos al evento: vuelve a refrescar más cerca de la fecha y aparecerán las selecciones <i>probadas</i>.']);
   if (d.missing.length) av.push(['warn','duda',
-    `No encontré a estos peleadores en ninguna fuente, probablemente son debutantes absolutos: <b>${d.missing.map(esc).join(', ')}</b>. Sus peleas se omiten en vez de inventar datos.`]);
+    `No encontré datos de estos peleadores en las fuentes consultadas: <b>${d.missing.map(esc).join(', ')}</b>. Sus peleas se omiten en vez de inventar datos.`]);
   const nMov = Object.keys(mov).length;
   if (nMov) av.push(['info','mov',
     `<b>${nMov} cuota(s) se movieron</b> desde el refresco anterior. En las tarjetas y en la tabla salen con ▲ o ▼; pasa el mouse por encima para ver el valor de antes.`]);
@@ -495,21 +568,17 @@ function pintarCartelera(d, mov) {
     ? 'Las probabilidades combinan el modelo con las cuotas de la casa, que es la versión más certera (~70% de acierto).'
     : 'Probabilidades del modelo solo, sin cuotas. Con cuotas acertaría ~3 puntos más.';
 
-  const idEstelar = estelar(d.peleas, S.textosEvento || [d.titulo]);
-  const idCo = coestelar(d.peleas, idEstelar);
-  const principal = d.peleas.find(p => p.id === idEstelar);
-  const segunda = d.peleas.find(p => p.id === idCo);
-  const resto = d.peleas.filter(p => p.id !== idEstelar && p.id !== idCo);
-  // Transmisión: la estelar y la coestelar en el octágono, el resto cara a
-  // cara. Tarjeta del juez: todas son actas, la estelar y la coestelar más
-  // grandes. El número de pelea es su lugar en la cartelera.
-  const nro = (p) => d.peleas.indexOf(p) + 1;
-  const pelea = esJuez()
-    ? (p, tipo) => actaPelea(p, mov, tipo, nro(p), d.peleas.length)
-    : (p, tipo) => tipo ? jaula(p, mov, tipo) : tarjetaPelea(p, mov);
-  $('#peleas').innerHTML = `<div class="peleas-lista">${
-    principal ? pelea(principal, 'estelar') : ''}${
-    segunda ? pelea(segunda, 'coestelar') : ''}${resto.map(p => pelea(p, '')).join('')}</div>`;
+  const textos = S.textosEvento || [d.titulo];
+  const desdeBetano = S.origen === 'betano' || textos.some(t => /^betano_/i.test(String(t || '')));
+  const { peleas, idEstelar, idCo } = ordenarCartelera(d.peleas, textos, desdeBetano);
+  // Las dos principales conservan el octágono en ambos estilos. El número
+  // y la tabla usan el mismo orden de lectura: estelar, coestelar y preliminares.
+  const pelea = (p, i) => {
+    const tipo = p.id === idEstelar ? 'estelar' : p.id === idCo ? 'coestelar' : '';
+    return tipo ? jaula(p, mov, tipo)
+      : esJuez() ? actaPelea(p, mov, '', i + 1, peleas.length) : tarjetaPelea(p, mov);
+  };
+  $('#peleas').innerHTML = `<div class="peleas-lista">${peleas.map(pelea).join('')}</div>`;
   cargarFotos($('#peleas'));
   $$('#peleas [data-explica]').forEach(b => b.onclick = () => {
     const p = d.peleas.find(x => x.id === b.dataset.explica);
@@ -520,10 +589,10 @@ function pintarCartelera(d, mov) {
 
   tabla('#tabla-principal',
     ['Pelea','Ganador','Probabilidad','Cuotas','Confianza','Termina por','No llega a tarjetas','Comparado con lo normal'],
-    d.peleas.map(p => {
+    peleas.map(p => {
       const pg = Math.max(p.p_a, p.p_b);
       const m = p.mercado;
-      return [esc(`${p.a} vs ${p.b}`), esc(p.ganador), td(`<span data-num="t:${p.id}:p">${pct(pg)}</span>`),
+      return [esc(`${p.a} vs ${p.b}`) + etiquetaDebut(p), esc(p.ganador), td(`<span data-num="t:${p.id}:p">${pct(pg)}</span>`),
         td(m ? `<span data-num="t:${p.id}:cA">${cuota(m.cuota_a)}${flecha(mov, p.id, 'A')}</span> / <span data-num="t:${p.id}:cB">${cuota(m.cuota_b)}${flecha(mov, p.id, 'B')}</span>` : 'sin cuotas'),
         `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>`,
         mejorMetodo(p.metodo), td(pct(p.p_finish,0)), esc(p.tendencia)];
@@ -598,34 +667,51 @@ function recolectarApuestas(d) {
   return out.sort((x,y) => x.orden - y.orden || y.ev - x.ev);
 }
 
-// La pelea estelar, si se puede saber con certeza: el CSV la rotula "Estelar",
-// o los dos apellidos de UNA pelea están en el nombre de la cartelera
-// ("gamrot_vs_salkilld"). Si no, ninguna: mejor sin octágono que en la pelea
-// equivocada.
+// Betano entrega la cartelera de preliminares a estelar. Los CSV manuales
+// conservan sus rótulos; el nombre del evento ayuda cuando no hay segmento.
 const plano = (s) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '')
   .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-function estelar(peleas, textos) {
+function principalDeFuente(peleas, desdeFinal) {
+  // El índice original evita ascender otra pelea si la principal fue omitida.
+  if (peleas.some(p => Number.isInteger(p.orden_cartelera) && Number.isInteger(p.total_cartelera))) {
+    const candidatas = peleas.filter(p => p.orden_cartelera === p.total_cartelera - 1 - desdeFinal);
+    return candidatas.length === 1 ? candidatas[0].id : null;
+  }
+  return peleas[peleas.length - 1 - desdeFinal]?.id ?? null;
+}
+function estelar(peleas, textos, desdeBetano = false) {
   const porSegmento = peleas.filter(p => /^\s*(estelar|main event)\b/i.test(p.segmento || ''));
   if (porSegmento.length) return porSegmento.length === 1 ? porSegmento[0].id : null;
+  if (desdeBetano) return principalDeFuente(peleas, 0);
   const palabras = new Set(plano(textos.join(' ')).split(' '));
   const apellido = (n) => plano(n).split(' ').pop();
   const cand = peleas.filter(p => palabras.has(apellido(p.a)) && palabras.has(apellido(p.b)));
   return cand.length === 1 ? cand[0].id : null;
 }
 
-// La coestelar: la que el CSV rotula "Co-estelar"; si no hay rótulo, la vecina
-// de la estelar en el orden de la cartelera (que va de la estelar hacia abajo o
-// al revés). Solo si la estelar está en una punta: si no, no hay orden que
-// leer. En ese caso va en octágono pero sin decir "Co-estelar".
+// En un CSV sin rótulos solo se infiere una vecina si la estelar está en una punta.
 const esCoSegmento = (p) => /^\s*co[\s-]?(estelar|main)/i.test(p.segmento || '');
-function coestelar(peleas, idEstelar) {
-  const porSegmento = peleas.filter(esCoSegmento);
+function coestelar(peleas, idEstelar, desdeBetano = false) {
+  const porSegmento = peleas.filter(p => p.id !== idEstelar && esCoSegmento(p));
   if (porSegmento.length) return porSegmento.length === 1 ? porSegmento[0].id : null;
+  if (desdeBetano) {
+    const id = principalDeFuente(peleas, 1);
+    return id !== idEstelar ? id : null;
+  }
   const i = peleas.findIndex(p => p.id === idEstelar);
-  if (i < 0 || peleas.length < 3) return null;
+  if (i < 0 || peleas.length < 2) return null;
   if (i === 0) return peleas[1].id;
   if (i === peleas.length - 1) return peleas[i - 1].id;
   return null;
+}
+function ordenarCartelera(fuente, textos, desdeBetano = false) {
+  const idEstelar = estelar(fuente, textos, desdeBetano);
+  const idCo = coestelar(fuente, idEstelar, desdeBetano);
+  const invertir = desdeBetano || (fuente.length > 1 && fuente[fuente.length - 1].id === idEstelar);
+  const orden = invertir ? fuente.slice().reverse() : fuente.slice();
+  const principales = [idEstelar, idCo].map(id => fuente.find(p => p.id === id)).filter(Boolean);
+  const peleas = [...principales, ...orden.filter(p => p.id !== idEstelar && p.id !== idCo)];
+  return { peleas, idEstelar, idCo };
 }
 
 const claseConf = (c) => c.toLowerCase().replace(/\s+/g,'');
@@ -636,9 +722,15 @@ function flecha(mov, id, lado) {
   return `<span class="mov" title="antes ${cuota(m.antes)}">${m.ahora > m.antes ? '▲' : '▼'}</span>`;
 }
 const peleasUFC = (info) => {
-  if (!info || info.n_peleas_hist == null) return '';
-  const n = Number(info.n_peleas_hist);
-  return n === 0 ? 'ninguna pelea en UFC' : `${n} pelea${n === 1 ? '' : 's'} en UFC`;
+  if (!info) return '';
+  const confirmado = info.historial_ufc_confirmado === true;
+  const dato = confirmado ? info.n_peleas_ufc : info.n_peleas_hist;
+  if (dato == null) return 'Historial no disponible';
+  const n = Number(dato);
+  if (!Number.isInteger(n) || n < 0) return 'Historial no disponible';
+  if (confirmado)
+    return n === 0 ? 'sin peleas registradas en UFC' : `${n} pelea${n === 1 ? '' : 's'} en UFC`;
+  return n === 0 ? 'sin peleas con estadísticas' : `${n} pelea${n === 1 ? '' : 's'} con estadísticas`;
 };
 
 // Las filas en espejo: lo mismo para cada esquina, enfrentado por el medio.
@@ -683,12 +775,16 @@ function piePelea(p, enLona = false) {
 
 const selloConf = (p) => `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>
   <button class="btn-q" data-explica="${p.id}" title="¿Qué significa?" aria-label="¿Qué significa ${esc(p.confianza)}?">?</button>`;
+const etiquetaDebut = (p) => {
+  const n = [p.info_a, p.info_b].filter(info => info?.debut_ufc_confirmado === true).length;
+  return n ? `<span class="pelea-debut">${n === 1 ? 'Pelea de un debutante' : 'Pelea de debutantes'}</span>` : '';
+};
 
 function tarjetaPelea(p, mov) {
   const favA = p.p_a >= p.p_b;
   return `
   <article class="pelea" data-pelea="${p.id}">
-    <div class="cara-top">${p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : ''}${selloConf(p)}</div>
+    <div class="cara-top">${p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : ''}${etiquetaDebut(p)}${selloConf(p)}</div>
     <div class="cara">
       ${retrato(p.a)}
       <div class="centro">
@@ -733,13 +829,14 @@ function datosJaula(p, mov) {
 // números. Es un octágono regular y todo escala con su ancho.
 function jaula(p, mov, tipo) {
   const favA = p.p_a >= p.p_b;
-  const titulo = tipo === 'estelar' ? 'Pelea estelar' : (esCoSegmento(p) ? 'Co-estelar' : '');
+  const titulo = tipo === 'estelar' ? 'Pelea estelar' : 'Co-estelar';
   const postes = [1,2,3,4,5,6,7,8].map(n => `<i class="poste p${n}"></i>`).join('');
   return `
   <article class="estelar ${tipo}" data-pelea="${p.id}">
     <header class="estelar-cab">
       ${titulo ? `<span class="estelar-kicker">${titulo}${p.segmento ? ` <small>${esc(p.segmento)}</small>` : ''}</span>`
                : (p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : '')}
+      ${etiquetaDebut(p)}
       <span class="sellos">${selloConf(p)}</span>
     </header>
     <div class="jaula-escena"><div class="jaula">
@@ -801,6 +898,7 @@ function actaPelea(p, mov, tipo, n, total) {
     : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>.`;
   return `
   <article class="acta ${tipo || ''}" data-pelea="${p.id}">
+    ${etiquetaDebut(p)}
     <header class="ac-cab">
       <div class="ac-campo ac-n"><small>Pelea</small><b>${n} de ${total}</b></div>
       <div class="ac-campo ac-seg"><small>Segmento</small><b>${esc(segmento)}</b></div>
@@ -1135,7 +1233,7 @@ async function evaluarParlay() {
 
 /* ============================== CARGAR ================================ */
 $('#btn-refresh').onclick = async () => {
-  try { await post('/api/refrescar'); barra('refrescando cuotas…'); }
+  try { await post('/api/refrescar'); await tick(); }
   catch (e) { barra(e.message,'error'); }
 };
 
@@ -1192,8 +1290,8 @@ async function listarCarteleras(forzar) {
       try {
         await post('/api/cartelera/betano',
                    { query: b.dataset.q, fecha: b.dataset.fecha || null });
-        barra('bajando cuotas y prediciendo… puede tardar un minuto.');
         irA('cartelera');
+        await tick();
       } catch (e) { barra(e.message, 'error'); }
     });
   } catch (e) {
@@ -1210,7 +1308,7 @@ $('#btn-cargar-betano').onclick = async () => {
   if (!q) { barra('Escribe parte del nombre de la cartelera, o toca "Ver qué carteleras hay".','error'); return; }
   try {
     await post('/api/cartelera/betano', { query:q });
-    barra('bajando cuotas de Betano… puede tardar un minuto.'); irA('cartelera');
+    irA('cartelera'); await tick();
   } catch (e) { barra(e.message,'error'); }
 };
 
@@ -1228,7 +1326,7 @@ $('#btn-subir').onclick = async () => {
   const fd = new FormData(); fd.append('archivo', f);
   try {
     await api('/api/cartelera/subir', { method:'POST', body:fd });
-    barra('analizando la cartelera…'); irA('cartelera');
+    irA('cartelera'); await tick();
   } catch (e) { barra(e.message,'error'); }
 };
 
@@ -1245,7 +1343,7 @@ async function cargarCSVs() {
       : '<p class="lista-vacia">Todavía no hay ninguna cartelera guardada.</p>';
     $$('#lista-csvs button').forEach(b => b.onclick = async () => {
       try { await post('/api/cartelera/csv', { nombre:b.dataset.n });
-            barra('analizando la cartelera…'); irA('cartelera'); }
+            irA('cartelera'); await tick(); }
       catch (e) { barra(e.message,'error'); }
     });
   } catch (e) { $('#lista-csvs').innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span>
@@ -1378,18 +1476,47 @@ addEventListener('resize', medirCabecera);
 })();
 
 /* =============================== GUÍA ================================= */
-// El índice marca la sección que estás leyendo. IntersectionObserver y no un
-// listener de scroll: no corre en cada frame.
+// La sección sigue vigente hasta que el título siguiente llega bajo la cabecera.
+// Observar solo títulos visibles dejaba una selección vieja en los tramos largos.
 (() => {
+  const panel = $('#tab-guia');
+  const barra = $('#barra-superior');
+  const titulos = $$('.guia h2[id]');
   const enlaces = new Map($$('.guia-indice a').map(a => [a.getAttribute('href').slice(1), a]));
-  const visibles = new Set();
-  const obs = new IntersectionObserver((entradas) => {
-    entradas.forEach(e => e.isIntersecting ? visibles.add(e.target.id) : visibles.delete(e.target.id));
-    const primero = $$('.guia h2[id]').find(h => visibles.has(h.id));
-    if (!primero) return;
-    enlaces.forEach((a, id) => a.classList.toggle('activo', id === primero.id));
-  }, { rootMargin: '-20% 0px -60% 0px' });
-  $$('.guia h2[id]').forEach(h => obs.observe(h));
+  let pendiente = false;
+
+  const actualizar = () => {
+    pendiente = false;
+    if (!panel.classList.contains('activa')) return;
+    // Es el mismo margen de los enlaces: ocultar la barra no cambia de apartado.
+    const linea = barra.offsetHeight + 22;
+    let actual = titulos[0];
+    for (const h of titulos) {
+      if (h.getBoundingClientRect().top > linea + 1) break;
+      actual = h;
+    }
+    // El último apartado puede ser demasiado corto para alcanzar esa línea.
+    if (window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2)
+      actual = titulos[titulos.length - 1];
+    enlaces.forEach((a, id) => {
+      const activo = id === actual.id;
+      a.classList.toggle('activo', activo);
+      if (activo) a.setAttribute('aria-current', 'location');
+      else a.removeAttribute('aria-current');
+    });
+  };
+  const programar = () => {
+    if (pendiente || !panel.classList.contains('activa')) return;
+    pendiente = true;
+    requestAnimationFrame(actualizar);
+  };
+  addEventListener('scroll', programar, { passive: true });
+  addEventListener('resize', programar);
+  barra.addEventListener('transitionend', programar);
+  panel.addEventListener('animationend', programar);
+  new ResizeObserver(programar).observe(panel);
+  $$('.tab').forEach(t => t.addEventListener('click', programar));
+  programar();
 })();
 
 /* ============================== ARRANQUE ============================== */

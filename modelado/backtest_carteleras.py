@@ -92,7 +92,8 @@ def stats_a_fecha(nombre: str, fecha: pd.Timestamp) -> dict | None:
     d = enriquecer(d, fecha)         # control también recortado a la fecha
     # Con pocas peleas en UFC, completar con la carrera completa (Sherdog),
     # recortada TAMBIÉN a la fecha del evento para no mirar el futuro.
-    if int(d.get("n_peleas_hist", 99)) < 3:
+    n_ufc = d.get("n_peleas_hist")
+    if n_ufc is not None and int(n_ufc) < 3:
         try:
             from src import sherdog
             d = sherdog.completar(d, hasta=fecha)
@@ -264,7 +265,9 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
                 continue          # sin cuotas: fuera, para comparar peras con peras
 
             pocos = [f["name"].split()[-1] for f in (a, b)
-                     if int(f.get("n_peleas_hist", 99)) < MIN_PELEAS_FIABLE]
+                     if not f.get("historial_disponible", True)
+                     or f.get("n_peleas_hist") is None
+                     or int(f["n_peleas_hist"]) < MIN_PELEAS_FIABLE]
             # p viene orientada a `a` (esquina roja o alfabético, nunca el ganador)
             picks, aciertos = [], []
             for prob in (p, p_mkt, p_cal):

@@ -22,6 +22,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src.fighter_names import canonical_key
 
 STATS_CSV = C.DATA_PROCESSED / "ufcstats_fight_stats.csv"
 
@@ -47,9 +48,7 @@ NEUTRO = {
 
 
 def _normalizar(s: str) -> str:
-    import unicodedata, re
-    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+    return canonical_key(s)
 
 
 def _construir_indice() -> dict[str, dict]:
@@ -60,6 +59,10 @@ def _construir_indice() -> dict[str, dict]:
     df = pd.read_csv(STATS_CSV)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date", "fighter", "fight_url"])
+    # Un cambio de nombre no crea una segunda carrera. También protege de
+    # exportaciones donde la misma pelea figura bajo las dos variantes.
+    df["fighter"] = df["fighter"].map(_normalizar)
+    df = df.drop_duplicates(subset=["fight_url", "fighter"])
 
     # cruzar con el rival de la misma pelea (para defensa y control recibido)
     df["_i"] = df.groupby("fight_url").cumcount()
@@ -122,11 +125,11 @@ def stats_previas(nombre: str, fecha=None) -> dict:
     """
     d = indice().get(_normalizar(nombre))
     if not d:
-        return dict(NEUTRO)
+        return {**NEUTRO, "historial_disponible": False}
     n = (int(np.searchsorted(d["fechas"], np.datetime64(pd.Timestamp(fecha)), side="left"))
          if fecha is not None else len(d["fechas"]))
     if n <= 0:
-        return dict(NEUTRO)
+        return {**NEUTRO, "historial_disponible": True}
 
     c = d["cum"]
     mins = max(c["dur_min"][n], 1.0)
@@ -135,6 +138,7 @@ def stats_previas(nombre: str, fecha=None) -> dict:
     opp_td_att = c["opp_td_att"][n]
     out = {
         "n_peleas": n,
+        "historial_disponible": True,
         "ctrl_per_min": c["ctrl_sec"][n] / mins / 60.0,
         "opp_ctrl_per_min": c["opp_ctrl_sec"][n] / mins / 60.0,
         "ground_share": c["ground_landed"][n] / sig,
@@ -162,7 +166,12 @@ def enriquecer(stats: dict, fecha=None) -> dict:
     """
     extra = stats_previas(stats.get("name", ""), fecha)
     out = {**stats, **{k: v for k, v in extra.items() if not k.endswith("_real")}}
-    out["n_peleas_hist"] = int(extra.get("n_peleas", 0))
+    if extra["historial_disponible"]:
+        out["n_peleas_hist"] = int(extra["n_peleas"])
+    else:
+        # No encontrar la identidad en la descarga local no demuestra que
+        # debutó. Conserva un conteo explícito de la ficha si está disponible.
+        out["n_peleas_hist"] = stats.get("n_peleas_ufc") if fecha is None else None
     if not pd.isna(extra["td_def_real"]):
         out["td_def"] = float(extra["td_def_real"])
     if not pd.isna(extra["str_def_real"]):

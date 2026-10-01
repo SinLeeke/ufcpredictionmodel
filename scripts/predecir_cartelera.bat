@@ -1,4 +1,5 @@
 @echo off
+setlocal
 chcp 65001 >nul
 rem Este .bat vive en scripts\, pero todo el proyecto asume la raiz como
 rem directorio de trabajo: los .py hacen "import config" sin tocar sys.path.
@@ -15,11 +16,11 @@ if "%~1"=="" (
     echo Para otra: arrastra un CSV encima de este .bat, o corre:
     echo   python -m src.card cards\mi_evento.csv
     echo.
-    python -m src.card
+    call "%~dp0ejecutar_python.bat" -m src.card
 ) else (
-    echo Cartelera: %~1
+    echo Cartelera: "%~1"
     echo.
-    python -m src.card "%~1"
+    call "%~dp0ejecutar_python.bat" -m src.card "%~1"
 )
 if errorlevel 1 goto error
 echo.
@@ -32,7 +33,10 @@ goto fin
 echo.
 echo [ERROR] Algo fallo. Revisa el mensaje de arriba.
 echo (Si no hay modelo entrenado, corre primero actualizar_bd.bat)
+pause
+exit /b 1
 
 :fin
 echo.
 pause
+exit /b 0

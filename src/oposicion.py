@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import re
 import sys
-import unicodedata
 from bisect import bisect_left
 from pathlib import Path
 
@@ -38,6 +37,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src.fighter_names import canonical_key
 
 FIGHTS_CSV = C.DATA_PROCESSED / "ufcstats_fights.csv"
 
@@ -83,8 +83,7 @@ NEUTRO = {
 
 
 def _norm(s: str) -> str:
-    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+    return canonical_key(s)
 
 
 def _es_finish(metodo: str) -> str:

@@ -44,8 +44,15 @@
 > Ese techo no es modestia. El mercado de apuestas, con información que este sistema nunca
 > va a tener, llega a ~69 %. Si marcara 85 %, sería *leakage*, no talento.
 
+Son resultados de las corridas descritas en este proyecto, no un porcentaje garantizado
+para la próxima cartelera. La evaluación está en
+[train_model.py](modelado/train_model.py), [evaluar_modelo.py](modelado/evaluar_modelo.py) y
+los [backtests de ganador](modelado/backtest_valor.py) y
+[método](modelado/backtest_metodo.py). Al cambiar el dataset, el corte temporal o la
+configuración, vuelve a ejecutar esas validaciones antes de comparar cifras.
+
 ```
-   UFCStats     Kaggle + BestFightOdds     Wikipedia     Sherdog     Betano
+   UFCStats            Kaggle             Wikipedia     Sherdog     Betano
   (oficial)      (cuotas históricas)     (reemplazos)  (fuera UFC)  (cuotas)
       │                   │                    │            │          │
       └───────────────────┴──────────┬─────────┴────────────┴──────────┘
@@ -70,51 +77,145 @@
 
 ## 🚀 Empezar
 
-```bash
-pip install -r requirements.txt
-scripts\lanzar_ui.bat            # interfaz web en 127.0.0.1:8000
-python -m webui.server --demo    # la interfaz con carteleras ya predichas, sin construir la base
-```
-
-O desde la consola, antes de cada cartelera:
-
-```bash
-python -m src.betano_scraper "UFC 330"     # baja las cuotas y arma el CSV
-python -m src.card cards/mi_evento.csv     # predice  (--detalle para ver más)
-```
-
-<div align="center">
-
 | Requisito | |
 |---|---|
-| **Python** | 3.10 o superior (probado en 3.14) |
-| **Credenciales** | solo Kaggle (`~/.kaggle/kaggle.json`); las otras cinco fuentes son públicas |
+| **Python** | 3.10 o superior; entorno de instalación verificado en Windows con Python 3.12 |
+| **Git** | para clonar; también puedes descargar y extraer el ZIP del repositorio |
+| **Internet** | para instalar dependencias, descargar datos y cargar retratos por primera vez |
+| **Credenciales** | Kaggle si la descarga pide autenticación; alternativa: CSV descargado a mano |
 | **Navegador / Selenium** | **no**, ni para el anti-bot de UFCStats ni para Betano |
 | **GPU** | no — entrenar tarda segundos en CPU |
 | **Disco** | ~60 MB de datos + ~4 MB de modelos, todos regenerables |
 
-</div>
+### Instalar en Windows
 
-> [!TIP]
-> La construcción inicial de la base tarda **~1 hora** y se hace **una sola vez**. Después
-> las actualizaciones son de minutos, porque todos los scrapers son incrementales. Paso a
-> paso y mantenimiento en **[MANUAL.md](MANUAL.md)**.
+Instala [Python](https://www.python.org/downloads/windows/) con el launcher `py` o con
+Python agregado al `PATH`. Para clonar instala [Git](https://git-scm.com/download/win).
+Abre PowerShell y ejecuta:
+
+```powershell
+git clone https://github.com/SinLeeke/ufcpredictionmodel.git ufc_predictor
+cd ufc_predictor
+.\scripts\instalar.bat
+.\scripts\lanzar_ui.bat --demo
+```
+
+El instalador crea `.venv` e instala `requirements.txt` con el Python de ese entorno.
+Los paquetes opcionales comentados en el archivo no se instalan. Los lanzadores de
+`scripts/` encuentran `.venv` automáticamente, incluso al abrirlos con doble clic;
+no necesitas activar el
+entorno ni cambiar la política de PowerShell.
+
+Si prefieres hacerlo manualmente, desde la raíz del proyecto:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m webui.server --demo
+```
+
+Si no tienes `py` pero `python --version` funciona, reemplaza únicamente el primer
+comando por `python -m venv .venv`.
+
+La interfaz abre [http://127.0.0.1:8000](http://127.0.0.1:8000). Deja la terminal abierta
+y ciérrala con `Ctrl+C` al terminar. Si el puerto está ocupado, cierra la otra instancia.
+
+### Probar la interfaz antes de construir la base
+
+`--demo` carga una cartelera ya predicha desde `webui/demo/`, incluido en Git. Puedes
+explorar las peleas y el simulador de combinadas sin descargar la base ni entrenar
+modelos. La demo no actualiza cuotas ni vuelve a predecir. Los retratos se consultan al
+cargarse y quedan en caché; si no están disponibles, aparece una silueta.
+
+Un clon nuevo contiene el código, las demos y `cards/ejemplo_con_cuotas.csv`.
+**`data/`, `models/` y `outputs/` no se versionan**: los comandos siguientes los generan
+en tu equipo. El almacenamiento de datos sigue siendo local, con CSV, JSON y modelos
+en archivos `.pkl`.
+
+### Construir la base para predecir carteleras nuevas
+
+La primera descarga puede tardar alrededor de una hora, según la red y los cachés.
+Ejecuta estos comandos desde la raíz, usando el mismo entorno de la instalación:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.ufcstats_events
+.\.venv\Scripts\python.exe -m src.ufcstats_fighters
+.\.venv\Scripts\python.exe -m src.ufcstats_fightstats
+.\.venv\Scripts\python.exe -m src.reemplazos
+.\.venv\Scripts\python.exe -m src.scraper
+.\.venv\Scripts\python.exe -m modelado.train_model
+```
+
+`src.scraper` descarga el dataset configurado en `config.py` e ingiere features,
+peleadores y ELO. Si Kaggle pide autenticación, configura
+`C:\Users\<tu-usuario>\.kaggle\kaggle.json`. También puedes descargar `data.csv` del
+[dataset público](https://www.kaggle.com/datasets/mdabbert/ultimate-ufc-dataset), renombrarlo
+como `kaggle_ufc.csv` y guardarlo en `data\raw\` antes de ejecutar `src.scraper`.
+Nunca subas tus credenciales al repositorio.
+
+Los scrapers guardan cachés y retoman las descargas incompletas. Los resultados quedan
+en `data/processed/`; el entrenamiento genera `winner_xgb.pkl`, `method_xgb.pkl` y el
+modelo de medición `winner_xgb_split.pkl` en `models/`.
+
+Para habilitar la mezcla con el mercado y el análisis calibrado del método, genera sus
+modelos una vez y recalcula tras cambiar el entrenamiento:
+
+```powershell
+.\.venv\Scripts\python.exe -m modelado.backtest_valor --refit
+.\.venv\Scripts\python.exe -m modelado.backtest_metodo --refit
+```
+
+Se guardan `calibrador_mercado.pkl`, `calibrador_metodo.pkl` y `metodo6_xgb.pkl`.
+Sin los modelos entrenados, la predicción puede recurrir a una heurística; sin
+calibradores, avisa y no presenta el análisis como calibrado. Para comprobar los
+resultados del modelo usa `.\.venv\Scripts\python.exe -m modelado.evaluar_modelo`.
+
+BestFightOdds se ejecuta aparte con `.\.venv\Scripts\python.exe -m src.bfo_odds` si quieres descargar las
+cuotas históricas recientes. No es un requisito del pipeline de entrenamiento actual.
+Más detalles de datos y mantenimiento en [MANUAL.md](MANUAL.md).
+
+### Usar la aplicación
+
+```powershell
+.\scripts\lanzar_ui.bat
+```
+
+En **Cargar**, elige una cartelera de Betano y pulsa **Predecir**, o sube tu CSV.
+El scraper y el refresco de cuotas usan el dominio chileno
+[www.betanosports.com](https://www.betanosports.com/) definido en `config.BETANO_BASE`.
+El modo en vivo se activa desde la interfaz.
+
+La consola permite el mismo flujo:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.betano_scraper "UFC Fight Night" cards/mi_evento.csv
+.\.venv\Scripts\python.exe -m src.card cards/mi_evento.csv
+```
+
+Añade `--fecha AAAA-MM-DD` al scraper si una liga contiene eventos de varios días.
+Con `--detalle`, `src.card` muestra las tablas completas.
 
 ---
 
 ## 🕸 Qué scrapea y cómo
 
-Seis fuentes. **Ninguna necesita navegador**: todo con `requests`, caché en disco y
+Seis fuentes para los datos y las cuotas. **Ninguna necesita navegador**: todo con `requests`, caché en disco y
 descarga incremental — cada corrida pide solo lo que falta.
 
 | Fuente | Aporta | Al día |
 |---|---|:---:|
 | **UFCStats** | resultados, stats por pelea y por round, fichas | ✅ mismo día |
 | **Kaggle** (`mdabbert`) | cuotas históricas — lo único que UFCStats no publica | ⏳ ~4 meses |
-| **BestFightOdds** | rellena las cuotas que a Kaggle le faltan | ✅ |
+| **BestFightOdds** | descarga cuotas recientes para inspección; no entra en el entrenamiento actual | ✅ |
 | **Wikipedia** | quién entró de reemplazo (corto aviso) | ✅ |
 | **Sherdog** | carrera fuera de UFC, solo al predecir debutantes | ✅ |
 | **Betano** | cuotas de la cartelera que viene | ✅ |
+
+Los retratos de la interfaz tienen un circuito aparte: **ESPN → Wikipedia → Sherdog →
+silueta**. ESPN aporta los PNG transparentes de sus fichas de MMA; no añade datos de
+entrenamiento. Las imágenes se guardan en `data/raw/fotos/`, y las entradas de caché
+anteriores se revisan para preferir esos retratos sin borrar las fotos locales existentes.
 
 <details>
 <summary><b>🔧 Los tres problemas que costó resolver</b></summary>
@@ -549,10 +650,36 @@ devuelve sus estructuras en vez de imprimirlas y descartarlas.
 | | |
 |---|---|
 | **Carteleras solas** | las de Betano, con fecha, número de peleas y estelar. Un clic y predice. Avisa cuando Betano todavía tiene pocas peleas montadas |
+| **Carga visible** | muestra etapa, detalle, unidades terminadas y tiempo transcurrido. El porcentaje y el tiempo restante corresponden a la etapa actual; la estimación aparece cuando hay avances medidos, y 100 % llega cuando los resultados están listos |
+| **Estelar y coestelar** | la cartelera empieza por las dos peleas principales, cada una en su octágono con los retratos dentro; después vienen las demás peleas. Los CSV manuales pueden indicar `segment` para identificar sus principales |
+| **Retratos de ESPN** | PNG transparentes vinculados al nombre y al ID de MMA; Wikipedia y Sherdog son respaldo. Ante un nombre ambiguo aparece una silueta |
 | **Modo EN VIVO** | refresca la línea de ganador **cada 10 s** con *una sola* petición: la página del evento ya trae el mercado de toda la cartelera. No re-predice — la probabilidad del modelo no cambia porque se mueva la cuota, solo la mezcla y el EV |
 | **Todo explicado** | ninguna etiqueta aparece muda. "NO FIABLE" dice el motivo con nombre y apellido; cada selección dice *conviene / se puede / no conviene* y por qué; hay una pestaña **Guía** con el glosario completo |
 | **Mantenimiento** | actualizar la base, reentrenar y correr los backtests con el registro en vivo, una tarea a la vez |
-| **Simulador de combinada** | hasta 13 patas, agrupadas por mercado y con bloqueo de las incompatibles |
+| **Simulador de combinada** | hasta 13 patas, agrupadas por mercado y con bloqueo de las incompatibles. La lista crece con la página, sin scroll vertical dentro de las selecciones; el boleto queda a la vista al lado en escritorio |
+
+Los aliases conocidos se normalizan por identidad: **Bobby Green y King Green** pueden
+resolver a la misma ficha y al mismo historial. Cuando está disponible, la interfaz
+muestra el nombre vigente de la ficha: **King Green**, aunque el CSV diga Bobby Green.
+ESPN también reconoce **Ian Garry → Ian Machado Garry**. Las fotos exigen nombre
+completo, deporte e ID coincidentes; no se elige a alguien solo porque comparta apellido.
+Los criterios y los casos revisados están en la
+[auditoría de identidades](docs/auditoria-identidades.md).
+
+Una ficha sin historial descargado se muestra como **historial de UFC no disponible**.
+Eso no equivale a cero peleas ni activa la etiqueta de debutante. La etiqueta
+**Pelea de un debutante** requiere un debut confirmado; si falta historial o hay pocas
+peleas para evaluar, se mantiene **NO FIABLE** con la causa explicada.
+
+Capturas de la interfaz local:
+
+![Cartelera con estelar y coestelar en octágonos y retratos de ESPN](docs/capturas/cartelera-octagonos.jpg)
+
+![Ficha de Bobby Green con identidad e historial resueltos](docs/capturas/bobby-green-historial.jpg)
+
+![Simulador de combinadas con selecciones desplegadas y boleto lateral](docs/capturas/combinada.jpg)
+
+![Carga de cartelera con avance por etapa y tiempo estimado](docs/capturas/carga.jpg)
 
 <details>
 <summary><b>🎲 Lo que aporta el simulador no es el EV, es la fragilidad</b></summary>
@@ -657,14 +784,19 @@ Que una cartelera no genere ninguna apuesta es el resultado normal y esperado.
 
 ```
 ufc_predictor/
-├── scripts/        los .bat de doble clic (se cambian solos a la raíz)
+├── scripts/        instalar, lanzar la UI y tareas por .bat
 ├── src/            scrapers, features y predicción
 ├── modelado/       entrenar, medir y validar el modelo (se corren con -m)
 ├── webui/          la UI local: server, engine, parlay, jobs, static/
-├── tests/          pruebas: python -m unittest discover -s tests -t .  (sin red, sin dependencias)
+├── tests/          unittest y fixtures, sin consultas de red
+├── docs/capturas/  imágenes versionadas de la interfaz
 ├── config.py       rutas, umbrales y constantes
-└── data/ models/ outputs/ cards/ backups/      generados, no versionados
+└── data/ models/ outputs/ backups/            generados, no versionados
 ```
+
+`cards/` contiene el CSV de ejemplo versionado; las carteleras descargadas son locales.
+Tras instalar las dependencias, ejecuta las pruebas con
+`.\.venv\Scripts\python.exe -m unittest discover -s tests -t .`.
 
 <details>
 <summary><b>📄 Qué hace cada archivo</b></summary>
@@ -675,6 +807,7 @@ ufc_predictor/
 
 | Archivo | Qué hace | Cuándo |
 |---|---|---|
+| `scripts\instalar.bat` | crea `.venv` e instala las dependencias obligatorias | primera instalación |
 | `scripts\lanzar_ui.bat` | interfaz web | siempre |
 | `scripts\actualizar_bd.bat` | los 6 pasos de actualización + reentrenar | 1 vez al mes |
 | `scripts\bajar_datos_ufcstats.bat` | descarga profunda de UFCStats | primera vez |
@@ -725,7 +858,8 @@ Este proyecto no habría sido posible sin estas fuentes y trabajos previos.
 | **[Ultimate UFC Dataset](https://www.kaggle.com/datasets/mdabbert/ultimate-ufc-dataset)** de **Matt Dabbert** ([@shortlikeafox](https://github.com/shortlikeafox)) | las **cuotas históricas**, el único dato que UFCStats no publica. Su [tiger-millionaire](https://github.com/shortlikeafox/tiger-millionaire) combina UFCStats, BestFightOdds y los rankings de UFC |
 | **[BestFightOdds](https://www.bestfightodds.com/)** | fuente original de las cuotas. Se consulta solo para las peleas recientes que Kaggle aún no cubre |
 | **[Wikipedia](https://en.wikipedia.org/)** | secciones "Background" de cada evento: quién entró de reemplazo |
-| **[Betano](https://lat.betano.com/)** | cuotas de las carteleras próximas |
+| **[Betano](https://www.betanosports.com/)** | cuotas de las carteleras próximas |
+| **[ESPN](https://www.espn.cl/mma/peleador/_/id/4350812/ilia-topuria)** | retratos PNG de los peleadores para la interfaz; sus fichas y el buscador aportan los IDs y URLs de imagen |
 | **[Sherdog](https://www.sherdog.com/)** | historial completo, incluidas las peleas fuera de UFC. Solo al predecir, para no tratar como desconocido a un debutante con 15 peleas profesionales atrás |
 | **[Rajeev Warrier's UFC Dataset](https://www.kaggle.com/datasets/rajeevw/ufcdata)** | defensa de golpeo y de derribo reales para el entrenamiento (`data/processed/defense_stats.csv`) |
 

@@ -96,8 +96,28 @@
 </div>
 
 <div id="barra-estado" class="barra" role="status" aria-live="polite"></div>
+<p id="carga-final" class="sr" role="status" aria-live="polite"></p>
 
 <main id="contenido">
+
+<section id="carga-cartelera" class="carga-cartelera oculto" aria-labelledby="carga-titulo">
+  <p class="carga-rotulo">Cargando cartelera</p>
+  <h2 id="carga-titulo">Preparando…</h2>
+  <p id="carga-detalle" class="carga-detalle" role="status" aria-live="polite"></p>
+  <div class="carga-medida">
+    <label for="carga-barra">Progreso de esta etapa <span id="carga-unidades"></span></label>
+    <span id="carga-porcentaje"></span>
+  </div>
+  <div id="carga-pista" class="carga-pista">
+    <progress id="carga-barra" max="100" aria-label="Progreso de esta etapa"></progress>
+    <span class="carga-indeterminada" aria-hidden="true"></span>
+  </div>
+  <div class="carga-tiempos">
+    <p id="carga-restante">Tiempo restante estimado de esta etapa: calculando…</p>
+    <p id="carga-transcurrido">Tiempo transcurrido: 0 s</p>
+  </div>
+  <p id="carga-aviso" class="carga-aviso oculto"></p>
+</section>
 
 <!-- ======================= CARTELERA ======================= -->
 <section id="tab-cartelera" class="panel activa">
@@ -168,8 +188,7 @@
     </div>
   </div>
 
-  <!-- La combinada mide lo que la ventana: la lista tiene su propio scroll y el
-       boleto queda siempre a la vista al lado, sin que la página se alargue. -->
+  <!-- Las selecciones alargan la página. El boleto acompaña al lado en escritorio. -->
   <div id="parlay-contenido" class="combinada oculto">
     <div class="explicacion-tiers" id="explica-tiers"></div>
 
@@ -634,7 +653,7 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
     </p>
     <p class="pie-nota pie-legal">
       Sin relación con UFC ni con sus dueños: el nombre solo dice de qué trata. Fotos de
-      peleadores: Wikipedia/Wikimedia Commons o Sherdog; sin foto, una silueta.
+      peleadores: ESPN, Wikipedia/Wikimedia Commons o Sherdog; sin foto, una silueta.
     </p>
     <p class="pie-firma">
       hecho por <a href="https://github.com/SinLeeke/ufcpredictionmodel" target="_blank"

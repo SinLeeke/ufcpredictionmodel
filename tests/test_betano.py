@@ -1,5 +1,7 @@
 """Pruebas de src/betano_scraper.py: qué columnas del CSV llena cada mercado."""
 import unittest
+import tempfile
+from pathlib import Path
 from unittest import mock
 
 from src import betano_scraper as B
@@ -56,6 +58,31 @@ class Metodo5Vias(unittest.TestCase):
         self.assertEqual([fila[f"odds_a_{k}"] for k in ("ko", "sub", "dec")], [3.0, 5.0, 3.2])
         self.assertEqual([fila[f"odds_b_{k}"] for k in ("ko", "sub", "dec")], [12.0, 15.0, 9.0])
         self.assertEqual((fila["odds_a_fin"], fila["odds_b_fin"]), ("", ""))
+
+
+class AvanceDeCuotas(unittest.TestCase):
+    def test_informa_antes_y_despues_de_cada_peticion_y_del_csv(self):
+        eventos = []
+        fights = [{**PELEA, "id": "1", "start_ms": 1700000000000},
+                  {**PELEA, "id": "2", "start_ms": 1700000000001}]
+
+        def cuotas(fight):
+            self.assertEqual(eventos[-1]["etapa"], "cuotas")
+            self.assertIn(fight["fighter_a"], eventos[-1]["detalle"])
+            return {"fighter_a": fight["fighter_a"], "fighter_b": fight["fighter_b"],
+                    "odds_a": 1.8, "odds_b": 2.1}
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(B, "find_card", return_value={"name": "UFC", "url": "/ufc"}), \
+                mock.patch.object(B, "list_fights", return_value=fights), \
+                mock.patch.object(B, "get_fight_odds", side_effect=cuotas):
+            ruta = B.scrape_card("UFC", str(Path(tmp) / "cuotas.csv"), progreso=eventos.append)
+            self.assertTrue(ruta.exists())
+        avances = [e for e in eventos if e["etapa"] == "cuotas"]
+        self.assertEqual(avances[-1]["completadas"], 2)
+        self.assertEqual(avances[-1]["total"], 2)
+        self.assertEqual(eventos[-1]["etapa"], "guardando")
+        self.assertIn("guardado", eventos[-1]["detalle"])
 
 
 if __name__ == "__main__":

@@ -33,6 +33,129 @@ class CortoAviso(unittest.TestCase):
         self.assertEqual(env["consultas_wiki"], ["Dos Dos"])
 
 
+class AvancePorPelea(unittest.TestCase):
+    def test_informa_cada_ficha_antes_de_consultarla_y_cuenta_las_omitidas(self):
+        eventos = []
+        with card_aislado() as env:
+            ruta = env["tmp"] / "c.csv"
+            ruta.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\nTres Tres,Cuatro Cuatro\n",
+                            encoding="utf-8")
+
+            def ficha(nombre):
+                self.assertIn(nombre, eventos[-1]["detalle"])
+                self.assertEqual(eventos[-1]["etapa"], "prediccion")
+                return (None, "NO_ENCONTRADO") if nombre == "Tres Tres" else (peleador(nombre), "ufcstats")
+
+            with mock.patch.object(env["card"], "get_stats", side_effect=ficha):
+                res = predecir(env["card"], ruta, progreso=eventos.append)
+        self.assertEqual(len(res["rows"]), 1)
+        avances = [e for e in eventos if e["etapa"] == "prediccion"]
+        self.assertEqual(avances[-1]["completadas"], 2)
+        self.assertEqual(avances[-1]["total"], 2)
+        self.assertIn("omitida", avances[-1]["detalle"])
+        self.assertEqual(eventos[-1]["etapa"], "informes")
+        self.assertEqual(res["rows"][0]["orden_cartelera"], 0)
+        self.assertEqual(res["consenso"][0]["total_cartelera"], 2)
+
+    def test_omitir_una_principal_conserva_el_orden_de_fuente_en_json(self):
+        from webui import engine as E
+        with card_aislado() as env:
+            ruta = env["tmp"] / "c.csv"
+            ruta.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\nTres Tres,Cuatro Cuatro\nCinco Cinco,Seis Seis\n",
+                            encoding="utf-8")
+            with mock.patch.object(env["card"], "get_stats", side_effect=lambda nombre:
+                    (None, "NO_ENCONTRADO") if nombre == "Tres Tres" else (peleador(nombre), "ufcstats")):
+                res = predecir(env["card"], ruta)
+            datos, _ = E._serializar(res, ruta)
+        self.assertEqual([p["orden_cartelera"] for p in datos["peleas"]], [0, 2])
+        self.assertEqual([p["total_cartelera"] for p in datos["peleas"]], [3, 3])
+
+
+class IdentidadYHistorial(unittest.TestCase):
+    def test_bobby_green_usa_la_fila_vigente_de_king_green(self):
+        import config as C
+        with card_aislado() as env:
+            csv = env["tmp"] / "fighters.csv"
+            csv.write_text("name,n_peleas_hist\nBobby Green,0\nKing Green,28\n", encoding="utf-8")
+            with mock.patch.object(C, "FIGHTERS_CSV", csv):
+                ficha = env["card"]._from_fighters_csv("Bobby Green")
+        self.assertEqual(ficha["name"], "King Green")
+        self.assertEqual(ficha["n_peleas_hist"], 28)
+
+    def test_historial_ausente_admite_none_y_conserva_advertencia_sin_declarar_cero(self):
+        from webui import engine as E
+        for conteo in (None, 28):
+            with self.subTest(conteo=conteo), card_aislado() as env:
+                csv = env["tmp"] / "c.csv"
+                csv.write_text("fighter_a,fighter_b\nKing Green,Dos Dos\n", encoding="utf-8")
+
+                def ficha(nombre):
+                    cambios = {"n_peleas_hist": conteo, "historial_disponible": False} \
+                        if nombre == "King Green" else {}
+                    return peleador(nombre, **cambios), "ufcstats"
+
+                with mock.patch.object(env["card"], "get_stats", side_effect=ficha):
+                    consenso = predecir(env["card"], csv)["consenso"][0]
+            self.assertIn("Green", consenso["pocos"])
+            self.assertEqual(consenso["info_a"]["n_peleas_hist"], conteo)
+            self.assertFalse(consenso["info_a"]["debut_ufc_confirmado"])
+            texto = E._por_que_confianza(0.7, consenso["pocos"], {"King Green": consenso["info_a"]})
+            self.assertIn("no está disponible", texto)
+            self.assertNotIn("ninguna pelea", texto)
+
+    def test_cero_confirmado_mantiene_la_explicacion_de_debut(self):
+        from webui import engine as E
+        with card_aislado() as env:
+            csv = env["tmp"] / "c.csv"
+            csv.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\n", encoding="utf-8")
+            with mock.patch.object(env["card"], "get_stats", side_effect=lambda nombre: (
+                    peleador(nombre, n_peleas_hist=0 if nombre == "Uno Uno" else 8,
+                             historial_disponible=True,
+                             n_peleas_ufc=0 if nombre == "Uno Uno" else 8,
+                             historial_ufc_confirmado=True), "ufcstats")):
+                consenso = predecir(env["card"], csv)["consenso"][0]
+        texto = E._por_que_confianza(0.7, consenso["pocos"], {"Uno Uno": consenso["info_a"]})
+        self.assertIn("ninguna pelea", texto)
+        self.assertTrue(consenso["info_a"]["debut_ufc_confirmado"])
+        self.assertFalse(consenso["info_b"]["debut_ufc_confirmado"])
+
+    def test_cero_local_sin_evidencia_ufc_no_equivale_a_debut(self):
+        from webui import engine as E
+        with card_aislado() as env:
+            csv = env["tmp"] / "c.csv"
+            csv.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\n", encoding="utf-8")
+            with mock.patch.object(env["card"], "get_stats", side_effect=lambda nombre: (
+                    peleador(nombre, n_peleas_hist=0, historial_disponible=True), "kaggle")):
+                consenso = predecir(env["card"], csv)["consenso"][0]
+        self.assertFalse(consenso["info_a"]["debut_ufc_confirmado"])
+        self.assertIsNone(consenso["info_a"]["n_peleas_ufc"])
+        texto = E._por_que_confianza(0.7, consenso["pocos"], {"Uno Uno": consenso["info_a"]})
+        self.assertIn("no confirma un debut", texto)
+        self.assertNotIn("ninguna pelea en UFC", texto)
+
+    def test_debut_ufc_no_depende_del_total_de_otras_organizaciones(self):
+        with card_aislado() as env:
+            csv = env["tmp"] / "c.csv"
+            csv.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\n", encoding="utf-8")
+            with mock.patch.object(env["card"], "get_stats", side_effect=lambda nombre: (
+                    peleador(nombre, n_peleas_hist=5, n_peleas_ufc=0,
+                             historial_ufc_confirmado=True), "ufcstats")):
+                consenso = predecir(env["card"], csv)["consenso"][0]
+        self.assertTrue(consenso["info_a"]["debut_ufc_confirmado"])
+        self.assertTrue(consenso["info_b"]["debut_ufc_confirmado"])
+
+    def test_fallback_kaggle_tambien_enriquece_historial(self):
+        from src import card
+        from src import control_stats as CS
+        with mock.patch.object(card.ufcstats, "get_fighter", return_value=None), \
+                mock.patch.object(card, "_from_fighters_csv", return_value=peleador("King Green")), \
+                mock.patch.object(CS, "stats_previas", return_value={**CS.NEUTRO, "historial_disponible": False}):
+            ficha, fuente = card.get_stats("Bobby Green")
+        self.assertEqual(fuente, "kaggle")
+        self.assertIsNone(ficha["n_peleas_hist"])
+        self.assertFalse(ficha["historial_disponible"])
+
+
 class _ModeloConSesgo:
     """Un XGBoost no es perfectamente antisimétrico; este exagera el defecto:
     le da +0,4 de logit a quien esté en la columna A."""

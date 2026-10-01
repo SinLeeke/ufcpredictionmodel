@@ -21,6 +21,7 @@ import time
 import unicodedata
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -52,6 +53,97 @@ def _slug(s: str) -> str:
 # --------------------------------------------------------------------------- #
 # Estado compartido
 # --------------------------------------------------------------------------- #
+class ProgresoCarga:
+    """Métricas de una carga, leídas/escritas bajo Estado.lock.
+
+    Porcentaje y tiempo restante son de la etapa actual. La estimación usa
+    únicamente el tiempo real de unidades terminadas de esa misma etapa; no
+    extrapola el tiempo de bajar cuotas al de consultar fichas. 100% queda
+    reservado para cuando la cartelera ya se serializó y publicó.
+    """
+
+    def __init__(self) -> None:
+        self.estado = "inactiva"
+        self.etapa = ""
+        self.detalle = ""
+        self.completadas = 0
+        self.total: int | None = None
+        self._inicio: float | None = None
+        self._fin: float | None = None
+        self._ultimo_avance: float | None = None
+        self._ultima_unidad: float | None = None
+        self._seg_unidades = 0.0
+        self._unidades_medidas = 0
+
+    def iniciar(self) -> None:
+        ahora = time.monotonic()
+        self.estado = "cargando"
+        self._inicio = ahora
+        self._ultimo_avance = ahora
+        self.actualizar({"etapa": "preparando", "detalle": "Empezando la carga…"})
+
+    def actualizar(self, avance: dict) -> None:
+        ahora = time.monotonic()
+        etapa = avance.get("etapa", self.etapa)
+        detalle = avance.get("detalle", self.detalle)
+        total = avance.get("total")
+        total = max(0, int(total)) if total is not None else None
+        completadas = max(0, int(avance.get("completadas", 0)))
+        if total is not None:
+            completadas = min(completadas, total)
+        if etapa != self.etapa:
+            self._ultima_unidad = ahora
+            self._seg_unidades = 0.0
+            self._unidades_medidas = 0
+            self.completadas = 0
+        if completadas > self.completadas:
+            self._seg_unidades += max(0.0, ahora - self._ultima_unidad)
+            self._unidades_medidas += completadas - self.completadas
+            self._ultima_unidad = ahora
+        if etapa != self.etapa or detalle != self.detalle or completadas != self.completadas:
+            self._ultimo_avance = ahora
+        self.etapa, self.detalle = etapa, detalle
+        self.completadas, self.total = completadas, total
+
+    def terminar(self, error: str = "") -> None:
+        self._fin = time.monotonic()
+        self.estado = "error" if error else "completada"
+        if error:
+            self.detalle = error
+        else:
+            self.etapa = "lista"
+
+    def snapshot(self) -> dict:
+        ahora = self._fin if self._fin is not None else time.monotonic()
+        porcentaje = None
+        if self.estado == "completada":
+            porcentaje = 100
+        elif self.total:
+            porcentaje = min(99, round(self.completadas * 100 / self.total, 1))
+        restante = None
+        if (self.estado == "cargando" and self.total and self._unidades_medidas
+                and self.completadas < self.total):
+            media = self._seg_unidades / self._unidades_medidas
+            estimado = media * (self.total - self.completadas)
+            pendiente = estimado - max(0.0, ahora - self._ultima_unidad)
+            # Cuando se excedió la muestra, vuelve a estimar al siguiente
+            # avance: mostrar "0 s" mientras una petición sigue esperando
+            # daría una promesa falsa.
+            if pendiente > 0:
+                restante = max(0.1, round(pendiente, 1))
+        return {
+            "estado": self.estado, "etapa": self.etapa, "detalle": self.detalle,
+            "completadas": self.completadas, "total": self.total,
+            "porcentaje": porcentaje, "alcance": "etapa",
+            "transcurrido_seg": round(max(0.0, ahora - self._inicio), 1)
+                if self._inicio is not None else 0,
+            "restante_seg": restante,
+            "sin_avance_seg": round(max(0.0, ahora - self._ultimo_avance), 1)
+                if self._ultimo_avance is not None else 0,
+            "finalizada": self.estado in ("completada", "error"),
+        }
+
+
 class Estado:
     """
     Todo lo que la UI necesita saber de la cartelera activa. Un solo objeto,
@@ -63,6 +155,7 @@ class Estado:
         self.lock = threading.Lock()
         self.cargando = False
         self.progreso = ""
+        self.carga = ProgresoCarga()
         self.error = ""
         self.log: list[str] = []
 
@@ -94,6 +187,7 @@ class Estado:
             return {
                 "cargando": self.cargando,
                 "progreso": self.progreso,
+                "carga": self.carga.snapshot(),
                 "error": self.error,
                 "log": self.log[-40:],
                 "origen": self.origen,
@@ -179,6 +273,13 @@ def _serializar(res: dict, csv_path: Path) -> tuple[dict, list[P.Pata]]:
                 max(sim.p_a, sim.p_b), c.get("pocos") or [],
                 {c["a"]: c.get("info_a", {}), c["b"]: c.get("info_b", {})}),
         }
+        # El scraper ordena preliminares -> estelar. Preserva el índice de la
+        # fuente aunque una pelea se omita por falta de datos; la UI no debe
+        # promover otra pelea a estelar ni coestelar en ese caso.
+        for campo in ("orden_cartelera", "total_cartelera"):
+            dato = c.get(campo, fila.get(campo))
+            if isinstance(dato, int) and not isinstance(dato, bool):
+                pelea[campo] = dato
         if v is not None:
             # TODO numérico pasa por _num(): value.analizar() devuelve NaN cuando
             # la pelea no trae cuotas, y un NaN suelto rompe la respuesta entera
@@ -262,10 +363,21 @@ def _por_que_confianza(p: float, pocos: list, infos: dict) -> str:
         for nombre, i in infos.items():
             if not i:
                 continue
-            n = i.get("n_peleas_hist", 99)
+            n = _num(i.get("n_peleas_hist"))
             apellido = nombre.split()[-1]
-            if n < 3:
-                peleas = "ninguna pelea" if n == 0 else f"{n} pelea" + ("s" if n > 1 else "")
+            if i.get("debut_ufc_confirmado") is True:
+                causas.append(f"<b>{apellido}</b> todavía no tiene ninguna pelea en UFC confirmada en su historial.")
+                if float(i.get("slpm") or 0) == 0:
+                    causas.append("Su ficha tampoco tiene estadísticas de golpeo.")
+            elif n is None:
+                causas.append(f"El historial de <b>{apellido}</b> no está disponible en los datos consultados.")
+            elif n < 3:
+                n = int(n)
+                if n == 0:
+                    causas.append(f"No hay peleas con estadísticas detalladas de <b>{apellido}</b> "
+                                  "en los datos consultados; eso no confirma un debut en UFC.")
+                    continue
+                peleas = f"{n} pelea" + ("s" if n > 1 else "")
                 extra = ""
                 if i.get("sherdog"):
                     extra = (f" Fuera de UFC tiene récord {i.get('wins',0)}-{i.get('losses',0)}, "
@@ -273,7 +385,9 @@ def _por_que_confianza(p: float, pocos: list, infos: dict) -> str:
                              f"lucha: eso solo se publica de UFC.")
                 elif float(i.get("slpm") or 0) == 0:
                     extra = " Y su ficha no tiene ni una estadística de golpeo."
-                causas.append(f"<b>{apellido}</b> tiene {peleas} en UFC.{extra}")
+                causas.append(f"<b>{apellido}</b> tiene {peleas} con estadísticas detalladas en la base local.{extra}")
+            elif not i.get("historial_disponible", True):
+                causas.append(f"El historial detallado de <b>{apellido}</b> no está disponible en la base local.")
             elif float(i.get("slpm") or 0) == 0:
                 causas.append(f"<b>{apellido}</b> tiene la ficha vacía: cero golpes registrados.")
         detalle = " ".join(causas) or "A algún peleador le faltan datos en UFCStats."
@@ -342,18 +456,25 @@ def listar_carteleras() -> list[dict]:
 
 
 def bajar_cuotas(query: str, destino: Path | None = None,
-                 fecha: str | None = None) -> tuple[Path, str]:
+                 fecha: str | None = None,
+                 progreso: Callable[[dict], None] | None = None) -> tuple[Path, str]:
     """
     Baja las cuotas de una cartelera de Betano y las deja en un CSV.
     Devuelve (ruta, titulo). Reutiliza `scrape_card`, que ya resuelve el lío de
     los eventos mezclados bajo la misma liga "UFC Fight Night".
     """
     from src import betano_scraper as bs
-    card = bs.find_card(query)
-    titulo = card["name"] if card else query
+    titulo = query
+
+    def avance(evento):
+        nonlocal titulo
+        titulo = evento.get("titulo", titulo)
+        if progreso is not None:
+            progreso(evento)
     # `fecha` distingue los eventos que Betano mete bajo la misma liga
     # ("UFC Fight Night" puede ser dos fines de semana distintos).
-    ruta = bs.scrape_card(query, str(destino) if destino else None, fecha=fecha)
+    ruta = bs.scrape_card(query, str(destino) if destino else None, fecha=fecha,
+                          progreso=avance)
     return Path(ruta), titulo
 
 
@@ -374,12 +495,13 @@ def _claves_cuotas(datos: dict) -> dict[str, float]:
 # --------------------------------------------------------------------------- #
 # Predicción (en hilo aparte)
 # --------------------------------------------------------------------------- #
-def _predecir_sync(csv_path: Path) -> dict:
-    """Corre predict_card capturando su stdout para poder mostrarlo en la UI."""
+def _predecir_sync(csv_path: Path, progreso: Callable[[dict], None] | None = None) -> dict:
+    """Usa callbacks para el avance; conserva stdout para el diagnóstico final."""
     from src.card import predict_card
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        res = predict_card(csv_path, reports=True, detalle=False, devolver_todo=True)
+        res = predict_card(csv_path, reports=True, detalle=False, devolver_todo=True,
+                           progreso=progreso)
     salida = buf.getvalue()
     if not res or not res.get("rows"):
         raise RuntimeError(
@@ -400,25 +522,31 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
         ESTADO.error = ""
         ESTADO.log = []
         ESTADO.progreso = "empezando…"
+        ESTADO.carga = ProgresoCarga()
+        ESTADO.carga.iniciar()
+
+    def avance(evento: dict) -> None:
+        with ESTADO.lock:
+            ESTADO.carga.actualizar(evento)
+            ESTADO._log(evento["detalle"])
 
     def _run() -> None:
         try:
             ruta = csv_path
+            titulo = ruta.stem if ruta is not None else ""
+            cuotas_en = None
             if origen == "betano":
-                ESTADO._log(f"Bajando cuotas de Betano: {consulta}…")
-                ruta, titulo = bajar_cuotas(consulta, fecha=fecha)
-                with ESTADO.lock:
-                    ESTADO.titulo = titulo
-                    ESTADO.cuotas_en = time.time()
+                ruta, titulo = bajar_cuotas(consulta, fecha=fecha, progreso=avance)
+                cuotas_en = time.time()
             elif refrescar_cuotas and ESTADO.origen == "betano" and ESTADO.consulta:
                 pass
 
             if ruta is None:
                 raise RuntimeError("No hay cartelera que cargar.")
 
-            ESTADO._log(f"Prediciendo {ruta.name}… (la primera vez baja las fichas "
-                        f"de cada peleador de UFCStats, puede tardar)")
-            res = _predecir_sync(ruta)
+            avance({"etapa": "preparando", "detalle": f"Cargando modelos para {ruta.name}…"})
+            res = _predecir_sync(ruta, progreso=avance)
+            avance({"etapa": "serializando", "detalle": "Preparando los resultados para mostrarlos…"})
             datos, patas = _serializar(res, ruta)
 
             with ESTADO.lock:
@@ -435,19 +563,25 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
                 ESTADO.origen = origen or ESTADO.origen
                 ESTADO.consulta = consulta or ESTADO.consulta
                 ESTADO.csv_path = ruta
-                ESTADO.titulo = ESTADO.titulo or ruta.stem
+                ESTADO.titulo = titulo or ruta.stem
                 ESTADO.datos = datos
                 ESTADO.patas = patas
                 ESTADO.predicho_en = time.time()
-                if origen == "csv":
-                    ESTADO.cuotas_en = None
-                ESTADO.progreso = f"{len(datos['peleas'])} peleas listas"
+                ESTADO.cuotas_en = cuotas_en
+                cantidad = len(datos["peleas"])
+                ESTADO.progreso = f"{cantidad} pelea{'s' if cantidad != 1 else ''} lista{'s' if cantidad != 1 else ''}"
+                ESTADO.carga.detalle = ESTADO.progreso
+                ESTADO.carga.terminar()
                 if mov:
                     ESTADO.log.append(f"[i] {len(mov)} cuotas se movieron desde el refresh anterior")
-        except Exception as e:                       # noqa: BLE001
+        except (Exception, SystemExit) as e:         # noqa: BLE001
             with ESTADO.lock:
-                ESTADO.error = str(e)
+                mensaje = str(e) or f"No se pudo completar la carga ({type(e).__name__})."
+                if isinstance(e, SystemExit) and (not mensaje or mensaje.isdigit()):
+                    mensaje = "No se pudo cargar la cartelera de Betano. Revisa el evento y la conexión."
+                ESTADO.error = mensaje
                 ESTADO.progreso = "falló"
+                ESTADO.carga.terminar(mensaje)
         finally:
             with ESTADO.lock:
                 ESTADO.cargando = False
@@ -482,6 +616,7 @@ def limpiar() -> None:
         ESTADO.progreso = ""
         ESTADO.error = ""
         ESTADO.log = []
+        ESTADO.carga = ProgresoCarga()
 
 
 def refrescar() -> str:
@@ -650,6 +785,7 @@ def cargar_demo(ruta: Path) -> None:
         ESTADO.cuotas_en = None
         ESTADO.error = ""
         ESTADO.progreso = f"{len(d['datos']['peleas'])} peleas (modo demo)"
+        ESTADO.carga = ProgresoCarga()
 
 
 # --------------------------------------------------------------------------- #

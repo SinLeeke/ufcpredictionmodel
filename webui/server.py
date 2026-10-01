@@ -247,7 +247,7 @@ def salud():
 @app.get("/api/foto/{nombre}")
 def foto_peleador(nombre: str):
     """
-    La foto del peleador, de Wikipedia o Sherdog, bajada una vez y servida desde
+    La foto del peleador, de ESPN (o Wikipedia/Sherdog como respaldo), bajada y servida desde
     disco. 204 si no hay (o si no se puede saber con certeza cuál es): la UI
     muestra entonces una silueta. Es 204 y no 404 porque "no hay foto" es una
     respuesta normal, no un error, y el navegador anota cada 404 en la consola

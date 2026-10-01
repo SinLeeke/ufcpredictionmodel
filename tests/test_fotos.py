@@ -1,9 +1,9 @@
 """
-Pruebas de webui/fotos.py con respuestas simuladas: la nube no deja salir a
-Wikipedia ni a Sherdog, y aunque dejara, una prueba no debe depender de la red.
+Pruebas de webui/fotos.py con fixtures y respuestas simuladas, siempre sin red.
 La verificación con la red real se hace en el PC del dueño.
 """
 import json
+import copy
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,9 +34,21 @@ def _pag(titulo, descripcion="American mixed martial artist", foto="https://uplo
 
 
 JPG = _Resp(content=b"\xff\xd8jpeg", tipo="image/jpeg")
+PNG = _Resp(content=b"\x89PNG\r\n\x1a\nretrato", tipo="image/png")
+ESPN_FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "espn_fotos.json")
+                         .read_text(encoding="utf-8"))["players"]
+
+
+def _espn(*jugadores, total=None):
+    cantidad = total if total is not None else len(jugadores)
+    return _Resp(js={"resultTypes": [{"type": "player", "totalFound": cantidad}],
+                     "results": [{"type": "player", "totalFound": cantidad,
+                                  "contents": list(jugadores)}]})
 
 
 class _Base(unittest.TestCase):
+    consultar_espn = False
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.p_carpeta = mock.patch.object(fotos, "CARPETA", Path(self.tmp.name))
@@ -45,11 +57,147 @@ class _Base(unittest.TestCase):
         # sherdog.DELAY es un sleep de cortesía: en pruebas no hace falta esperar.
         self.p_delay = mock.patch.object(fotos.sherdog, "DELAY", 0)
         self.p_delay.start()
+        # Las pruebas de respaldos aíslan ESPN; su consulta se verifica aparte.
+        self.p_espn = None if self.consultar_espn else mock.patch.object(fotos, "url_espn", return_value=None)
+        if self.p_espn:
+            self.p_espn.start()
 
     def tearDown(self):
+        if self.p_espn:
+            self.p_espn.stop()
         self.p_delay.stop()
         self.p_carpeta.stop()
         self.tmp.cleanup()
+
+
+class ESPN(_Base):
+    consultar_espn = True
+
+    def _url(self, nombre, *jugadores, total=None):
+        with mock.patch.object(fotos.requests, "get", return_value=_espn(*jugadores, total=total)):
+            return fotos.url_espn(nombre)
+
+    def test_retrato_oficial_se_guarda_como_png_y_se_reutiliza(self):
+        jugador = ESPN_FIXTURE["topuria"]
+        with mock.patch.object(fotos.requests, "get", side_effect=[_espn(jugador), PNG]) as get, \
+                mock.patch.object(fotos, "url_wikipedia") as wiki, \
+                mock.patch.object(fotos, "url_sherdog") as sherdog:
+            ruta = fotos.foto("Ilia Topuria")
+            self.assertEqual(fotos.foto("Ilia Topuria"), ruta)
+        self.assertEqual(ruta.suffix, ".png")
+        self.assertEqual(ruta.read_bytes(), PNG.content)
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(get.call_args_list[1].args[0], jugador["image"]["default"])
+        wiki.assert_not_called()
+        sherdog.assert_not_called()
+        self.assertEqual(fotos._indice()["ilia topuria"]["fuente"], "espn")
+
+    def test_filtra_el_homonimo_de_nfl_y_las_noticias(self):
+        self.assertEqual(self._url("Mike Davis", ESPN_FIXTURE["mike_nfl"], ESPN_FIXTURE["mike_mma"]),
+                         ESPN_FIXTURE["mike_mma"]["image"]["default"])
+        noticia = {**ESPN_FIXTURE["topuria"], "type": "article"}
+        self.assertIsNone(self._url("Ilia Topuria", noticia))
+
+    def test_bobby_green_e_ian_garry_usan_aliases_completos_verificados(self):
+        for nombre, llave, consulta in (("Bobby Green", "king", "King Green"),
+                                       ("Ian Garry", "garry", "Ian Machado Garry")):
+            with self.subTest(nombre=nombre), \
+                    mock.patch.object(fotos.requests, "get", return_value=_espn(ESPN_FIXTURE[llave])) as get:
+                self.assertEqual(fotos.url_espn(nombre), ESPN_FIXTURE[llave]["image"]["default"])
+                self.assertEqual(get.call_args.kwargs["params"]["query"], consulta)
+        self.assertIsNone(self._url("Bobby King", ESPN_FIXTURE["king"]))
+        otro_king = copy.deepcopy(ESPN_FIXTURE["king"])
+        otro_king["uid"] = "s:3301~a:999"
+        otro_king["link"]["web"] = "https://www.espn.com/mma/fighter/_/id/999/king-green"
+        otro_king["image"]["default"] = "https://a.espncdn.com/i/headshots/mma/players/full/999.png"
+        self.assertIsNone(self._url("Bobby Green", otro_king))
+
+    def test_acentos_no_impiden_el_match_pero_otro_nombre_si(self):
+        self.assertEqual(self._url("Uros Medic", ESPN_FIXTURE["medic"]),
+                         ESPN_FIXTURE["medic"]["image"]["default"])
+        self.assertIsNone(self._url("Ilia Perez", ESPN_FIXTURE["topuria"]))
+
+    def test_dos_ids_mma_exactos_son_ambiguos_y_no_usan_respaldos(self):
+        otra = copy.deepcopy(ESPN_FIXTURE["mike_mma"])
+        otra["uid"] = "s:3301~a:999"
+        otra["link"]["web"] = "https://www.espn.com/mma/fighter/_/id/999/mike-davis"
+        otra["image"]["default"] = "https://a.espncdn.com/i/headshots/mma/players/full/999.png"
+        with mock.patch.object(fotos.requests, "get", return_value=_espn(ESPN_FIXTURE["mike_mma"], otra)), \
+                mock.patch.object(fotos, "url_wikipedia") as wiki, \
+                mock.patch.object(fotos, "url_sherdog") as sherdog:
+            self.assertIsNone(fotos.foto("Mike Davis"))
+        wiki.assert_not_called()
+        sherdog.assert_not_called()
+        # El duplicado del MISMO ID no crea un segundo candidato.
+        self.assertTrue(self._url("Mike Davis", ESPN_FIXTURE["mike_mma"], ESPN_FIXTURE["mike_mma"]))
+
+    def test_rechaza_una_imagen_de_otro_id_y_un_placeholder(self):
+        for src in (ESPN_FIXTURE["king"]["image"]["default"],
+                    "https://a.espncdn.com/i/headshots/mma/players/full/default.png",
+                    "https://otro.example/4350812.png"):
+            with self.subTest(src=src):
+                jugador = copy.deepcopy(ESPN_FIXTURE["topuria"])
+                jugador["image"]["default"] = src
+                self.assertIsNone(self._url("Ilia Topuria", jugador))
+
+    def test_el_id_de_la_ficha_debe_coincidir_con_el_uid(self):
+        jugador = copy.deepcopy(ESPN_FIXTURE["topuria"])
+        jugador["link"]["web"] = ESPN_FIXTURE["king"]["link"]["web"]
+        self.assertIsNone(self._url("Ilia Topuria", jugador))
+
+    def test_no_se_elige_un_resultado_de_una_lista_truncada(self):
+        self.assertEqual(self._url("Mike Davis", ESPN_FIXTURE["mike_mma"], total=101), fotos.AMBIGUO)
+
+    def test_la_foto_antigua_se_actualiza_a_espn_sin_borrar_el_cache(self):
+        anterior = fotos.CARPETA / "ilia_topuria.jpg"
+        anterior.write_bytes(JPG.content)
+        fotos._guardar_indice({"ilia topuria": {"nombre": "Ilia Topuria", "archivo": anterior.name,
+                                               "fuente": "wikipedia", "consultado": 0}})
+        with mock.patch.object(fotos.requests, "get", side_effect=[_espn(ESPN_FIXTURE["topuria"]), PNG]):
+            nueva = fotos.foto("Ilia Topuria")
+        self.assertEqual(nueva.suffix, ".png")
+        self.assertTrue(anterior.exists())
+        self.assertTrue(fotos._indice()["ilia topuria"]["espn_revisado"])
+
+    def test_un_no_hay_foto_antiguo_tambien_se_revisa(self):
+        fotos._guardar_indice({"ilia topuria": {"nombre": "Ilia Topuria", "archivo": None,
+                                               "consultado": fotos.time.time()}})
+        with mock.patch.object(fotos.requests, "get", side_effect=[_espn(ESPN_FIXTURE["topuria"]), PNG]):
+            self.assertIsNotNone(fotos.foto("Ilia Topuria"))
+
+    def test_espn_caido_conserva_la_foto_local_y_limita_los_reintentos(self):
+        anterior = fotos.CARPETA / "ilia_topuria.jpg"
+        anterior.write_bytes(JPG.content)
+        fotos._guardar_indice({"ilia topuria": {"archivo": anterior.name, "fuente": "wikipedia"}})
+        with mock.patch.object(fotos.requests, "get", side_effect=requests.ConnectionError("sin red")) as get:
+            self.assertEqual(fotos.foto("Ilia Topuria"), anterior)
+            self.assertEqual(fotos.foto("Ilia Topuria"), anterior)
+        self.assertEqual(get.call_count, 1)
+        self.assertFalse(fotos._indice()["ilia topuria"]["espn_revisado"])
+
+    def test_espn_caido_aun_permite_un_respaldo_y_no_reintenta_de_inmediato(self):
+        with mock.patch.object(fotos, "url_espn", side_effect=fotos.SinRed("sin red")) as espn, \
+                mock.patch.object(fotos, "url_wikipedia", return_value="https://upload.wikimedia.org/x.jpg"), \
+                mock.patch.object(fotos.requests, "get", return_value=JPG):
+            ruta = fotos.foto("Ilia Topuria")
+            self.assertEqual(fotos.foto("Ilia Topuria"), ruta)
+        self.assertIsNotNone(ruta)
+        self.assertEqual(espn.call_count, 1)
+
+    def test_png_no_disponible_usa_el_respaldo(self):
+        with mock.patch.object(fotos.requests, "get", side_effect=[_espn(ESPN_FIXTURE["topuria"]),
+                                                                  _Resp(status=404), JPG]), \
+                mock.patch.object(fotos, "url_wikipedia", return_value="https://upload.wikimedia.org/x.jpg"):
+            ruta = fotos.foto("Ilia Topuria")
+        self.assertEqual(ruta.suffix, ".jpg")
+        self.assertEqual(fotos._indice()["ilia topuria"]["fuente"], "wikipedia")
+
+    def test_respuesta_html_no_se_guarda_como_no_hay_foto(self):
+        with mock.patch.object(fotos.requests, "get", return_value=_Resp(js=None)), \
+                mock.patch.object(fotos, "url_wikipedia", side_effect=fotos.SinRed("sin red")), \
+                mock.patch.object(fotos, "url_sherdog", return_value=None):
+            self.assertIsNone(fotos.foto("Ilia Topuria"))
+        self.assertNotIn("ilia topuria", fotos._indice())
 
 
 class Wikipedia(_Base):

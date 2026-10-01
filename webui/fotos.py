@@ -3,14 +3,12 @@ fotos.py
 Foto de cada peleador para las tarjetas de la UI, con caché en disco.
 
 Fuentes, en orden:
-  1. Wikipedia / Wikimedia Commons: licencias libres y una API pensada para esto
-     (`prop=pageimages`). Es la primera opción.
-  2. Sherdog, de respaldo, para quien no tiene artículo en Wikipedia (la mayoría
+  1. ESPN: retratos PNG de sus fichas de MMA, resueltos con su buscador público.
+     La URL viene en la respuesta, junto al nombre, deporte e ID del peleador.
+  2. Wikipedia / Wikimedia Commons: API `prop=pageimages` como respaldo.
+  3. Sherdog, de respaldo, para quien no tiene artículo en Wikipedia (la mayoría
      de los debutantes).
-  3. Ninguna: la UI muestra una silueta de peleador. Nunca una imagen rota.
-
-UFC.com no se usa: responde 403 a cualquier cliente que no sea un navegador, y
-sus fotos tienen derechos de autor.
+  4. Ninguna: la UI muestra una silueta de peleador. Nunca una imagen rota.
 
 La regla que manda en todo el archivo: **mejor sin foto que con la de otro**.
 Los cruces por nombre causaron los dos bugs más caros del proyecto (el récord de
@@ -26,6 +24,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -35,6 +34,15 @@ from src import reemplazos, sherdog
 
 CARPETA = C.DATA_RAW / "fotos"
 WIKI_API = "https://en.wikipedia.org/w/api.php"
+# Endpoint que utiliza el buscador de ESPN (módulo público espnfitt 3666).
+# El filtro de deporte no siempre se aplica en el servidor: se verifica abajo.
+ESPN_SEARCH = "https://site.web.api.espn.com/apis/search/v2"
+ESPN_LIMITE = 100
+HEADERS_ESPN = {**C.HEADERS, "Accept": "application/json", "Accept-Language": "es-CL,es;q=0.9"}
+# Cambios de nombre verificados en las fichas/buscador de ESPN. No se hace match
+# por apellido ni por parecido: un alias solo sirve para este nombre completo.
+ALIASES_ESPN = {"bobby green": ("King Green", "2502364"),
+               "ian garry": ("Ian Machado Garry", "4738092")}
 # El mismo User-Agent con el que el proyecto ya se identifica ante Wikipedia: su
 # política exige uno propio con un modo de contacto.
 HEADERS_WIKI = reemplazos.HEADERS
@@ -57,14 +65,14 @@ class SinRed(Exception):
     """La consulta no se pudo hacer. No significa que el peleador no tenga foto."""
 
 
-# Wikipedia encontró a DOS peleadores con ese nombre. Es distinto de "ninguno":
-# en ese caso tampoco se pregunta a Sherdog, que podría devolver a cualquiera.
+# Una fuente encontró a DOS peleadores con ese nombre. Es distinto de "ninguno":
+# en ese caso no se pregunta a otras fuentes, que podrían devolver a cualquiera.
 AMBIGUO = "ambiguo"
 
 
 def _norm(s: str) -> str:
     s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9 ]", "", s.lower().replace("-", " ")).strip()
+    return " ".join(re.sub(r"[^a-z0-9 ]", "", s.lower().replace("-", " ")).split())
 
 
 def _tokens(s: str) -> set[str]:
@@ -73,6 +81,66 @@ def _tokens(s: str) -> set[str]:
 
 def nombre_valido(nombre: str) -> bool:
     return bool(_NOMBRE_VALIDO.match(nombre or "")) and ".." not in nombre
+
+
+# --------------------------------------------------------------------------- #
+# ESPN
+# --------------------------------------------------------------------------- #
+def url_espn(nombre: str) -> str | None:
+    """PNG del único peleador de MMA con ese nombre, None, o AMBIGUO.
+
+    Se comprueban deporte, nombre completo, ID de ficha y URL de retrato. Los
+    resultados de noticias y los homónimos de otros deportes no sirven. Nunca
+    se construye una URL de imagen suponiendo que un ID tiene foto.
+    """
+    consulta, id_alias = ALIASES_ESPN.get(_norm(nombre), (nombre, None))
+    try:
+        r = requests.get(ESPN_SEARCH, headers=HEADERS_ESPN,
+                         params={"query": consulta, "type": "player", "limit": ESPN_LIMITE},
+                         timeout=min(8, C.REQUEST_TIMEOUT_SEC))
+        if r.status_code != 200:
+            raise SinRed(f"ESPN HTTP {r.status_code}")
+        datos = r.json()
+    except (requests.RequestException, ValueError) as e:
+        raise SinRed(str(e)) from e
+    if not isinstance(datos, dict) or not isinstance(datos.get("results"), list):
+        raise SinRed("ESPN no devolvió resultados de búsqueda válidos")
+
+    # Una respuesta truncada no permite descartar un segundo homónimo. Es una
+    # sola petición por nombre, sin paginar ni insistir en cada repintado.
+    for grupo in datos.get("resultTypes", []):
+        if grupo.get("type") == "player" and grupo.get("totalFound", 0) > ESPN_LIMITE:
+            return AMBIGUO
+
+    objetivo = _norm(consulta)
+    validos = {}
+    for grupo in datos["results"]:
+        if grupo.get("type") != "player":
+            continue
+        for jugador in grupo.get("contents", []):
+            if jugador.get("type") != "player" or jugador.get("sport") != "mma":
+                continue
+            if _norm(jugador.get("displayName", "")) != objetivo:
+                continue
+            uid = re.fullmatch(r"s:3301~a:(\d+)", jugador.get("uid", ""))
+            ficha = urlsplit((jugador.get("link") or {}).get("web", ""))
+            id_ficha = re.match(r"^/mma/(?:fighter|peleador)/_/id/(\d+)(?:/|$)", ficha.path)
+            if (not uid or ficha.scheme != "https"
+                    or ficha.hostname not in ("www.espn.com", "www.espn.cl")
+                    or not id_ficha or id_ficha.group(1) != uid.group(1)):
+                continue
+            id_ = uid.group(1)
+            if id_alias and id_ != id_alias:
+                continue                 # el alias también está ligado a su ID
+            imagen = (jugador.get("image") or {}).get("default", "")
+            p = urlsplit(imagen)
+            es_retrato = (p.scheme == "https" and p.hostname == "a.espncdn.com"
+                          and p.path == f"/i/headshots/mma/players/full/{id_}.png"
+                          and not p.query and not p.fragment)
+            validos[id_] = imagen if es_retrato else None
+    if len(validos) > 1:
+        return AMBIGUO
+    return next(iter(validos.values()), None)
 
 
 # --------------------------------------------------------------------------- #
@@ -203,27 +271,53 @@ def foto(nombre: str) -> Path | None:
         ahora = time.time()
         idx = _indice()
         e = idx.get(clave)
-        if e and e.get("archivo") and (CARPETA / e["archivo"]).exists():
-            return CARPETA / e["archivo"]
-        if e and not e.get("archivo") and ahora - e.get("consultado", 0) < REINTENTO_SIN_FOTO_SEG:
+        anterior = (CARPETA / e["archivo"]) if e and e.get("archivo") else None
+        if anterior and not anterior.exists():
+            anterior = None
+        # Las entradas anteriores a ESPN se revisan una vez para sustituir la
+        # foto por el retrato. Mientras falla la red se conserva la foto local.
+        if anterior and e.get("espn_revisado"):
+            return anterior
+        if (e and e.get("espn_revisado") and not e.get("archivo")
+                and ahora - e.get("consultado", 0) < REINTENTO_SIN_FOTO_SEG):
             return None
         if ahora - _fallo_red.get(clave, 0) < ESPERA_TRAS_FALLO_RED_SEG:
-            return None
+            return anterior
+
+        ruta, fuente, url = None, None, None
+        fallo, espn_revisado, ambiguo = False, False, False
         try:
-            ruta, fuente = None, None
-            url = url_wikipedia(nombre)
-            if url == AMBIGUO:
-                url = None
-            elif url:
-                ruta, fuente = _bajar(url, clave, HEADERS_WIKI), "wikipedia"
-            else:
-                url = url_sherdog(nombre)
-                if url:
-                    ruta, fuente = _bajar(url, clave, sherdog.HEADERS), "sherdog"
+            url = url_espn(nombre)
+            ambiguo = url == AMBIGUO
+            if url and not ambiguo:
+                ruta, fuente = _bajar(url, clave, HEADERS_ESPN), "espn"
+            espn_revisado = True
         except SinRed:
+            fallo = True
+
+        if not ruta and not ambiguo and anterior:
+            ruta, fuente, url = anterior, e.get("fuente"), e.get("url")
+        if not ruta and not ambiguo:
+            for resolver, origen, headers in ((url_wikipedia, "wikipedia", HEADERS_WIKI),
+                                               (url_sherdog, "sherdog", sherdog.HEADERS)):
+                try:
+                    url = resolver(nombre)
+                    if url == AMBIGUO:
+                        ambiguo = True
+                        break
+                    if url:
+                        ruta, fuente = _bajar(url, clave, headers), origen
+                        break
+                except SinRed:
+                    fallo = True
+        if fallo:
             _fallo_red[clave] = ahora
+        if not ruta and fallo and not ambiguo:
             return None
+        if ambiguo:
+            url = None
         idx[clave] = {"nombre": nombre, "archivo": ruta.name if ruta else None,
-                      "fuente": fuente, "url": url, "consultado": ahora}
+                      "fuente": fuente, "url": url, "consultado": ahora,
+                      "espn_revisado": espn_revisado}
         _guardar_indice(idx)
         return ruta

@@ -33,7 +33,6 @@ import os
 import re
 import sys
 import time
-import unicodedata
 from pathlib import Path
 
 import pandas as pd
@@ -41,6 +40,7 @@ import requests
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src.fighter_names import canonical_key
 
 CACHE = C.DATA_RAW / "reemplazos_wiki.json"
 API = "https://en.wikipedia.org/w/api.php"
@@ -60,8 +60,7 @@ _IDX: dict | None = None
 
 
 def _norm(s: str) -> str:
-    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9 ]", "", s.lower()).strip()
+    return canonical_key(s)
 
 
 def _wiki(params: dict) -> dict | None:
@@ -133,7 +132,7 @@ def _indice() -> dict:
             _IDX = set()
         else:
             d = json.loads(CACHE.read_text(encoding="utf-8"))
-            _IDX = {(_norm(ev), n) for ev, nombres in d.items() for n in nombres}
+            _IDX = {(_norm(ev), _norm(n)) for ev, nombres in d.items() for n in nombres}
     return _IDX
 
 
@@ -163,7 +162,7 @@ def _indice_por_fecha() -> set:
     h["date"] = pd.to_datetime(h["date"], errors="coerce")
     fecha_de = h.groupby("event")["date"].first().to_dict()
     _POR_FECHA = {
-        (fecha_de[ev].date(), n)
+        (fecha_de[ev].date(), _norm(n))
         for ev, nombres in d.items() if ev in fecha_de and pd.notna(fecha_de[ev])
         for n in nombres
     }

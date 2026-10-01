@@ -1,0 +1,875 @@
+[
+  {
+    "alias": "Jun Yong Park",
+    "reference": "JunYong Park",
+    "fights": 13,
+    "matching_bouts": 1,
+    "date": "2019-12-21",
+    "opponent": "Marc-Andre Barriault",
+    "fight_url": "http://ufcstats.com/fight-details/b3bd27affa038e9c"
+  },
+  {
+    "alias": "Alekander Volkov",
+    "reference": "Alexander Volkov",
+    "fights": 19,
+    "matching_bouts": 1,
+    "date": "2019-11-09",
+    "opponent": "Greg Hardy",
+    "fight_url": "http://ufcstats.com/fight-details/3cd1f2c31b4e325a"
+  },
+  {
+    "alias": "Alessandro Ricci",
+    "reference": "Alex Ricci",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2017-02-19",
+    "opponent": "Paul Felder",
+    "fight_url": "http://ufcstats.com/fight-details/f00ac5af033f44b4"
+  },
+  {
+    "alias": "Alex Munoz",
+    "reference": "Alexander Munoz",
+    "fights": 3,
+    "matching_bouts": 1,
+    "date": "2020-08-08",
+    "opponent": "Nasrat Haqparast",
+    "fight_url": "http://ufcstats.com/fight-details/26173f6491300eaa"
+  },
+  {
+    "alias": "Alexandra Albu",
+    "reference": "Aleksandra Albu",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2019-10-26",
+    "opponent": "Loma Lookboonmee",
+    "fight_url": "http://ufcstats.com/fight-details/4ea4d0a73a90bfb0"
+  },
+  {
+    "alias": "Ali Qaisi",
+    "reference": "Ali AlQaisi",
+    "fights": 2,
+    "matching_bouts": 1,
+    "date": "2020-08-08",
+    "opponent": "Irwin Rivera",
+    "fight_url": "http://ufcstats.com/fight-details/5c8d9d893d163d51"
+  },
+  {
+    "alias": "Alvaro Herrera",
+    "reference": "Alvaro Herrera Mendoza",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2018-07-28",
+    "opponent": "Devin Powell",
+    "fight_url": "http://ufcstats.com/fight-details/62f564662f33692d"
+  },
+  {
+    "alias": "An Ying Wang",
+    "reference": "Anying Wang",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2014-08-23",
+    "opponent": "Colby Covington",
+    "fight_url": "http://ufcstats.com/fight-details/4de8b5898e1a23c8"
+  },
+  {
+    "alias": "Aori Qileng",
+    "reference": "Aoriqileng",
+    "fights": 11,
+    "matching_bouts": 1,
+    "date": "2021-04-24",
+    "opponent": "Jeff Molina",
+    "fight_url": "http://ufcstats.com/fight-details/b5a8323de18f7e95"
+  },
+  {
+    "alias": "Ariane Lipski",
+    "reference": "Ariane da Silva",
+    "fights": 14,
+    "matching_bouts": 8,
+    "date": "2022-08-13",
+    "opponent": "Priscila Cachoeira",
+    "fight_url": "http://ufcstats.com/fight-details/abd50fad1e7b030b"
+  },
+  {
+    "alias": "Benny Alloway",
+    "reference": "Ben Alloway",
+    "fights": 3,
+    "matching_bouts": 3,
+    "date": "2013-08-28",
+    "opponent": "Zak Cummings",
+    "fight_url": "http://ufcstats.com/fight-details/602e8602fe9c9121"
+  },
+  {
+    "alias": "Bobby Green",
+    "reference": "King Green",
+    "fights": 31,
+    "matching_bouts": 19,
+    "date": "2022-12-17",
+    "opponent": "Drew Dober",
+    "fight_url": "http://ufcstats.com/fight-details/c335f44e4f3515ea"
+  },
+  {
+    "alias": "Bradley Scott",
+    "reference": "Brad Scott",
+    "fights": 8,
+    "matching_bouts": 8,
+    "date": "2018-05-27",
+    "opponent": "Carlo Pedersoli",
+    "fight_url": "http://ufcstats.com/fight-details/3e9ddcd30fdc5d85"
+  },
+  {
+    "alias": "Brianna Van Buren",
+    "reference": "Brianna Fortino",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2020-06-20",
+    "opponent": "Tecia Torres",
+    "fight_url": "http://ufcstats.com/fight-details/1adee75d6c671cc8"
+  },
+  {
+    "alias": "Bubba McDaniel",
+    "reference": "Robert McDaniel",
+    "fights": 3,
+    "matching_bouts": 3,
+    "date": "2014-03-15",
+    "opponent": "Sean Strickland",
+    "fight_url": "http://ufcstats.com/fight-details/8f979d206eaec468"
+  },
+  {
+    "alias": "Caludia Gadelha",
+    "reference": "Claudia Gadelha",
+    "fights": 12,
+    "matching_bouts": 1,
+    "date": "2019-07-06",
+    "opponent": "Randa Markos",
+    "fight_url": "http://ufcstats.com/fight-details/7fe0cec2b0f1c146"
+  },
+  {
+    "alias": "Caludio Puelles",
+    "reference": "Claudio Puelles",
+    "fights": 9,
+    "matching_bouts": 1,
+    "date": "2019-09-21",
+    "opponent": "Marcos Mariano",
+    "fight_url": "http://ufcstats.com/fight-details/4f7ec66199bba232"
+  },
+  {
+    "alias": "Carlo Pedersoli",
+    "reference": "Carlo Pedersoli Jr.",
+    "fights": 3,
+    "matching_bouts": 3,
+    "date": "2019-02-23",
+    "opponent": "Dwight Grant",
+    "fight_url": "http://ufcstats.com/fight-details/fd438db3e60f062a"
+  },
+  {
+    "alias": "Cheyanne Buys",
+    "reference": "Cheyanne Vlismas",
+    "fights": 4,
+    "matching_bouts": 2,
+    "date": "2021-07-31",
+    "opponent": "Gloria de Paula",
+    "fight_url": "http://ufcstats.com/fight-details/b4622ca7cf0e8506"
+  },
+  {
+    "alias": "Costas Philippou",
+    "reference": "Constantinos Philippou",
+    "fights": 10,
+    "matching_bouts": 10,
+    "date": "2015-05-16",
+    "opponent": "Gegard Mousasi",
+    "fight_url": "http://ufcstats.com/fight-details/1caec47dc08613a7"
+  },
+  {
+    "alias": "Cris Cyborg",
+    "reference": "Cristiane Justino",
+    "fights": 7,
+    "matching_bouts": 7,
+    "date": "2019-07-27",
+    "opponent": "Felicia Spencer",
+    "fight_url": "http://ufcstats.com/fight-details/240e9389cca3bd18"
+  },
+  {
+    "alias": "Da Un Jung",
+    "reference": "Da Woon Jung",
+    "fights": 9,
+    "matching_bouts": 2,
+    "date": "2019-12-21",
+    "opponent": "Mike Rodriguez",
+    "fight_url": "http://ufcstats.com/fight-details/47e49e04e32be7e9"
+  },
+  {
+    "alias": "Da-Un Jung",
+    "reference": "Da Woon Jung",
+    "fights": 9,
+    "matching_bouts": 1,
+    "date": "2021-04-10",
+    "opponent": "William Knight",
+    "fight_url": "http://ufcstats.com/fight-details/cd5d9828b278181a"
+  },
+  {
+    "alias": "Danaa Batgerel",
+    "reference": "Batgerel Danaa",
+    "fights": 7,
+    "matching_bouts": 3,
+    "date": "2021-04-24",
+    "opponent": "Kevin Natividad",
+    "fight_url": "http://ufcstats.com/fight-details/eb5d62bda1581c62"
+  },
+  {
+    "alias": "Elizeu Dos Santos",
+    "reference": "Elizeu Zaleski dos Santos",
+    "fights": 18,
+    "matching_bouts": 2,
+    "date": "2020-03-14",
+    "opponent": "Aleksei Kunchenko",
+    "fight_url": "http://ufcstats.com/fight-details/9fc6aba53508dc48"
+  },
+  {
+    "alias": "Emily Peters Kagan",
+    "reference": "Emily Kagan",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2015-12-10",
+    "opponent": "Kailin Curran",
+    "fight_url": "http://ufcstats.com/fight-details/8bfa9df5341c95c0"
+  },
+  {
+    "alias": "Glaico Franca",
+    "reference": "Glaico Franca Moreira",
+    "fights": 3,
+    "matching_bouts": 3,
+    "date": "2016-09-24",
+    "opponent": "Gregor Gillespie",
+    "fight_url": "http://ufcstats.com/fight-details/fae3f395669b7285"
+  },
+  {
+    "alias": "Grigorii Popov",
+    "reference": "Grigory Popov",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2019-11-09",
+    "opponent": "Davey Grant",
+    "fight_url": "http://ufcstats.com/fight-details/f0418c2c989a5cde"
+  },
+  {
+    "alias": "Heather Jo Clark",
+    "reference": "Heather Clark",
+    "fights": 3,
+    "matching_bouts": 3,
+    "date": "2016-11-05",
+    "opponent": "Alexa Grasso",
+    "fight_url": "http://ufcstats.com/fight-details/52943c821416dc38"
+  },
+  {
+    "alias": "Heili Alateng",
+    "reference": "Alatengheili",
+    "fights": 10,
+    "matching_bouts": 3,
+    "date": "2020-10-03",
+    "opponent": "Casey Kenney",
+    "fight_url": "http://ufcstats.com/fight-details/ac6b2a5f24c2b8bd"
+  },
+  {
+    "alias": "Humberto Brown",
+    "reference": "Humberto Brown Morrison",
+    "fights": 1,
+    "matching_bouts": 1,
+    "date": "2014-11-15",
+    "opponent": "Gabriel Benitez",
+    "fight_url": "http://ufcstats.com/fight-details/4087bb7b3b1b9e24"
+  },
+  {
+    "alias": "Ian Garry",
+    "reference": "Ian Machado Garry",
+    "fights": 12,
+    "matching_bouts": 3,
+    "date": "2022-07-02",
+    "opponent": "Gabe Green",
+    "fight_url": "http://ufcstats.com/fight-details/4d8d1701c43c5fea"
+  },
+  {
+    "alias": "Isabela De Pauda",
+    "reference": "Isabela de Padua",
+    "fights": 1,
+    "matching_bouts": 1,
+    "date": "2019-11-16",
+    "opponent": "Ariane Lipski",
+    "fight_url": "http://ufcstats.com/fight-details/1800ffbb34ac7ed8"
+  },
+  {
+    "alias": "Jim Crute",
+    "reference": "Jimmy Crute",
+    "fights": 12,
+    "matching_bouts": 1,
+    "date": "2020-02-22",
+    "opponent": "Michal Oleksiejczuk",
+    "fight_url": "http://ufcstats.com/fight-details/2b417eb1ffa56ac1"
+  },
+  {
+    "alias": "Jimmy Wallhead",
+    "reference": "Jim Wallhead",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2017-06-03",
+    "opponent": "Luan Chagas",
+    "fight_url": "http://ufcstats.com/fight-details/88e0de323a83f241"
+  },
+  {
+    "alias": "Joanne Calderwood",
+    "reference": "Joanne Wood",
+    "fights": 17,
+    "matching_bouts": 13,
+    "date": "2021-06-12",
+    "opponent": "Lauren Murphy",
+    "fight_url": "http://ufcstats.com/fight-details/34cb6e9952cd30a4"
+  },
+  {
+    "alias": "Joe Gigliotti",
+    "reference": "Joseph Gigliotti",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2016-12-09",
+    "opponent": "Gerald Meerschaert",
+    "fight_url": "http://ufcstats.com/fight-details/85feac6924abb35b"
+  },
+  {
+    "alias": "Joshua Culibao",
+    "reference": "Josh Culibao",
+    "fights": 8,
+    "matching_bouts": 1,
+    "date": "2020-02-22",
+    "opponent": "Jalin Turner",
+    "fight_url": "http://ufcstats.com/fight-details/02bdb7a5b2986571"
+  },
+  {
+    "alias": "Joshua Sampo",
+    "reference": "Josh Sampo",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2015-05-23",
+    "opponent": "Justin Scoggins",
+    "fight_url": "http://ufcstats.com/fight-details/419d8143afbcd61c"
+  },
+  {
+    "alias": "Juan Puig",
+    "reference": "Juan Manuel Puig",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2014-11-22",
+    "opponent": "Dooho Choi",
+    "fight_url": "http://ufcstats.com/fight-details/1a637fbda4bdf575"
+  },
+  {
+    "alias": "Junior Hernandez",
+    "reference": "Ramiro Hernandez",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2014-01-25",
+    "opponent": "Hugo Viana",
+    "fight_url": "http://ufcstats.com/fight-details/df7cf7ef41eccbe6"
+  },
+  {
+    "alias": "Kai Kamaka",
+    "reference": "Kai Kamaka III",
+    "fights": 6,
+    "matching_bouts": 2,
+    "date": "2021-05-01",
+    "opponent": "TJ Brown",
+    "fight_url": "http://ufcstats.com/fight-details/d72f9b3ac742a9e3"
+  },
+  {
+    "alias": "Kai Kara France",
+    "reference": "Kai Kara-France",
+    "fights": 13,
+    "matching_bouts": 2,
+    "date": "2020-02-22",
+    "opponent": "Tyson Nam",
+    "fight_url": "http://ufcstats.com/fight-details/ecc23234e820458d"
+  },
+  {
+    "alias": "Kalinn Williams",
+    "reference": "Khaos Williams",
+    "fights": 11,
+    "matching_bouts": 1,
+    "date": "2020-02-08",
+    "opponent": "Alex Morono",
+    "fight_url": "http://ufcstats.com/fight-details/ed499508be1e5532"
+  },
+  {
+    "alias": "Katlyn Chookagian",
+    "reference": "Katlyn Cerminara",
+    "fights": 17,
+    "matching_bouts": 16,
+    "date": "2022-10-22",
+    "opponent": "Manon Fiorot",
+    "fight_url": "http://ufcstats.com/fight-details/25f3e4fa781c1c8a"
+  },
+  {
+    "alias": "Kevin Souza",
+    "reference": "Edimilson Souza",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2015-11-07",
+    "opponent": "Chas Skelly",
+    "fight_url": "http://ufcstats.com/fight-details/6d9f6f7004c791d5"
+  },
+  {
+    "alias": "Krzystof Jotko",
+    "reference": "Krzysztof Jotko",
+    "fights": 17,
+    "matching_bouts": 1,
+    "date": "2019-07-27",
+    "opponent": "Marc-Andre Barriault",
+    "fight_url": "http://ufcstats.com/fight-details/dbca9f6bb7290c0d"
+  },
+  {
+    "alias": "Leonardo Augusto Leleco",
+    "reference": "Leonardo Guimaraes",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2016-09-17",
+    "opponent": "Antonio Carlos Junior",
+    "fight_url": "http://ufcstats.com/fight-details/c87d2569da8d4305"
+  },
+  {
+    "alias": "Liu Pingyuan",
+    "reference": "Pingyuan Liu",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2019-12-21",
+    "opponent": "Kyung Ho Kang",
+    "fight_url": "http://ufcstats.com/fight-details/f93f794247af708a"
+  },
+  {
+    "alias": "Luci Pudilova",
+    "reference": "Lucie Pudilova",
+    "fights": 11,
+    "matching_bouts": 1,
+    "date": "2020-01-25",
+    "opponent": "Justine Kish",
+    "fight_url": "http://ufcstats.com/fight-details/151c2bd6dfefb4b5"
+  },
+  {
+    "alias": "Luiz Garagorri",
+    "reference": "Eduardo Garagorri",
+    "fights": 3,
+    "matching_bouts": 1,
+    "date": "2019-08-10",
+    "opponent": "Humberto Bandenay",
+    "fight_url": "http://ufcstats.com/fight-details/aef94727eb3897df"
+  },
+  {
+    "alias": "Michelle Waterson",
+    "reference": "Michelle Waterson-Gomez",
+    "fights": 15,
+    "matching_bouts": 11,
+    "date": "2021-05-08",
+    "opponent": "Marina Rodriguez",
+    "fight_url": "http://ufcstats.com/fight-details/b948102c6205af63"
+  },
+  {
+    "alias": "Minotauro Nogueira",
+    "reference": "Antonio Rodrigo Nogueira",
+    "fights": 11,
+    "matching_bouts": 6,
+    "date": "2015-08-01",
+    "opponent": "Stefan Struve",
+    "fight_url": "http://ufcstats.com/fight-details/b0367c907cc549c0"
+  },
+  {
+    "alias": "Mirko Cro Cop",
+    "reference": "Mirko Filipovic",
+    "fights": 11,
+    "matching_bouts": 5,
+    "date": "2015-04-11",
+    "opponent": "Gabriel Gonzaga",
+    "fight_url": "http://ufcstats.com/fight-details/6a7892754af30685"
+  },
+  {
+    "alias": "Mizuki Inoue",
+    "reference": "Mizuki",
+    "fights": 4,
+    "matching_bouts": 2,
+    "date": "2020-08-22",
+    "opponent": "Amanda Lemos",
+    "fight_url": "http://ufcstats.com/fight-details/0a3e48cdd97267f4"
+  },
+  {
+    "alias": "Montserrat Conejo",
+    "reference": "Montserrat Conejo Ruiz",
+    "fights": 5,
+    "matching_bouts": 2,
+    "date": "2021-07-17",
+    "opponent": "Amanda Lemos",
+    "fight_url": "http://ufcstats.com/fight-details/c5e71fbf22f669f7"
+  },
+  {
+    "alias": "Montserrat Rendon",
+    "reference": "Montse Rendon",
+    "fights": 4,
+    "matching_bouts": 2,
+    "date": "2024-03-23",
+    "opponent": "Daria Zhelezniakova",
+    "fight_url": "http://ufcstats.com/fight-details/f1c3abce15ef053e"
+  },
+  {
+    "alias": "Na Liang",
+    "reference": "Liang Na",
+    "fights": 4,
+    "matching_bouts": 1,
+    "date": "2021-04-24",
+    "opponent": "Ariane Carnelossi",
+    "fight_url": "http://ufcstats.com/fight-details/a3cde349c8e018fb"
+  },
+  {
+    "alias": "Nico Musoke",
+    "reference": "Nicholas Musoke",
+    "fights": 6,
+    "matching_bouts": 6,
+    "date": "2017-05-28",
+    "opponent": "Bojan Velickovic",
+    "fight_url": "http://ufcstats.com/fight-details/9c3f3bc7f7472e0c"
+  },
+  {
+    "alias": "Nina Ansaroff",
+    "reference": "Nina Nunes",
+    "fights": 9,
+    "matching_bouts": 7,
+    "date": "2019-06-08",
+    "opponent": "Tatiana Suarez",
+    "fight_url": "http://ufcstats.com/fight-details/56403d0fd259c5d9"
+  },
+  {
+    "alias": "Ning Guangyou",
+    "reference": "Guangyou Ning",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2016-11-26",
+    "opponent": "Marlon Vera",
+    "fight_url": "http://ufcstats.com/fight-details/2e209dc450b7ebe3"
+  },
+  {
+    "alias": "Ode Obsourne",
+    "reference": "Ode Osbourne",
+    "fights": 13,
+    "matching_bouts": 1,
+    "date": "2020-01-18",
+    "opponent": "Brian Kelleher",
+    "fight_url": "http://ufcstats.com/fight-details/4eff0432bd364a23"
+  },
+  {
+    "alias": "Omar Antonio Morales Ferrer",
+    "reference": "Omar Morales",
+    "fights": 7,
+    "matching_bouts": 1,
+    "date": "2019-12-21",
+    "opponent": "Dong Hyun Ma",
+    "fight_url": "http://ufcstats.com/fight-details/9140e6fdeaa7cd3f"
+  },
+  {
+    "alias": "Patricio Freire",
+    "reference": "Patricio Pitbull",
+    "fights": 4,
+    "matching_bouts": 2,
+    "date": "2025-07-19",
+    "opponent": "Dan Ige",
+    "fight_url": "http://ufcstats.com/fight-details/acc961fd5cf5c62e"
+  },
+  {
+    "alias": "Peter Yan",
+    "reference": "Petr Yan",
+    "fights": 16,
+    "matching_bouts": 1,
+    "date": "2019-12-14",
+    "opponent": "Urijah Faber",
+    "fight_url": "http://ufcstats.com/fight-details/a0c82ba11a373008"
+  },
+  {
+    "alias": "Philip Rowe",
+    "reference": "Phil Rowe",
+    "fights": 9,
+    "matching_bouts": 1,
+    "date": "2021-02-13",
+    "opponent": "Gabe Green",
+    "fight_url": "http://ufcstats.com/fight-details/357c5b86ec83b826"
+  },
+  {
+    "alias": "Phillip Hawes",
+    "reference": "Phil Hawes",
+    "fights": 8,
+    "matching_bouts": 1,
+    "date": "2020-10-24",
+    "opponent": "Jacob Malkoun",
+    "fight_url": "http://ufcstats.com/fight-details/a2620cbef573a837"
+  },
+  {
+    "alias": "Polo Reyes",
+    "reference": "Marco Polo Reyes",
+    "fights": 8,
+    "matching_bouts": 6,
+    "date": "2019-02-23",
+    "opponent": "Damir Hadzovic",
+    "fight_url": "http://ufcstats.com/fight-details/18d6df67968bf06b"
+  },
+  {
+    "alias": "Rafael Feijao",
+    "reference": "Rafael Cavalcante",
+    "fights": 5,
+    "matching_bouts": 5,
+    "date": "2016-02-06",
+    "opponent": "Ovince Saint Preux",
+    "fight_url": "http://ufcstats.com/fight-details/37008594c087470c"
+  },
+  {
+    "alias": "Rampage Jackson",
+    "reference": "Quinton Jackson",
+    "fights": 13,
+    "matching_bouts": 7,
+    "date": "2015-04-25",
+    "opponent": "Fabio Maldonado",
+    "fight_url": "http://ufcstats.com/fight-details/4669c07f3cc9e35f"
+  },
+  {
+    "alias": "Raphael Pessoa Nunes",
+    "reference": "Raphael Pessoa",
+    "fights": 3,
+    "matching_bouts": 2,
+    "date": "2019-10-26",
+    "opponent": "Jeff Hughes",
+    "fight_url": "http://ufcstats.com/fight-details/3d9aeef58dd0b51b"
+  },
+  {
+    "alias": "Rick Glenn",
+    "reference": "Ricky Glenn",
+    "fights": 11,
+    "matching_bouts": 6,
+    "date": "2018-11-30",
+    "opponent": "Kevin Aguilar",
+    "fight_url": "http://ufcstats.com/fight-details/4e6bbc5832e55f64"
+  },
+  {
+    "alias": "Rob Whiteford",
+    "reference": "Robert Whiteford",
+    "fights": 5,
+    "matching_bouts": 5,
+    "date": "2016-04-10",
+    "opponent": "Lucas Martins",
+    "fight_url": "http://ufcstats.com/fight-details/42afd8c4fc85f485"
+  },
+  {
+    "alias": "Roberto Sanchez",
+    "reference": "Robert Sanchez",
+    "fights": 3,
+    "matching_bouts": 3,
+    "date": "2018-09-08",
+    "opponent": "Jarred Brooks",
+    "fight_url": "http://ufcstats.com/fight-details/9399c772adc7bcab"
+  },
+  {
+    "alias": "Rocco Martin",
+    "reference": "Anthony Rocco Martin",
+    "fights": 15,
+    "matching_bouts": 2,
+    "date": "2019-11-09",
+    "opponent": "Ramazan Emeev",
+    "fight_url": "http://ufcstats.com/fight-details/1317d7cd79495a0e"
+  },
+  {
+    "alias": "Rodolfo Rubio",
+    "reference": "Rodolfo Rubio Perez",
+    "fights": 1,
+    "matching_bouts": 1,
+    "date": "2014-11-08",
+    "opponent": "Diego Rivas",
+    "fight_url": "http://ufcstats.com/fight-details/7826c23386a1e09a"
+  },
+  {
+    "alias": "Rong Zhu",
+    "reference": "Rongzhu",
+    "fights": 7,
+    "matching_bouts": 2,
+    "date": "2021-09-18",
+    "opponent": "Brandon Jenkins",
+    "fight_url": "http://ufcstats.com/fight-details/85e5498808346d6b"
+  },
+  {
+    "alias": "Seohee Ham",
+    "reference": "Seo Hee Ham",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2016-11-26",
+    "opponent": "Danielle Taylor",
+    "fight_url": "http://ufcstats.com/fight-details/314aea77cd24210f"
+  },
+  {
+    "alias": "Su Mudaerji",
+    "reference": "Sumudaerji",
+    "fights": 12,
+    "matching_bouts": 4,
+    "date": "2021-01-20",
+    "opponent": "Zarrukh Adashev",
+    "fight_url": "http://ufcstats.com/fight-details/ddbe6fd66d7f9e35"
+  },
+  {
+    "alias": "Tecia Torres",
+    "reference": "Tecia Pennington",
+    "fights": 19,
+    "matching_bouts": 15,
+    "date": "2022-04-09",
+    "opponent": "Mackenzie Dern",
+    "fight_url": "http://ufcstats.com/fight-details/d8945e21a63e2451"
+  },
+  {
+    "alias": "Tiago Trator",
+    "reference": "Tiago dos Santos e Silva",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2016-12-09",
+    "opponent": "Shane Burgos",
+    "fight_url": "http://ufcstats.com/fight-details/4bf0be780f2d09be"
+  },
+  {
+    "alias": "Tiequan Zhang",
+    "reference": "Zhang Tiequan",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2012-11-10",
+    "opponent": "Jon Tuck",
+    "fight_url": "http://ufcstats.com/fight-details/8d556e2826924946"
+  },
+  {
+    "alias": "Tim Johnson",
+    "reference": "Timothy Johnson",
+    "fights": 7,
+    "matching_bouts": 7,
+    "date": "2018-02-03",
+    "opponent": "Marcelo Golm",
+    "fight_url": "http://ufcstats.com/fight-details/0da43c3ec0e11650"
+  },
+  {
+    "alias": "Ulka Sasaki",
+    "reference": "Yuta Sasaki",
+    "fights": 9,
+    "matching_bouts": 9,
+    "date": "2018-11-17",
+    "opponent": "Alexandre Pantoja",
+    "fight_url": "http://ufcstats.com/fight-details/961f434fe238f40e"
+  },
+  {
+    "alias": "Vernon Ramos",
+    "reference": "Vernon Ramos Ho",
+    "fights": 1,
+    "matching_bouts": 1,
+    "date": "2015-11-21",
+    "opponent": "Alvaro Herrera",
+    "fight_url": "http://ufcstats.com/fight-details/44502b8c5546fb12"
+  },
+  {
+    "alias": "Veronica Macedo",
+    "reference": "Veronica Hardy",
+    "fights": 10,
+    "matching_bouts": 5,
+    "date": "2020-03-14",
+    "opponent": "Bea Malecki",
+    "fight_url": "http://ufcstats.com/fight-details/ef526567c4dcf371"
+  },
+  {
+    "alias": "Vincente Luque",
+    "reference": "Vicente Luque",
+    "fights": 26,
+    "matching_bouts": 1,
+    "date": "2019-08-10",
+    "opponent": "Mike Perry",
+    "fight_url": "http://ufcstats.com/fight-details/7feadf01c5920285"
+  },
+  {
+    "alias": "Waldo Cortes-Acosta",
+    "reference": "Waldo Cortes Acosta",
+    "fights": 14,
+    "matching_bouts": 6,
+    "date": "2024-05-11",
+    "opponent": "Robelis Despaigne",
+    "fight_url": "http://ufcstats.com/fight-details/e98eb6de29c62c9c"
+  },
+  {
+    "alias": "Weili Zhang",
+    "reference": "Zhang Weili",
+    "fights": 13,
+    "matching_bouts": 4,
+    "date": "2020-03-07",
+    "opponent": "Joanna Jedrzejczyk",
+    "fight_url": "http://ufcstats.com/fight-details/cf0a6466b762c668"
+  },
+  {
+    "alias": "Wendell Oliveira",
+    "reference": "Wendell Oliveira Marques",
+    "fights": 2,
+    "matching_bouts": 2,
+    "date": "2015-05-30",
+    "opponent": "Darren Till",
+    "fight_url": "http://ufcstats.com/fight-details/61d6b591430b6e25"
+  },
+  {
+    "alias": "William Patolino",
+    "reference": "William Macario",
+    "fights": 4,
+    "matching_bouts": 4,
+    "date": "2015-02-22",
+    "opponent": "Matt Dwyer",
+    "fight_url": "http://ufcstats.com/fight-details/ec659c4e19f62700"
+  },
+  {
+    "alias": "Wuliji Buren",
+    "reference": "Wulijiburen",
+    "fights": 3,
+    "matching_bouts": 3,
+    "date": "2019-02-09",
+    "opponent": "Jonathan Martinez",
+    "fight_url": "http://ufcstats.com/fight-details/8e43d61ca6f2d904"
+  },
+  {
+    "alias": "Yana Kunitskaya",
+    "reference": "Yana Santos",
+    "fights": 12,
+    "matching_bouts": 7,
+    "date": "2021-07-10",
+    "opponent": "Irene Aldana",
+    "fight_url": "http://ufcstats.com/fight-details/3740c8033e31c90d"
+  },
+  {
+    "alias": "Youssef Zalel",
+    "reference": "Youssef Zalal",
+    "fights": 13,
+    "matching_bouts": 1,
+    "date": "2020-02-08",
+    "opponent": "Austin Lingo",
+    "fight_url": "http://ufcstats.com/fight-details/a6441acec6718f03"
+  },
+  {
+    "alias": "Zachary Reese",
+    "reference": "Zach Reese",
+    "fights": 9,
+    "matching_bouts": 3,
+    "date": "2024-08-24",
+    "opponent": "Jose Daniel Medina",
+    "fight_url": "http://ufcstats.com/fight-details/d2caa1ddb9de7481"
+  },
+  {
+    "alias": "Zhalgas Zhamagulov",
+    "reference": "Zhalgas Zhumagulov",
+    "fights": 7,
+    "matching_bouts": 1,
+    "date": "2020-07-11",
+    "opponent": "Raulian Paiva",
+    "fight_url": "http://ufcstats.com/fight-details/0e8d5c16eb9cb1cf"
+  },
+  {
+    "alias": "Zu Anyanwu",
+    "reference": "Azunna Anyanwu",
+    "fights": 1,
+    "matching_bouts": 1,
+    "date": "2017-09-16",
+    "opponent": "Justin Ledet",
+    "fight_url": "http://ufcstats.com/fight-details/7b80dd233e200dd2"
+  }
+]

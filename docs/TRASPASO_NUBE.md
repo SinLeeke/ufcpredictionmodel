@@ -95,8 +95,10 @@ las decisiones de diseño, la lista de commits y lo que haya quedado pendiente.
   (por ejemplo `/api/foto/{nombre}`) que busque la imagen, la guarde en caché en disco y
   la sirva, sin cambiar el contrato de `/api/estado`. Fuentes:
   - UFC.com responde 403 (anti-bot): no sirve.
-  - **Wikipedia/Commons** (licencias libres) con la API `prop=pageimages`, identificándose
-    con el mismo User-Agent que usa `src/reemplazos.py`. Primera opción.
+  - **ESPN**: primera opción para los retratos PNG, solicitada por el dueño. Resolver
+    la ficha de MMA por nombre y comprobar su identidad antes de guardar la imagen.
+  - **Wikipedia/Commons** con la API `prop=pageimages`, identificándose
+    con el mismo User-Agent que usa `src/reemplazos.py`, como respaldo.
   - Sherdog (ya se scrapea en `src/sherdog.py`) como respaldo.
   - Sin foto: un monograma con las iniciales, nunca una imagen rota.
   - Cruce por nombre **exacto con desempate**: los cruces por nombre causaron los dos bugs
