@@ -35,6 +35,15 @@ tres (A · Lona, cenital y con chaflanes; C · Tarjeta del juez, acta con cuadr�
   tarjeta a cada lado (la cara arriba y centrada, nunca hundida al fondo del encuadre);
   al medio los nombres, los porcentajes enfrentados, la barra y las filas en espejo
   (peleas en UFC, cuota, lo que da la casa, el modelo solo). Abajo, cómo termina.
+- **Estelar y coestelar dentro del octágono** (pedido del dueño): un octágono
+  **regular**, con los ocho lados iguales (estirado a lo ancho dejaba de parecer la jaula), con
+  reja de alambre, baranda acolchada, los ocho postes con su franja roja, la línea
+  pintada y la luz de la arena sobre la lona. Los retratos van adentro, arriba; los
+  números debajo, en unidades del octágono, así crecen con él. La estelar mide hasta
+  800 px y la coestelar 660: el tamaño dice cuál manda. La estelar se reconoce por
+  el segmento "Estelar" o por los dos apellidos en el nombre de la cartelera; la
+  coestelar por el segmento "Co-estelar" o por ser la vecina de la estelar en el
+  orden de la cartelera (y entonces no se rotula "Co-estelar", porque no es seguro).
 - **Movimiento** de transmisión: barridos de entrada, barras que crecen, cifras que
   cambian en EN VIVO sin mover nada alrededor.
 - **Inclinación de 12°** como único gesto de forma (pestaña activa, sellos, botones,

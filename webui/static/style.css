@@ -28,6 +28,7 @@
   --sobre-solido:#faf7f1;              /* texto sobre un sello sólido (fuerte, NO FIABLE) */
   --sil-fondo:#e2dbcd; --sil-fig:#c3b9a8;
   --reja:#141210; --reja-hilo:rgba(239,233,223,.16);
+  --foco:rgba(255,255,255,.55); --foco-lona:rgba(255,255,255,.9);
 
   /* La barra del canal: igual en los dos temas, como en la tele. */
   --cab-bg:#0b0a09; --cab-sup:#1a1715; --cab-linea:#2e2a25;
@@ -55,6 +56,7 @@
     --probado:#efe9df; --sobre-probado:#0e0d0c; --sobre-solido:#0e0d0c;
     --sil-fondo:#221f1c; --sil-fig:#3d3832;
     --reja:#2b2722; --reja-hilo:rgba(239,233,223,.12);
+    --foco:rgba(239,233,223,.06); --foco-lona:rgba(239,233,223,.07);
   }
 }
 :root[data-tema="oscuro"]{
@@ -66,6 +68,7 @@
   --probado:#efe9df; --sobre-probado:#0e0d0c; --sobre-solido:#0e0d0c;
   --sil-fondo:#221f1c; --sil-fig:#3d3832;
   --reja:#2b2722; --reja-hilo:rgba(239,233,223,.12);
+  --foco:rgba(239,233,223,.06); --foco-lona:rgba(239,233,223,.07);
 }
 
 /* -------------------------------- base -------------------------------- */
@@ -332,41 +335,87 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto}
 .explica.alerta{background:var(--error-sup);display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:start}
 .explica.alerta>.ico{width:18px;height:18px;color:var(--error);margin-top:2px}
 
-/* --------------------------- pelea estelar ---------------------------- */
-/* La principal va encerrada en el octágono, con los retratos afuera mirando
-   hacia adentro: la jerarquía de una cartelera real. */
+/* ------------------------ estelar y coestelar ------------------------- */
+/* Las dos peleas principales van DENTRO del octágono, retratos incluidos. Es
+   un octágono REGULAR (los ocho lados iguales, caja 1:1): estirado a lo ancho
+   dejaba de parecer la jaula. La estelar mide más que la coestelar, y todo lo
+   de adentro se mide en unidades del propio octágono (cqw), así las cifras
+   crecen con él y la estelar nunca se ve más chica que una pelea común. */
 .estelar{background:var(--sup)}
-.estelar-cab{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--linea)}
-.estelar-kicker{font:800 18px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
-.estelar-kicker::before{content:"";width:9px;height:18px;background:var(--marca);transform:skewX(calc(var(--incl) * -1))}
-.estelar-kicker small{font:700 14px/1 var(--display);color:var(--tenue);letter-spacing:.06em}
-.estelar-ring{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,500px) minmax(0,1fr);align-items:stretch}
-.esquina-e{display:flex;flex-direction:column;min-width:0}
-.esquina-e .retrato{flex:1;min-height:300px}
-.esquina-e .nombre{padding:12px 18px 2px;font:800 30px/1 var(--display);text-transform:uppercase}
-.esquina-e .u{padding:0 18px 14px;font-size:13px;color:var(--tenue)}
-.esquina-e.b .nombre,.esquina-e.b .u{text-align:right}
-.octagono{position:relative;aspect-ratio:1;margin:18px;container-type:inline-size}
-.octagono::before,.octagono .lona{
-  clip-path:polygon(29.3% 0,70.7% 0,100% 29.3%,100% 70.7%,70.7% 100%,29.3% 100%,0 70.7%,0 29.3%)}
-/* La reja: un anillo con el tejido de alambre en diagonal. */
-.octagono::before{content:"";position:absolute;inset:0;background:
-  repeating-linear-gradient(45deg,var(--reja-hilo) 0 1.5px,transparent 1.5px 9px),
-  repeating-linear-gradient(-45deg,var(--reja-hilo) 0 1.5px,transparent 1.5px 9px),var(--reja)}
-.octagono .lona{position:absolute;inset:3.2%;background:var(--sup);display:flex;flex-direction:column;
-  justify-content:center;align-items:center;padding:0 13%}
-/* La línea pintada en la lona, a un paso de la reja. */
-.oct-linea{position:absolute;inset:3.5%;width:93%;height:93%;color:var(--linea);pointer-events:none}
-.octagono .lona>*:not(.oct-linea){position:relative;width:100%}
-.oct-pcts{display:flex;justify-content:space-between;align-items:baseline}
-.oct-pcts span{font:800 15.5cqi/.88 var(--display);white-space:nowrap}
-.oct-pcts .menos{font-size:9cqi;color:var(--tenue)}
-.octagono .duelo-barra{height:2cqi;min-height:7px;margin:3cqi 0 2cqi}
-.octagono .espejo>div{padding:1.4cqi 0}
-.octagono .espejo b{font-size:4.6cqi}
-.octagono .espejo span{font-size:3cqi}
-.oct-pie{text-align:center;font-size:3.1cqi;color:var(--txt2);margin-top:2.6cqi}
-.oct-pie b{color:var(--txt)}
+.estelar-cab{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:52px;padding:10px 22px;border-bottom:1px solid var(--linea)}
+.estelar-kicker{font:800 20px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+.estelar-kicker::before{content:"";width:10px;height:20px;background:var(--marca);transform:skewX(calc(var(--incl) * -1))}
+.estelar-kicker small{font:700 15px/1 var(--display);color:var(--tenue);letter-spacing:.06em}
+.estelar-cab .sellos{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* La escena: la jaula bajo el foco de la arena. */
+.jaula-escena{display:grid;place-items:center;padding:28px 22px;background:
+  radial-gradient(ellipse 48% 70% at 50% 8%,var(--foco),transparent 72%),var(--sup2)}
+.jaula{position:relative;width:min(100%,800px);aspect-ratio:1;container-type:inline-size;
+  --c:29.29cqw}                         /* corte de un octágono regular: lado / √2 */
+.coestelar .jaula{width:min(100%,660px)}
+/* Tres capas recortadas en octágono, de afuera hacia adentro: la reja de
+   alambre, la baranda acolchada y la lona. El corte de cada capa se achica en
+   0,414 × lo que la capa se mete, para que los chaflanes queden paralelos. */
+.jaula>.reja,.jaula>.baranda,.jaula>.lona{position:absolute;
+  clip-path:polygon(var(--k) 0,calc(100% - var(--k)) 0,100% var(--k),100% calc(100% - var(--k)),
+    calc(100% - var(--k)) 100%,var(--k) 100%,0 calc(100% - var(--k)),0 var(--k))}
+.jaula>.reja{inset:0;--k:var(--c);background:
+  repeating-linear-gradient(45deg,var(--reja-hilo) 0 .2cqw,transparent .2cqw 1.25cqw),
+  repeating-linear-gradient(-45deg,var(--reja-hilo) 0 .2cqw,transparent .2cqw 1.25cqw),var(--reja)}
+.jaula>.baranda{inset:1.5cqw;--k:calc(var(--c) - .62cqw);
+  background:linear-gradient(180deg,#2a2622 0%,#0b0a09 55%,#141210 100%)}
+.jaula>.lona{inset:2.8cqw;--k:calc(var(--c) - 1.16cqw);background:
+  radial-gradient(ellipse 58% 52% at 50% 58%,var(--foco-lona),transparent 74%),var(--sup);
+  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:42% 1fr}
+/* Los ocho postes acolchados, cada uno con su franja roja. */
+.poste{position:absolute;width:2.5cqw;height:2.5cqw;background:#0b0a09;border:.3cqw solid #2a2622;
+  transform:translate(-50%,-50%);z-index:2;box-shadow:inset 0 .6cqw 0 var(--cab-regla)}
+.p1{left:var(--c);top:1.5cqw}.p2{left:calc(100% - var(--c));top:1.5cqw}
+.p3{left:calc(100% - 1.5cqw);top:var(--c)}.p4{left:calc(100% - 1.5cqw);top:calc(100% - var(--c))}
+.p5{left:calc(100% - var(--c));top:calc(100% - 1.5cqw)}.p6{left:var(--c);top:calc(100% - 1.5cqw)}
+.p7{left:1.5cqw;top:calc(100% - var(--c))}.p8{left:1.5cqw;top:var(--c)}
+/* La línea pintada en la lona y la marca tenue del centro, como el logo del piso. */
+.lona-linea{position:absolute;inset:2cqw;width:calc(100% - 4cqw);height:calc(100% - 4cqw);color:var(--linea);pointer-events:none}
+.lona-marca{position:absolute;left:50%;top:66%;width:46cqw;height:46cqw;transform:translate(-50%,-50%);
+  color:var(--txt);opacity:.05;pointer-events:none}
+/* Los retratos arriba, uno al lado del otro, fundidos hacia la lona. La reja
+   les recorta las esquinas de afuera, como a cualquiera dentro de la jaula. */
+.jaula .retrato{min-height:0;background:transparent;z-index:1;
+  -webkit-mask-image:linear-gradient(180deg,#000 58%,transparent);mask-image:linear-gradient(180deg,#000 58%,transparent)}
+.jaula .retrato svg rect{fill:transparent}
+/* Mientras no hay foto, la silueta va más tenue: es un lugar, no un retrato. */
+.jaula .retrato svg{opacity:.6}
+.jaula-centro{grid-column:1/-1;grid-row:2;position:relative;z-index:1;display:flex;flex-direction:column;
+  justify-content:flex-start;padding:.5cqw 13.5cqw 9cqw;min-width:0}
+/* Tamaños en unidades del octágono, con un piso en px para que el texto chico
+   siga legible cuando el octágono se achica en una pantalla angosta. */
+.jaula .vs-nombres{gap:1.5cqw}
+.jaula .vs-nombres .n{font-size:max(3.9cqw,16px)}
+.jaula .vs-nombres .x{font-size:max(2cqw,11px)}
+.jaula .vs-sub{font-size:max(1.9cqw,11px)}
+.jaula .pcts{margin:1.6cqw 0 1.5cqw}
+.jaula .pcts span{font-size:12.5cqw;line-height:.86}
+.jaula .pcts .menos{font-size:7cqw}
+.jaula .duelo-barra{height:1.4cqw;min-height:6px;gap:.4cqw}
+.jaula .espejo{margin-top:2cqw}
+.jaula .espejo>div{padding:1cqw 0}
+.jaula .espejo b{font-size:max(3.3cqw,14px)}
+.jaula .espejo span{font-size:max(1.75cqw,10.5px)}
+.jaula .lona-pie{margin:2cqw 0 0;text-align:center;font-size:max(2.1cqw,12px);color:var(--txt2)}
+.jaula .lona-pie b{color:var(--txt)}
+.pelea-pie .fin-angosto{display:none}
+/* Angosto: la fila de retratos se achica para que los números quepan entre los
+   chaflanes de abajo, y el "% de que no llegue a las tarjetas" pasa al pie. */
+@container (max-width: 520px){
+  .jaula>.lona{grid-template-rows:31% 1fr}
+  .jaula-centro{padding:0 12cqw 5cqw}
+  .jaula .pcts{margin:1cqw 0 1.2cqw}
+  .jaula .espejo{margin-top:1.4cqw}
+  .jaula .espejo>div{padding:.55cqw 0}
+  .jaula .lona-pie{display:none}
+}
+@media (max-width:640px){ .pelea-pie .fin-angosto{display:inline} }
 
 /* ------------------------------- tabla -------------------------------- */
 .tabla-scroll{overflow-x:auto;background:var(--sup);border-top:3px solid var(--txt)}
@@ -430,10 +479,6 @@ tbody tr:last-child td{border-bottom:none}
   .z-dato{padding:6px 12px 10px}
   .z-dato:first-of-type{border-left:0}
   .grupo-motivo{margin-left:0;padding-left:0}
-  .estelar-ring{grid-template-columns:1fr 1fr}
-  .octagono{grid-column:1/-1;grid-row:2;width:min(100% - 24px,440px);justify-self:center;margin:14px auto 18px}
-  .esquina-e .retrato{min-height:210px}
-  .esquina-e .nombre{font-size:22px}
 }
 @media (max-width:640px){
   .cab{padding:0 14px;gap:12px;min-height:54px}
@@ -459,10 +504,8 @@ tbody tr:last-child td{border-bottom:none}
   .bloque-cab.fila>*:not(h2):not(.nota):not(.sub){grid-column:1;grid-row:auto;justify-self:start;margin-top:12px}
   .bienvenida{padding:24px 20px}
   .bienvenida h2{font-size:38px}
-  .estelar-cab{padding:12px 14px;flex-wrap:wrap}
-  .esquina-e .retrato{min-height:150px}
-  .esquina-e .nombre{font-size:19px;padding:10px 12px 2px}
-  .esquina-e .u{padding:0 12px 10px}
+  .estelar-cab{padding:10px 14px;flex-wrap:wrap}
+  .jaula-escena{padding:12px 8px}
   .pie-cuerpo{padding:24px 16px 28px}
 }
 

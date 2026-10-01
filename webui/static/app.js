@@ -345,10 +345,13 @@ function pintarCartelera(d, mov) {
     : 'Probabilidades del modelo solo, sin cuotas. Con cuotas acertaría ~3 puntos más.';
 
   const idEstelar = estelar(d.peleas, S.textosEvento || [d.titulo]);
+  const idCo = coestelar(d.peleas, idEstelar);
   const principal = d.peleas.find(p => p.id === idEstelar);
-  const resto = d.peleas.filter(p => p.id !== idEstelar);
+  const segunda = d.peleas.find(p => p.id === idCo);
+  const resto = d.peleas.filter(p => p.id !== idEstelar && p.id !== idCo);
   $('#peleas').innerHTML = `<div class="peleas-lista">${
-    principal ? octagonoEstelar(principal, mov) : ''}${resto.map(p => tarjetaPelea(p, mov)).join('')}</div>`;
+    principal ? jaula(principal, mov, 'estelar') : ''}${
+    segunda ? jaula(segunda, mov, 'coestelar') : ''}${resto.map(p => tarjetaPelea(p, mov)).join('')}</div>`;
   cargarFotos($('#peleas'));
   $$('#peleas [data-explica]').forEach(b => b.onclick = () => {
     const p = d.peleas.find(x => x.id === b.dataset.explica);
@@ -402,6 +405,21 @@ function estelar(peleas, textos) {
   return cand.length === 1 ? cand[0].id : null;
 }
 
+// La coestelar: la que el CSV rotula "Co-estelar"; si no hay rótulo, la vecina
+// de la estelar en el orden de la cartelera (que va de la estelar hacia abajo o
+// al revés). Solo si la estelar está en una punta: si no, no hay orden que
+// leer. En ese caso va en octágono pero sin decir "Co-estelar".
+const esCoSegmento = (p) => /^\s*co[\s-]?(estelar|main)/i.test(p.segmento || '');
+function coestelar(peleas, idEstelar) {
+  const porSegmento = peleas.filter(esCoSegmento);
+  if (porSegmento.length) return porSegmento.length === 1 ? porSegmento[0].id : null;
+  const i = peleas.findIndex(p => p.id === idEstelar);
+  if (i < 0 || peleas.length < 3) return null;
+  if (i === 0) return peleas[1].id;
+  if (i === peleas.length - 1) return peleas[i - 1].id;
+  return null;
+}
+
 const claseConf = (c) => c.toLowerCase().replace(/\s+/g,'');
 const td = (t) => `<td class="num">${t}</td>`;
 function flecha(mov, id, lado) {
@@ -443,10 +461,11 @@ function metodoFila(p) {
   }).join('')}</div>`;
 }
 
-function piePelea(p) {
+// En el octágono el "% de que no llegue a las tarjetas" ya va en la lona.
+function piePelea(p, enLona = false) {
   const m = p.mercado;
   return `<div class="pelea-pie">
-    <span><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</span>
+    <span class="${enLona ? 'fin-angosto' : ''}"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</span>
     <span>${p.tendencia === 'pelea promedio'
       ? 'Nada la distingue de una pelea promedio'
       : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>`}</span>
@@ -479,33 +498,51 @@ function tarjetaPelea(p, mov) {
   </article>`;
 }
 
-// La estelar va en el octágono: los porcentajes, la barra y lo que dicen la
-// casa y el modelo adentro de la jaula; los retratos afuera, mirando al centro.
-function octagonoEstelar(p, mov) {
+// La línea pintada a un paso de la reja, paralela a ella: es un octágono
+// regular, con el corte un poco menor porque la línea va metida hacia adentro
+// (misma cuenta que los recortes de las capas en el CSS).
+function lineaLona() {
+  const k = ((29.29 - 1.16 - 0.414 * 2) / (100 - 5.6 - 4) * 100).toFixed(2);
+  const pts = `${k},0.5 ${100 - k},0.5 99.5,${k} 99.5,${100 - k} ${100 - k},99.5 ${k},99.5 0.5,${100 - k} 0.5,${k}`;
+  return `<svg class="lona-linea" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <polygon points="${pts}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+// Las dos peleas principales van DENTRO del octágono: la reja, la baranda con
+// sus ocho postes, la lona con su luz y, sobre ella, los dos retratos y los
+// números. Es un octágono regular y todo escala con su ancho.
+function jaula(p, mov, tipo) {
   const favA = p.p_a >= p.p_b;
+  const titulo = tipo === 'estelar' ? 'Pelea estelar' : (esCoSegmento(p) ? 'Co-estelar' : '');
+  const postes = [1,2,3,4,5,6,7,8].map(n => `<i class="poste p${n}"></i>`).join('');
   return `
-  <article class="estelar">
+  <article class="estelar ${tipo}">
     <header class="estelar-cab">
-      <span class="estelar-kicker">Pelea estelar${p.segmento ? ` <small>${esc(p.segmento)}</small>` : ''}</span>
-      <span>${selloConf(p)}</span>
+      ${titulo ? `<span class="estelar-kicker">${titulo}${p.segmento ? ` <small>${esc(p.segmento)}</small>` : ''}</span>`
+               : (p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : '')}
+      <span class="sellos">${selloConf(p)}</span>
     </header>
-    <div class="estelar-ring">
-      <div class="esquina-e a">${retrato(p.a)}<div class="nombre">${esc(p.a)}</div><div class="u">${peleasUFC(p.info_a)}</div></div>
-      <div class="octagono">
-        <div class="lona">
-          <svg class="oct-linea" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            <polygon points="29.3,0.6 70.7,0.6 99.4,29.3 99.4,70.7 70.7,99.4 29.3,99.4 0.6,70.7 0.6,29.3"
-              fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
-          <div class="oct-pcts"><span class="${favA ? '' : 'menos'}">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}">${pct(p.p_b)}</span></div>
+    <div class="jaula-escena"><div class="jaula">
+      <div class="reja"></div><div class="baranda"></div>${postes}
+      <div class="lona">
+        ${lineaLona()}
+        <svg class="lona-marca" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M9 2h14l7 7v14l-7 7H9l-7-7V9z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M11 22L15 10h7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="bevel"/></svg>
+        ${retrato(p.a).replace('class="retrato"', 'class="retrato a"')}
+        <div class="jaula-centro">
+          <div class="vs-nombres"><span class="n">${esc(p.a)}</span><span class="x">vs</span><span class="n b">${esc(p.b)}</span></div>
+          <div class="vs-sub"><span>${peleasUFC(p.info_a)}</span><span>${peleasUFC(p.info_b)}</span></div>
+          <div class="pcts"><span class="${favA ? '' : 'menos'}">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}">${pct(p.p_b)}</span></div>
           ${barraDuelo(p)}
           ${espejo(p, mov)}
-          <p class="oct-pie"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</p>
+          <p class="lona-pie"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</p>
         </div>
+        ${retrato(p.b).replace('class="retrato"', 'class="retrato b"')}
       </div>
-      <div class="esquina-e b">${retrato(p.b)}<div class="nombre">${esc(p.b)}</div><div class="u">${peleasUFC(p.info_b)}</div></div>
-    </div>
+    </div></div>
     ${metodoFila(p)}
-    ${piePelea(p)}
+    ${piePelea(p, true)}
     ${p.confianza === 'NO FIABLE' ? `<div class="explica alerta">${ico('alerta')}<div>${p.por_que_confianza}</div></div>` : ''}
   </article>`;
 }
