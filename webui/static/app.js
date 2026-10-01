@@ -37,7 +37,7 @@ const cls = (x) => x >= 0 ? 'pos' : 'neg';
 const miles = (n) => n.toLocaleString('es-CL');
 
 // Los íconos de la cabecera se dibujan desde iconos.js: un solo set en toda la UI.
-$$('[data-ico]').forEach(e => { e.outerHTML = ico(e.dataset.ico); });
+$$('[data-ico]').forEach(e => { e.outerHTML = ico(e.dataset.ico, e.className); });
 
 /* =============================== TEMA ================================= */
 const temaGuardado = localStorage.getItem('tema');
@@ -826,15 +826,26 @@ $('#btn-refresh').onclick = async () => {
 // Betano ya nos está diciendo.
 let carterasCargadas = false;
 
+// "2026-08-08" -> "sáb 8 ago", como el título del evento.
+const fechaCorta = (iso) => {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso || '';
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-CL',
+    { weekday:'short', day:'numeric', month:'short' }).replace(',', '');
+};
+
 async function listarCarteleras(forzar) {
   const div = $('#lista-carteleras');
   if (carterasCargadas && !forzar) return;
   carterasCargadas = true;
-  div.innerHTML = '<p class="nota">consultando Betano…</p>';
+  // Mientras Betano responde, dos filas con la forma de las de verdad.
+  div.innerHTML = `<div class="cart esqueleto" aria-hidden="true"><span></span><span></span></div>
+    <div class="cart esqueleto" aria-hidden="true"><span></span><span></span></div>
+    <p class="sr">consultando Betano…</p>`;
   try {
     const r = await api('/api/betano/carteleras');
     if (!r.carteleras.length) {
-      div.innerHTML = '<p class="nota">Betano no está listando carteleras de MMA ahora mismo.</p>';
+      div.innerHTML = '<p class="lista-vacia">Betano no está listando carteleras de MMA ahora mismo.</p>';
       return;
     }
     div.innerHTML = r.carteleras.map(c => {
@@ -844,17 +855,17 @@ async function listarCarteleras(forzar) {
       // Betano abre algunas carteleras con solo un par de peleas montadas.
       // Avisarlo evita la sorpresa de bajar una cartelera "vacía".
       const parcial = c.peleas && c.peleas <= 4
-        ? `<span class="cart-parcial">solo ${c.peleas} peleas montadas todavía</span>` : '';
-      return `<button class="cart" data-q="${esc(c.query || c.name)}"
+        ? `<span class="cart-parcial">${ico('alerta')}solo ${c.peleas} peleas montadas todavía</span>` : '';
+      return `<button class="cart ${d === 0 ? 'hoy' : ''}" data-q="${esc(c.query || c.name)}"
                       data-fecha="${esc(c.fecha || '')}">
         <span class="cart-cuando">${esc(cuando)}</span>
         <span class="cart-cuerpo">
           <b>${esc(c.estelar || c.name)}</b>
           <span class="cart-meta">${esc(c.name)}${c.peleas ? ` · ${c.peleas} peleas` : ''}${
-            c.fecha ? ` · ${esc(c.fecha)}` : ''}</span>
+            c.fecha ? ` · ${esc(fechaCorta(c.fecha))}` : ''}</span>
           ${parcial}
         </span>
-        <span class="cart-ir">Predecir →</span>
+        <span class="cart-ir">Predecir${ico('ir')}</span>
       </button>`;
     }).join('');
 
@@ -867,7 +878,7 @@ async function listarCarteleras(forzar) {
       } catch (e) { barra(e.message, 'error'); }
     });
   } catch (e) {
-    div.innerHTML = `<div class="aviso err"><span class="ai">✕</span>
+    div.innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span>
       <div>${esc(e.message)}</div></div>`;
     carterasCargadas = false;   // que se pueda reintentar
   }
@@ -884,6 +895,14 @@ $('#btn-cargar-betano').onclick = async () => {
   } catch (e) { barra(e.message,'error'); }
 };
 
+// El input de archivo va escondido detrás de un cuadro propio: al elegir uno,
+// el cuadro dice cuál quedó elegido.
+$('#archivo').onchange = () => {
+  const f = $('#archivo').files[0];
+  $('#archivo-nombre').textContent = f ? f.name : 'Elegir un archivo .csv';
+  $('.elegir-archivo').classList.toggle('con-archivo', !!f);
+};
+
 $('#btn-subir').onclick = async () => {
   const f = $('#archivo').files[0];
   if (!f) { barra('Primero elige un archivo .csv','error'); return; }
@@ -898,17 +917,19 @@ async function cargarCSVs() {
   try {
     const r = await api('/api/cards');
     $('#lista-csvs').innerHTML = r.cards.length
-      ? r.cards.slice(0,12).map(c => `<div class="pick"><div class="cab">
-          <b>${esc(c.nombre)}</b>
-          <button class="secundario" data-n="${esc(c.nombre)}">Analizar</button></div>
-          <div class="det">${new Date(c.modificado*1000).toLocaleString('es-CL')}</div></div>`).join('')
-      : '<p class="nota">Todavía no hay ninguna cartelera guardada.</p>';
+      ? r.cards.slice(0,12).map(c => `<div class="guardado">
+          ${ico('csv')}
+          <div class="guardado-que"><b>${esc(c.nombre)}</b>
+            <span class="sub">${new Date(c.modificado*1000).toLocaleString('es-CL',
+              { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span></div>
+          <button class="secundario" data-n="${esc(c.nombre)}">Analizar</button></div>`).join('')
+      : '<p class="lista-vacia">Todavía no hay ninguna cartelera guardada.</p>';
     $$('#lista-csvs button').forEach(b => b.onclick = async () => {
       try { await post('/api/cartelera/csv', { nombre:b.dataset.n });
             barra('analizando la cartelera…'); irA('cartelera'); }
       catch (e) { barra(e.message,'error'); }
     });
-  } catch (e) { $('#lista-csvs').innerHTML = `<div class="aviso err"><span class="ai">✕</span>
+  } catch (e) { $('#lista-csvs').innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span>
     <div>${esc(e.message)}</div></div>`; }
 }
 

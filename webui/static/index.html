@@ -190,30 +190,42 @@
 
 <!-- ========================= CARGAR ======================== -->
 <section id="tab-datos" class="panel">
-  <div class="cols">
-    <div class="caja">
-      <h2><span class="ico-caja">📡</span> Desde Betano</h2>
+  <div class="cargar">
+    <section class="caja caja-betano" aria-labelledby="tit-betano">
+      <div class="caja-cab">
+        <span data-ico="senal"></span>
+        <h2 id="tit-betano">Desde Betano</h2>
+        <button id="btn-listar" class="secundario"><span data-ico="refrescar"></span>Ver qué carteleras hay</button>
+      </div>
       <p class="nota">Baja las cuotas reales y arma el archivo solo. Es la opción
         recomendada: con cuotas el sistema acierta ~3 puntos más y se habilita el
         análisis de valor y la combinada.</p>
-      <button id="btn-listar" class="secundario">Ver qué carteleras hay</button>
       <div id="lista-carteleras"></div>
       <div class="campo">
         <label for="query">…o escribe parte del nombre</label>
         <div class="fila-input">
-          <input type="text" id="query" placeholder="UFC 330">
+          <span class="input-ico" data-ico="buscar"></span>
+          <input type="text" id="query" placeholder="UFC 330" autocomplete="off">
           <button id="btn-cargar-betano" class="primario">Bajar</button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="caja">
-      <h2><span class="ico-caja">📄</span> Desde un archivo</h2>
+    <section class="caja caja-archivo" aria-labelledby="tit-archivo">
+      <div class="caja-cab">
+        <span data-ico="csv"></span>
+        <h2 id="tit-archivo">Desde un archivo</h2>
+      </div>
       <p class="nota">Un CSV con al menos dos columnas: <code>fighter_a</code> y
         <code>fighter_b</code>. Si además le pones <code>odds_a</code> y
         <code>odds_b</code> se activa el análisis de valor.</p>
-      <div class="fila-input">
-        <input type="file" id="archivo" accept=".csv">
+      <div class="fila-input subir">
+        <label class="elegir-archivo" for="archivo">
+          <span data-ico="subir"></span>
+          <span><b id="archivo-nombre">Elegir un archivo .csv</b>
+            <small>toca para buscarlo en tu PC</small></span>
+        </label>
+        <input type="file" id="archivo" accept=".csv" class="archivo-input">
         <button id="btn-subir" class="primario">Subir</button>
       </div>
       <details class="mini">
@@ -224,9 +236,9 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
         <p class="nota">Los nombres deben escribirse como aparecen en UFCStats. Las
           celdas vacías están bien: lo que falte simplemente no se analiza.</p>
       </details>
-      <h3>Ya guardados</h3>
+      <h3 class="guardados-tit">Ya guardados</h3>
       <div id="lista-csvs"></div>
-    </div>
+    </section>
   </div>
 </section>
 

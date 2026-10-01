@@ -76,6 +76,8 @@
 html{-webkit-text-size-adjust:100%}
 body{
   margin:0;background:var(--bg);color:var(--txt);
+  /* El pie siempre abajo: con una pestaña corta quedaba una franja vacía debajo. */
+  min-height:100dvh;display:flex;flex-direction:column;
   font:400 15px/1.55 var(--texto);
   /* Cifras tabulares en TODA la página: cualquier número que cambie (cuotas,
      porcentajes, el reloj) conserva su ancho y no empuja lo de al lado. */
@@ -190,7 +192,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .barra{padding:10px 28px;font-size:14px;font-weight:500;background:var(--sup2);color:var(--txt);border-bottom:1px solid var(--linea)}
 .barra.error{background:var(--error-sup);color:var(--txt)}
 
-main{padding:30px 28px 70px;max-width:1300px;margin:0 auto}
+main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 auto}
 .panel{display:none}
 .panel.activa{display:block}
 
@@ -653,44 +655,90 @@ tbody tr:last-child td{border-bottom:none}
   .pelea-grupo-opciones{grid-template-columns:1fr}
 }
 
-/* ======================================================================
-   PESTAÑAS QUE TODAVÍA NO SE REDISEÑAN (Cargar, Mantenimiento, Guía). Conservan su estructura con la paleta y las fuentes nuevas; cada una
-   se reemplaza en su propio commit.
-   ====================================================================== */
-.pick{background:var(--sup);border-left:4px solid var(--linea);padding:13px 16px;margin:8px 0}
-.pick .cab{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;
-  min-height:0;padding:0;background:none;color:inherit;border:0}
-.pick .que{font-weight:600;font-size:15px}
-.pick .det{color:var(--txt2);font-size:13px;margin-top:5px}
+/* -------------------------------- cargar ------------------------------ */
+/* Betano manda (es la opción recomendada y la que trae cuotas): va a la
+   izquierda y más ancha. Las carteleras se leen como la programación del canal:
+   cuándo, la pelea estelar y un "Predecir" que hace todo con un clic. */
+.cargar{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+.caja{background:var(--sup);padding:0 0 20px}
+.caja>.nota,.caja>.campo,.caja>#lista-carteleras,.caja>.fila-input,.caja>.mini,.caja>.guardados-tit,.caja>#lista-csvs{margin-left:20px;margin-right:20px}
+.caja>.nota{margin-top:14px}
+.caja-cab{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:3px solid var(--txt)}
+.caja-cab>.ico{width:24px;height:24px;color:var(--marca)}
+.caja-cab h2{font-size:26px}
+.caja-cab .secundario{margin-left:auto;padding:9px 13px;font-size:13px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 
-/* Cargar */
-.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px}
-.caja{background:var(--sup);padding:20px}
-.caja h2{display:flex;align-items:center;gap:8px;font-size:22px;margin-bottom:8px}
-.ico-caja{display:none}
-.caja h3{margin:18px 0 6px}
-.campo{margin:14px 0 6px}
-.campo label{display:block;font-size:13px;color:var(--txt2);margin-bottom:5px}
-.fila-input{display:flex;gap:8px;align-items:center}
+#lista-carteleras{display:grid;gap:6px;margin-top:14px;margin-bottom:6px}
+.cart{display:grid;grid-template-columns:96px minmax(0,1fr) auto;align-items:stretch;gap:0;width:100%;text-align:left;
+  padding:0;background:var(--bg);border:1.5px solid var(--linea);font:inherit;color:var(--txt);min-height:68px}
+.cart:hover:not(:disabled){border-color:var(--txt)}
+.cart-cuando{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px 0 8px;
+  font:800 15px/1.05 var(--display);letter-spacing:.06em;text-transform:uppercase;background:var(--sup2);color:var(--txt2);
+  clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
+.cart.hoy .cart-cuando{background:var(--marca);color:var(--sobre-marca)}
+.cart-cuerpo{display:grid;gap:3px;align-content:center;padding:10px 14px;min-width:0}
+.cart-cuerpo b{font:800 21px/1.05 var(--display);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart-meta{font-size:13px;color:var(--tenue)}
+.cart-parcial{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--alerta);font-weight:600}
+.cart-parcial .ico{width:13px;height:13px}
+.cart-ir{display:flex;align-items:center;gap:8px;padding:0 16px;border-left:1px solid var(--linea);
+  font:800 14px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--txt2)}
+.cart-ir .ico{width:15px;height:15px}
+.cart:hover:not(:disabled) .cart-ir{background:var(--txt);color:var(--bg)}
+.cart.esqueleto{min-height:68px;grid-template-columns:96px 1fr;pointer-events:none;border-style:dashed}
+.cart.esqueleto span{display:block;background:var(--sup2)}
+.cart.esqueleto span+span{margin:22px 18px;background:linear-gradient(var(--sup2),var(--sup2)) 0 0/60% 12px no-repeat,
+  linear-gradient(var(--sup2),var(--sup2)) 0 22px/38% 9px no-repeat}
+.lista-vacia{color:var(--txt2);font-size:14px;padding:14px 0}
+
+.campo{margin-top:16px}
+.campo label{display:block;font:700 13px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--tenue);margin-bottom:7px}
+.fila-input{display:flex;gap:8px;align-items:stretch;position:relative}
+.input-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--tenue);pointer-events:none;width:16px;height:16px}
+.fila-input .input-ico+input[type=text]{padding-left:38px}
 input[type=text],input[type=number]{width:100%;padding:10px 12px;background:var(--bg);color:var(--txt);
   border:1.5px solid var(--linea);border-radius:0;font:500 15px var(--texto)}
+input[type=text]::placeholder{color:var(--tenue)}
 input:focus{outline:2px solid var(--marca);outline-offset:-1px}
-input[type=file]{font-size:13px;color:var(--txt2);flex:1;min-width:0}
-.mini{margin:12px 0}
-.mini summary{cursor:pointer;font-size:13.5px;font-weight:600}
-.ejemplo{background:var(--sup2);padding:11px;font-size:12px;overflow-x:auto;font-family:ui-monospace,Consolas,monospace;margin:9px 0}
-#lista-carteleras{display:grid;gap:8px;margin:12px 0 4px}
-.cart{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 14px;background:var(--sup);
-  border:1.5px solid var(--linea);border-left:4px solid var(--linea);font:inherit;color:var(--txt)}
-.cart:hover:not(:disabled){border-color:var(--txt);border-left-color:var(--marca)}
-.cart-cuando{flex:0 0 74px;font:800 13px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--marca)}
-.cart-cuerpo{flex:1;min-width:0;display:grid;gap:2px}
-.cart-cuerpo b{font-size:14.5px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cart-meta{font-size:12.5px;color:var(--tenue)}
-.cart-parcial{font-size:12px;color:var(--alerta);font-weight:600}
-.cart-ir{flex:0 0 auto;font:700 13px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--tenue)}
-@media (max-width:560px){.cart{flex-wrap:wrap}.cart-cuando{flex-basis:100%}.cart-ir{display:none}}
 
+/* El archivo: un cuadro propio que dice cuál quedó elegido. El input real queda
+   encima, invisible, para el teclado y los lectores de pantalla. */
+.subir{margin-top:16px}
+.elegir-archivo{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;
+  border:1.5px dashed var(--tenue);background:var(--bg)}
+.elegir-archivo:hover{border-color:var(--txt);border-style:solid}
+.elegir-archivo .ico{width:24px;height:24px;color:var(--txt2);flex:none}
+.elegir-archivo b{display:block;font:700 16px/1.15 var(--display);text-transform:uppercase;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.elegir-archivo small{display:block;font-size:12.5px;color:var(--tenue)}
+.elegir-archivo.con-archivo{border-style:solid;border-color:var(--txt)}
+.elegir-archivo.con-archivo .ico{color:var(--ok)}
+.archivo-input{position:absolute;opacity:0;width:1px;height:1px}
+.subir:has(.archivo-input:focus-visible) .elegir-archivo{outline:2px solid var(--marca);outline-offset:2px}
+
+.mini{margin-top:14px}
+.mini summary{cursor:pointer;font:700 14px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--txt2)}
+.mini summary:hover{color:var(--txt)}
+.ejemplo{background:var(--bg);padding:12px;font-size:12.5px;overflow-x:auto;font-family:ui-monospace,Consolas,monospace;margin:10px 0}
+.guardados-tit{margin-top:22px;padding-bottom:8px;border-bottom:1px solid var(--linea)}
+.guardado{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linea)}
+.guardado>.ico{width:22px;height:22px;color:var(--tenue)}
+.guardado-que b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.guardado .secundario{padding:8px 12px;font-size:13px}
+
+@media (max-width:900px){ .cargar{grid-template-columns:1fr} }
+@media (max-width:560px){
+  .cart{grid-template-columns:1fr auto;grid-template-rows:auto 1fr}
+  .cart-cuando{grid-column:1/-1;justify-content:flex-start;padding:6px 12px;clip-path:none}
+  .cart-cuerpo b{white-space:normal}
+  .caja-cab{flex-wrap:wrap}
+  .caja-cab .secundario{margin-left:0}
+}
+
+/* ======================================================================
+   PESTAÑAS QUE TODAVÍA NO SE REDISEÑAN (Mantenimiento, Guía). Conservan su estructura con la paleta y las fuentes nuevas; cada una
+   se reemplaza en su propio commit.
+   ====================================================================== */
 /* Mantenimiento */
 .salud{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
 .chip{background:var(--sup);border:1.5px solid var(--linea);padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:6px}
