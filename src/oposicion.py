@@ -136,7 +136,8 @@ def _construir_indice() -> dict:
             # El nombre del rival se guarda SIN normalizar para poder mostrarlo.
             nombre_rival = r.fighter_b if yo == a else r.fighter_a
             hist.setdefault(yo, []).append(
-                (r.date, su_elo, res, met, nombre_rival))
+                (r.date, su_elo, res, met, nombre_rival,
+                 getattr(r, "weight_class", None)))
 
         # actualizar ELO: K con bonus por finalización. Sin categoría de peso —
         # acá interesa el nivel general del rival, no su ranking divisional.
@@ -167,6 +168,7 @@ def _construir_indice() -> dict:
             "res": np.array([t[2] for t in lst], dtype=float),
             "met": [t[3] for t in lst],
             "rival": [t[4] for t in lst],
+            "division": [t[5] for t in lst],
         }
     print(f"[oposicion] historial de rivales para {len(idx)} peleadores")
     return idx
@@ -232,6 +234,24 @@ def resumen(nombre: str, hasta, n: int = N_RECIENTES) -> dict:
             for i in range(k - 1, -1, -1)
         ],
     }
+
+
+def ultima_division(nombre: str, hasta=None) -> str | None:
+    """
+    Categoría de peso de la última pelea del peleador ANTERIOR a `hasta`
+    (None = hasta hoy), con los mismos nombres que usa el ELO por categoría.
+
+    La usa card._elo para elegir de QUÉ categoría sacar el ELO. Antes se tomaba
+    la primera fila del nombre, cuyo orden no tiene que ver con el peleador.
+    """
+    d = _indice().get(_norm(nombre))
+    if not d:
+        return None
+    corte = len(d["fechas"]) if hasta is None else bisect_left(d["fechas"], pd.Timestamp(hasta))
+    if corte == 0:
+        return None
+    wc = d["division"][corte - 1]
+    return wc if isinstance(wc, str) and wc else None
 
 
 # Features diferenciales que se agregan al modelo (A - B), salvo n_* que son de control.

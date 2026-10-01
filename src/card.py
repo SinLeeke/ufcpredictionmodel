@@ -134,15 +134,34 @@ def _corto_aviso(fight: pd.Series, columna: str, nombre: str) -> int:
     return reemplazos.flag(nombre, pd.Timestamp.now(), dias=21)
 
 
-def elo_de_tabla(tabla: pd.DataFrame, nombre: str) -> float | None:
+def elo_de_tabla(tabla: pd.DataFrame, nombre: str, division: str | None = None) -> float | None:
     """
     ELO de un peleador en una tabla con el formato de elo_ratings.csv, o None.
+
+    El ELO es POR CATEGORÍA, y quien peleó en varias tiene una fila por cada
+    una. Se usa la de `division` (la de su última pelea, ver
+    oposicion.ultima_division); si no hay, la primera fila, como antes.
+
+    Antes siempre era la primera fila, y ese orden depende de en qué categoría
+    apareció primero CUALQUIER peleador, no él: a 438 peleadores les daba el
+    ELO de otra división, a 44 activos con más de 40 puntos de diferencia.
+    Volkanovski salía con 1498 (su ELO de peso ligero, donde perdió las dos con
+    Makhachev) en vez de 1655, el de peso pluma, su división. Medido
+    con el backtest de carteleras, 742 peleas en 4 semestres de 2025-2026:
+    acierto +1,7 pts (mejor en 4/4), log loss neutro (2/4, -0,0014). Entra por
+    corrección: reemplaza una regla arbitraria y no empeora.
 
     La usan la predicción (tabla final) y backtest_carteleras (tabla a la fecha
     del evento), así que las dos eligen la fila con la MISMA regla.
     """
     hit = tabla[tabla["fighter"].str.lower() == str(nombre).lower()]
-    return float(hit.iloc[0]["elo"]) if not hit.empty else None
+    if hit.empty:
+        return None
+    if division:
+        en_div = hit[hit["weight_class"] == division]
+        if not en_div.empty:
+            return float(en_div.iloc[0]["elo"])
+    return float(hit.iloc[0]["elo"])
 
 
 def _elo(stats: dict) -> float:
@@ -154,7 +173,7 @@ def _elo(stats: dict) -> float:
     """
     name = stats["name"]
     if C.ELO_TABLE.exists():
-        elo = elo_de_tabla(pd.read_csv(C.ELO_TABLE), name)
+        elo = elo_de_tabla(pd.read_csv(C.ELO_TABLE), name, oposicion.ultima_division(name))
         if elo is not None:
             return elo
     # proxy: winrate centrado en .5 + bonus por experiencia

@@ -61,6 +61,49 @@ class SimetriaDelGanador(unittest.TestCase):
         self.assertAlmostEqual(p_ab, 1 - p_ba, places=9)
 
 
+class EloPorDivision(unittest.TestCase):
+
+    def test_usa_la_division_de_su_ultima_pelea(self):
+        # BUG: se tomaba la PRIMERA fila del nombre en elo_ratings.csv, cuyo orden
+        # depende de en qué categoría apareció primero CUALQUIER peleador. A 438
+        # peleadores les daba el ELO de otra división (Volkanovski: 1498 de peso
+        # ligero en vez de 1655 de peso pluma). Acá, con nombres de prueba.
+        import tempfile
+        from pathlib import Path
+        import pandas as pd
+        import config as C
+        from src import card
+        with tempfile.TemporaryDirectory() as tmp:
+            tabla = Path(tmp) / "elo.csv"
+            pd.DataFrame({"weight_class": ["Welterweight", "Lightweight"],
+                          "fighter": ["Islam Makhachev", "Islam Makhachev"],
+                          "elo": [1517.0, 1686.0]}).to_csv(tabla, index=False)
+            with mock.patch.object(C, "ELO_TABLE", tabla), \
+                    mock.patch.object(card.oposicion, "ultima_division", lambda n, hasta=None: "Lightweight"):
+                self.assertEqual(card._elo({"name": "Islam Makhachev"}), 1686.0)
+            with mock.patch.object(C, "ELO_TABLE", tabla), \
+                    mock.patch.object(card.oposicion, "ultima_division", lambda n, hasta=None: None):
+                self.assertEqual(card._elo({"name": "Islam Makhachev"}), 1517.0)   # sin dato: como antes
+
+    def test_ultima_division_respeta_la_fecha(self):
+        import tempfile
+        from pathlib import Path
+        import pandas as pd
+        from src import oposicion
+        with tempfile.TemporaryDirectory() as tmp:
+            csv = Path(tmp) / "fights.csv"
+            pd.DataFrame({"date": ["2024-01-01", "2025-06-01"], "event": ["e1", "e2"],
+                          "fighter_a": ["Ana Uno", "Ana Uno"], "fighter_b": ["Bea Dos", "Cris Tres"],
+                          "winner": ["Ana Uno", "Ana Uno"], "method": ["Decision", "KO/TKO"],
+                          "weight_class": ["Lightweight", "Welterweight"]}).to_csv(csv, index=False)
+            with mock.patch.object(oposicion, "FIGHTS_CSV", csv), mock.patch.object(oposicion, "_IDX", None), \
+                    mock.patch("builtins.print"):
+                self.assertEqual(oposicion.ultima_division("Ana Uno"), "Welterweight")
+                self.assertEqual(oposicion.ultima_division("Ana Uno", "2025-06-01"), "Lightweight")
+                self.assertIsNone(oposicion.ultima_division("Ana Uno", "2024-01-01"))
+                self.assertIsNone(oposicion.ultima_division("Nadie"))
+
+
 class ResumenDeApuestas(unittest.TestCase):
     """La decisión es la misma apuesta en el mercado de 7 y de 5 vías."""
 

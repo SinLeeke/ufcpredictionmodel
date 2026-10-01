@@ -141,7 +141,7 @@ def _elo_a_fecha(nombre: str, fecha: pd.Timestamp) -> float:
             _ELO_POR_FECHA[fecha] = pd.read_csv(C.ELO_TABLE)
         else:
             _ELO_POR_FECHA[fecha] = pd.DataFrame(columns=["weight_class", "fighter", "elo"])
-    elo = elo_de_tabla(_ELO_POR_FECHA[fecha], nombre)
+    elo = elo_de_tabla(_ELO_POR_FECHA[fecha], nombre, oposicion.ultima_division(nombre, fecha))
     return elo if elo is not None else C.ELO_BASE
 
 
