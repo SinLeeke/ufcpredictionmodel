@@ -508,6 +508,18 @@ function lineaLona() {
     <polygon points="${pts}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
+// Las cifras de la jaula, en espejo: el valor de cada peleador bajo su
+// columna y el rótulo en el lomo del medio.
+function datosJaula(p, mov) {
+  const m = p.mercado;
+  if (!m) return '';
+  const fila = (n, a, lbl, b) => `<div class="j-a j-dato j-f${n}">${a}</div>
+    <div class="j-lomo j-rot j-f${n}">${lbl}</div><div class="j-b j-dato j-f${n}">${b}</div>`;
+  return fila(1, cuota(m.cuota_a) + flecha(mov, p.id, 'A'), 'cuota', cuota(m.cuota_b) + flecha(mov, p.id, 'B')) +
+         fila(2, pct(m.p_mercado_a), 'le da la casa', pct(1 - m.p_mercado_a)) +
+         fila(3, pct(m.p_modelo_a), 'el modelo solo', pct(1 - m.p_modelo_a));
+}
+
 // Las dos peleas principales van DENTRO del octágono: la reja, la baranda con
 // sus ocho postes, la lona con su luz y, sobre ella, los dos retratos y los
 // números. Es un octágono regular y todo escala con su ancho.
@@ -528,17 +540,17 @@ function jaula(p, mov, tipo) {
         ${lineaLona()}
         <svg class="lona-marca" viewBox="0 0 32 32" aria-hidden="true">
           <path d="M9 2h14l7 7v14l-7 7H9l-7-7V9z" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <path d="M11 22L15 10h7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="bevel"/></svg>
+          <path d="M14.6 9.5h4.6l-1.8 13h-4.6z" fill="currentColor"/></svg>
         ${retrato(p.a).replace('class="retrato"', 'class="retrato a"')}
-        <div class="jaula-centro">
-          <div class="vs-nombres"><span class="n">${esc(p.a)}</span><span class="x">vs</span><span class="n b">${esc(p.b)}</span></div>
-          <div class="vs-sub"><span>${peleasUFC(p.info_a)}</span><span>${peleasUFC(p.info_b)}</span></div>
-          <div class="pcts"><span class="${favA ? '' : 'menos'}">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}">${pct(p.p_b)}</span></div>
-          ${barraDuelo(p)}
-          ${espejo(p, mov)}
-          <p class="lona-pie"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</p>
-        </div>
         ${retrato(p.b).replace('class="retrato"', 'class="retrato b"')}
+        <div class="j-a j-nombre">${esc(p.a)}<small>${peleasUFC(p.info_a)}</small></div>
+        <div class="j-lomo j-vs">vs</div>
+        <div class="j-b j-nombre">${esc(p.b)}<small>${peleasUFC(p.info_b)}</small></div>
+        <div class="j-a j-pct ${favA ? '' : 'menos'}">${pct(p.p_a)}</div>
+        <div class="j-b j-pct ${favA ? 'menos' : ''}">${pct(p.p_b)}</div>
+        <div class="j-todo j-barra">${barraDuelo(p)}</div>
+        ${datosJaula(p, mov)}
+        <p class="j-todo j-pie"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</p>
       </div>
     </div></div>
     ${metodoFila(p)}

@@ -366,8 +366,7 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto}
 .jaula>.baranda{inset:1.5cqw;--k:calc(var(--c) - .62cqw);
   background:linear-gradient(180deg,#2a2622 0%,#0b0a09 55%,#141210 100%)}
 .jaula>.lona{inset:2.8cqw;--k:calc(var(--c) - 1.16cqw);background:
-  radial-gradient(ellipse 58% 52% at 50% 58%,var(--foco-lona),transparent 74%),var(--sup);
-  display:grid;grid-template-columns:1fr 1fr;grid-template-rows:42% 1fr}
+  radial-gradient(ellipse 58% 52% at 50% 58%,var(--foco-lona),transparent 74%),var(--sup)}
 /* Los ocho postes acolchados, cada uno con su franja roja. */
 .poste{position:absolute;width:2.5cqw;height:2.5cqw;background:#0b0a09;border:.3cqw solid #2a2622;
   transform:translate(-50%,-50%);z-index:2;box-shadow:inset 0 .6cqw 0 var(--cab-regla)}
@@ -377,43 +376,45 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto}
 .p7{left:1.5cqw;top:calc(100% - var(--c))}.p8{left:1.5cqw;top:var(--c)}
 /* La línea pintada en la lona y la marca tenue del centro, como el logo del piso. */
 .lona-linea{position:absolute;inset:2cqw;width:calc(100% - 4cqw);height:calc(100% - 4cqw);color:var(--linea);pointer-events:none}
-.lona-marca{position:absolute;left:50%;top:66%;width:46cqw;height:46cqw;transform:translate(-50%,-50%);
-  color:var(--txt);opacity:.05;pointer-events:none}
-/* Los retratos arriba, uno al lado del otro, fundidos hacia la lona. La reja
-   les recorta las esquinas de afuera, como a cualquiera dentro de la jaula. */
-.jaula .retrato{min-height:0;background:transparent;z-index:1;
-  -webkit-mask-image:linear-gradient(180deg,#000 58%,transparent);mask-image:linear-gradient(180deg,#000 58%,transparent)}
-.jaula .retrato svg rect{fill:transparent}
-/* Mientras no hay foto, la silueta va más tenue: es un lugar, no un retrato. */
+.lona-marca{position:absolute;left:50%;top:21%;width:21cqw;height:21cqw;transform:translate(-50%,-50%);
+  color:var(--txt);opacity:.07;pointer-events:none}
+/* Adentro, todo en espejo sobre DOS EJES: cada peleador tiene su columna (su
+   retrato arriba y, centrados debajo, su nombre, su porcentaje y sus cifras), y
+   al medio corre un lomo angosto con los rótulos. Así nada flota: cada número
+   cae justo debajo de la cara de quien es, y el conjunto repite la simetría de
+   la jaula. */
+.jaula>.lona{display:grid;padding:0 6cqw;
+  grid-template-columns:[a] minmax(0,1fr) [lomo] minmax(0,.62fr) [b] minmax(0,1fr);
+  grid-template-rows:40% .2fr repeat(7,auto) 1fr}
+.jaula .retrato{grid-row:1;min-height:0;background:transparent;z-index:1;
+  -webkit-mask-image:linear-gradient(180deg,#000 60%,transparent);mask-image:linear-gradient(180deg,#000 60%,transparent)}
+.jaula .retrato.a{grid-column:a} .jaula .retrato.b{grid-column:b}
 .jaula .retrato svg{opacity:.6}
-.jaula-centro{grid-column:1/-1;grid-row:2;position:relative;z-index:1;display:flex;flex-direction:column;
-  justify-content:flex-start;padding:.5cqw 13.5cqw 9cqw;min-width:0}
-/* Tamaños en unidades del octágono, con un piso en px para que el texto chico
-   siga legible cuando el octágono se achica en una pantalla angosta. */
-.jaula .vs-nombres{gap:1.5cqw}
-.jaula .vs-nombres .n{font-size:max(3.9cqw,16px)}
-.jaula .vs-nombres .x{font-size:max(2cqw,11px)}
-.jaula .vs-sub{font-size:max(1.9cqw,11px)}
-.jaula .pcts{margin:1.6cqw 0 1.5cqw}
-.jaula .pcts span{font-size:12.5cqw;line-height:.86}
-.jaula .pcts .menos{font-size:7cqw}
-.jaula .duelo-barra{height:1.4cqw;min-height:6px;gap:.4cqw}
-.jaula .espejo{margin-top:2cqw}
-.jaula .espejo>div{padding:1cqw 0}
-.jaula .espejo b{font-size:max(3.3cqw,14px)}
-.jaula .espejo span{font-size:max(1.75cqw,10.5px)}
-.jaula .lona-pie{margin:2cqw 0 0;text-align:center;font-size:max(2.1cqw,12px);color:var(--txt2)}
-.jaula .lona-pie b{color:var(--txt)}
+.jaula .retrato svg rect{fill:transparent}
+.jaula .retrato svg [stroke]{stroke:var(--sup)}
+.jaula .retrato svg g:last-child{fill:var(--sup)}
+.j-a,.j-b,.j-lomo,.j-todo{position:relative;z-index:1;text-align:center;min-width:0}
+.j-a{grid-column:a} .j-b{grid-column:b} .j-lomo{grid-column:lomo} .j-todo{grid-column:a / span 3}
+.j-nombre{grid-row:3;font:800 max(3.5cqw,15px)/1 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
+.j-nombre small{display:block;margin-top:.6cqw;font:400 max(1.75cqw,11px)/1.2 var(--texto);text-transform:none;color:var(--tenue)}
+.j-vs{grid-row:3;align-self:center;font:700 max(1.9cqw,11px)/1 var(--display);text-transform:uppercase;color:var(--tenue)}
+.j-pct{grid-row:4;font:800 11.5cqw/.9 var(--display);white-space:nowrap;margin-top:1.4cqw;align-self:end}
+.j-pct.menos{font-size:7.5cqw;color:var(--tenue)}
+.j-barra{grid-row:5;margin:1.6cqw 0 1.2cqw}
+.j-barra .duelo-barra{height:max(1.3cqw,6px);gap:.4cqw}
+.j-dato{font:700 max(3.1cqw,14px)/1 var(--display);padding:.95cqw 0;border-top:1px solid var(--linea)}
+.j-rot{font:600 max(1.6cqw,10px)/1.15 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--tenue);
+  padding:.95cqw 0;border-top:1px solid var(--linea);display:grid;place-items:center}
+.j-f1{grid-row:6}.j-f2{grid-row:7}.j-f3{grid-row:8}
+.j-pie{grid-row:9;margin-top:1.8cqw;font-size:max(2cqw,12px);color:var(--txt2)}
+.j-pie b{color:var(--txt)}
 .pelea-pie .fin-angosto{display:none}
-/* Angosto: la fila de retratos se achica para que los números quepan entre los
-   chaflanes de abajo, y el "% de que no llegue a las tarjetas" pasa al pie. */
+/* Angosto: el "% de que no llegue a las tarjetas" pasa al pie para que la lona
+   no se llene contra los chaflanes de abajo. */
 @container (max-width: 520px){
-  .jaula>.lona{grid-template-rows:31% 1fr}
-  .jaula-centro{padding:0 12cqw 5cqw}
-  .jaula .pcts{margin:1cqw 0 1.2cqw}
-  .jaula .espejo{margin-top:1.4cqw}
-  .jaula .espejo>div{padding:.55cqw 0}
-  .jaula .lona-pie{display:none}
+  .jaula>.lona{padding:0 5cqw;grid-template-rows:36% .2fr repeat(7,auto) 1fr}
+  .j-pct{font-size:11cqw}
+  .j-pie{display:none}
 }
 @media (max-width:640px){ .pelea-pie .fin-angosto{display:inline} }
 
