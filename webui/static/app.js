@@ -46,6 +46,13 @@ $$('[data-ico]').forEach(e => { e.outerHTML = ico(e.dataset.ico, e.className); }
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
 const reducir = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Lo que se hace con el teclado no se anima: se repite tanto que el movimiento
+// lo haría sentir lento. Se anota con qué se hizo lo último (tecla o puntero)
+// y las acciones del usuario lo consultan. Lo que hace el sistema solo (EN
+// VIVO) se anima igual: no depende de cómo navegas.
+let porTeclado = false;
+addEventListener('keydown', () => { porTeclado = true; }, true);
+addEventListener('pointerdown', () => { porTeclado = false; }, true);
 
 // Cada cifra que puede cambiar lleva data-num con una clave estable. Antes de
 // repintar se anota lo que decía; después, la que cambió entra desde abajo y
@@ -54,14 +61,22 @@ const reducir = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const capturarCifras = (raiz) => new Map(
   Array.from(raiz.querySelectorAll('[data-num]'), e => [e.dataset.num, e.textContent]));
 function resaltarCambios(raiz, antes) {
-  raiz.querySelectorAll('[data-num]').forEach(e => {
+  const cambiadas = Array.from(raiz.querySelectorAll('[data-num]')).filter(e => {
     const previo = antes.get(e.dataset.num);
-    if (previo == null || previo === e.textContent) return;
+    return previo != null && previo !== e.textContent;
+  });
+  if (!cambiadas.length) return;
+  // Para reiniciar el destello de una cifra que ya lo tenía hay que sacar la
+  // clase, forzar un reflow y volver a ponerla. Un solo reflow para todas, no
+  // uno por cifra (eso obligaba al navegador a recalcular el layout N veces).
+  cambiadas.forEach(e => e.classList.remove('destello'));
+  void raiz.offsetWidth;
+  cambiadas.forEach(e => {
     e.animate(reducir()
       ? [{ opacity: 0 }, { opacity: 1 }]
       : [{ opacity: 0, transform: 'translateY(35%)' }, { opacity: 1, transform: 'none' }],
       { duration: 220, easing: EASE_OUT });
-    e.classList.remove('destello'); void e.offsetWidth; e.classList.add('destello');
+    e.classList.add('destello');
   });
 }
 
@@ -85,6 +100,9 @@ $$('.tab').forEach(t => t.onclick = () => {
   t.classList.add('activa');
   t.setAttribute('aria-current', 'page');
   $('#tab-' + t.dataset.tab).classList.add('activa');
+  // Con teclado, sin la entrada del panel ni el crecimiento de la etiqueta.
+  if (porTeclado) [$('.tabs'), $('#tab-' + t.dataset.tab)].forEach(e =>
+    e.getAnimations({ subtree: true }).forEach(a => a.finish()));
   window.scrollTo({ top: 0 });
   if (t.dataset.tab === 'mantenimiento') cargarTareas();
   if (t.dataset.tab === 'datos') { cargarCSVs(); listarCarteleras(); }
@@ -104,24 +122,29 @@ $$('.seg').forEach(b => b.onclick = () => {
 // sin eso, con teclado, el foco quedaba detrás del velo.
 let focoAntesDelModal = null;
 // Entra con el velo fundiéndose y la caja creciendo apenas desde el centro (es
-// un modal: no sale de ningún botón). Sale más rápido de lo que entra, y con
-// Esc se cierra al instante: lo que se hace con el teclado no se anima.
+// un modal: no sale de ningún botón). Sale más rápido de lo que entra. Con el
+// teclado (Esc, o Enter sobre un botón) abre y cierra al instante.
 function modal(html) {
-  focoAntesDelModal = document.activeElement;
-  $('#modal-cuerpo').innerHTML = html;
   const m = $('#modal');
+  // Si se abre mientras el anterior todavía sale, esa salida se corta: al
+  // terminar habría escondido el modal nuevo.
+  m.getAnimations({ subtree: true }).forEach(a => a.cancel());
+  delete m.dataset.cerrando;
+  if (m.classList.contains('oculto')) focoAntesDelModal = document.activeElement;
+  $('#modal-cuerpo').innerHTML = html;
   m.classList.remove('oculto');
+  $('.modal-cerrar').focus();
+  if (porTeclado) return;
   m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: EASE_OUT });
   if (!reducir()) $('.modal-caja').animate(
     [{ opacity: 0, transform: 'scale(0.97)' }, { opacity: 1, transform: 'none' }],
     { duration: 200, easing: EASE_OUT });
-  $('.modal-cerrar').focus();
 }
 function cerrarModal(alInstante = false) {
   const m = $('#modal');
   if (m.classList.contains('oculto') || m.dataset.cerrando) return;
   const fin = () => { m.classList.add('oculto'); delete m.dataset.cerrando; focoAntesDelModal?.focus?.(); };
-  if (alInstante) { m.getAnimations({ subtree: true }).forEach(a => a.cancel()); fin(); return; }
+  if (alInstante || porTeclado) { m.getAnimations({ subtree: true }).forEach(a => a.cancel()); fin(); return; }
   m.dataset.cerrando = '1';
   if (!reducir()) $('.modal-caja').animate([{ transform: 'none' }, { transform: 'scale(0.98)' }],
     { duration: 140, easing: EASE_OUT });
@@ -135,13 +158,25 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(
 // El mensaje de estado flota bajo la cabecera en vez de empujar la página: antes
 // aparecía entre la cabecera y el contenido y bajaba todo ~40 px. Entra y sale
 // por el mismo borde (lo hace el CSS con la clase "visible").
-function barra(txt, tipo) {
+//
+// Un aviso dura lo que toma leerlo (3 s más 40 ms por carácter, hasta 10 s):
+// antes lo borraba el siguiente tick, a veces a los pocos milisegundos de
+// aparecer. Los avisos del propio tick (progreso, error de carga) pasan
+// duración 0 porque el tick los renueva mientras sigan vigentes, y no deben
+// quedarse pegados cuando la carga termina. Un clic lo cierra.
+let avisoHasta = 0;
+function barra(txt, tipo, duracion) {
   const b = $('#barra-estado');
-  if (!txt) { b.classList.remove('visible'); return; }
+  if (!txt) {
+    if (Date.now() < avisoHasta) return;
+    b.classList.remove('visible'); return;
+  }
+  avisoHasta = Date.now() + (duracion ?? Math.min(10000, 3000 + txt.length * 40));
   b.classList.toggle('error', tipo === 'error');
   b.textContent = txt;
   b.classList.add('visible');
 }
+$('#barra-estado').onclick = () => { avisoHasta = 0; barra(''); };
 
 /* =========================== ESTADO / POLL ============================ */
 // El nombre de la cartelera llega como nombre de archivo
@@ -183,8 +218,8 @@ async function tick() {
     $('#btn-soltar').classList.toggle('oculto', !hayCartelera);
     $('#btn-refresh').disabled = e.cargando || !e.origen;
 
-    if (e.error)         barra(e.error, 'error');
-    else if (e.cargando) barra(e.progreso || 'trabajando…');
+    if (e.error)         barra(e.error, 'error', 0);
+    else if (e.cargando) barra(e.progreso || 'trabajando…', '', 0);
     else                 barra('');
 
     if (e.datos && JSON.stringify(e.datos) !== JSON.stringify(S.datos)) {
@@ -202,6 +237,9 @@ async function tick() {
       pintarTiers(e.datos.tiers);
       pintarPatas();
       evaluarParlay();
+      // Ya pintada: de aquí en adelante (clics en el boleto, EN VIVO) se
+      // comparan cifras contra lo que se ve.
+      S.otraCartelera = false;
     } else if (!e.datos && !e.cargando && S.datos === null) {
       mostrarVacio();
     }
@@ -432,11 +470,11 @@ function pintarCartelera(d, mov) {
 function llenarBarras() {
   if (reducir()) return;
   $$('#peleas [data-pelea]').forEach((art, i) => {
-    const delay = Math.min(i, 8) * 40;
+    const delay = Math.min(i, 6) * 40;
     const llenar = (el, origen, extra = 0) => {
       el.style.transformOrigin = origen;
       el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
-        { duration: 420, delay: delay + extra, easing: EASE_OUT, fill: 'backwards' });
+        { duration: 300, delay: delay + extra, easing: EASE_OUT, fill: 'backwards' });
     };
     const [a, b] = art.querySelectorAll('.duelo-barra i');
     if (a) llenar(a, 'left'); if (b) llenar(b, 'right');
@@ -458,7 +496,7 @@ function moverBarras(previo) {
       if (!el || !a_) return;
       el.style.transformOrigin = origen;
       el.animate([{ transform: `scaleX(${de / a_})` }, { transform: 'scaleX(1)' }],
-        { duration: 320, easing: EASE_IN_OUT });
+        { duration: 280, easing: EASE_IN_OUT });
     };
     mover(a, viejo, p.p_a, 'left'); mover(b, 1 - viejo, p.p_b, 'right');
   });
@@ -732,19 +770,31 @@ function quitarDelBoleto(ids) {
     pintarPatas(); evaluarParlay();
   };
   const items = ids.map(id => $(`#boleto [data-b="${CSS.escape(id)}"]`)).filter(Boolean);
-  if (!items.length) return quitar();
+  if (!items.length || porTeclado) return quitar();
   items.forEach(el => { el.style.pointerEvents = 'none'; });
+  // Sale por donde entró (hacia arriba, fundiéndose).
   const anims = items.map(el => el.animate(reducir()
     ? [{ opacity: 1 }, { opacity: 0 }]
-    : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(12px)' }],
+    : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(-6px)' }],
     { duration: 140, easing: EASE_OUT, fill: 'forwards' }));
-  Promise.all(anims.map(a => a.finished)).then(quitar, quitar);
+  const fin = () => {
+    // Las que se quedan suben a su nuevo lugar en vez de saltar (FLIP): se
+    // anota dónde estaban, se repinta y cada una viaja desde ahí.
+    const antes = new Map($$('#boleto [data-b]').map(el => [el.dataset.b, el.getBoundingClientRect().top]));
+    quitar();
+    if (reducir()) return;
+    $$('#boleto [data-b]').forEach(el => {
+      const dy = (antes.get(el.dataset.b) ?? 0) - el.getBoundingClientRect().top;
+      if (Math.abs(dy) > 0.5) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }],
+        { duration: 200, easing: EASE_IN_OUT });
+    });
+  };
+  Promise.all(anims.map(a => a.finished)).then(fin, fin);
 }
 
 function pintarPatas() {
   const raizP = $('#parlay-contenido');
   const antes = S.otraCartelera ? null : capturarCifras(raizP);
-  const cuentaAntes = $('#cuenta-patas').textContent;
   const tiers = $$('.filtro-tier').filter(c => c.checked).map(c => c.value);
   const soloPos = $('#solo-positivo').checked;
   const elegidas = S.patas.filter(p => S.elegidas.includes(p.id));
@@ -877,8 +927,9 @@ function pintarPatas() {
   });
 
   // Lo que acaba de entrar al boleto baja desde arriba, con un desfase corto si
-  // entraron varias ("Armar la mejor"); la cuenta late una vez si cambió.
-  (S.entrantes || []).forEach((id, i) => {
+  // entraron varias ("Armar la mejor"). La cuenta es una cifra más: si cambió,
+  // la anima resaltarCambios como a las demás.
+  (porTeclado ? [] : S.entrantes || []).forEach((id, i) => {
     const el = $(`#boleto [data-b="${CSS.escape(id)}"]`);
     if (el) el.animate(reducir()
       ? [{ opacity: 0 }, { opacity: 1 }]
@@ -886,9 +937,6 @@ function pintarPatas() {
       { duration: 200, delay: Math.min(i, 6) * 40, easing: EASE_OUT, fill: 'backwards' });
   });
   S.entrantes = [];
-  if (cuentaAntes !== $('#cuenta-patas').textContent && !reducir())
-    $('#cuenta-patas').animate([{ transform: 'scale(1.18)' }, { transform: 'none' }],
-      { duration: 160, easing: EASE_OUT });
   if (antes) resaltarCambios(raizP, antes);
 }
 
@@ -1127,8 +1175,7 @@ async function seguirJob() {
       cargarTareas();
       barra(j.estado==='ok' ? `"${j.nombre}" terminó correctamente.`
                             : `"${j.nombre}" terminó con estado: ${j.estado}. Revisa el registro.`,
-            j.estado==='ok' ? '' : 'error');
-      setTimeout(() => barra(''), 8000);
+            j.estado==='ok' ? '' : 'error', 8000);
     }
   } catch { S.job = null; }
 }
@@ -1162,9 +1209,9 @@ addEventListener('resize', medirCabecera);
     // scrollea y esconderla dejaría la página descabezada al cerrarlo).
     const ocultar = delta > 0 && y > LIBRE && $('#modal').classList.contains('oculto');
     barra.classList.toggle('oculta', ocultar);
-    // El boleto del parlay es sticky y se posiciona bajo la barra: si la barra
-    // se fue, puede subir también en vez de dejar un hueco.
-    document.documentElement.style.setProperty('--tope', ocultar ? '0px' : barra.offsetHeight + 'px');
+    // Lo que flota bajo la barra (el aviso, el índice de la Guía) sube con ella.
+    // Con una clase y translate, no moviendo "top": eso recalcula el layout.
+    document.documentElement.classList.toggle('cab-oculta', ocultar);
     ultimo = y;
   };
 
@@ -1181,7 +1228,7 @@ addEventListener('resize', medirCabecera);
   // Cambiar de pestaña vuelve al tope: la barra tiene que reaparecer.
   $$('.tab').forEach(t => t.addEventListener('click', () => {
     barra.classList.remove('oculta');
-    document.documentElement.style.setProperty('--tope', barra.offsetHeight + 'px');
+    document.documentElement.classList.remove('cab-oculta');
     ultimo = 0;
   }));
 })();

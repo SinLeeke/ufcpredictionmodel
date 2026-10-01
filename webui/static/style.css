@@ -42,7 +42,6 @@
      entra, sale o responde; ease-in-out para lo que viaja por la pantalla. */
   --ease-out:cubic-bezier(0.23,1,0.32,1);
   --ease-in-out:cubic-bezier(0.77,0,0.175,1);
-  --tope:84px;                         /* lo mueve app.js: alto visible de la barra */
 
   /* Nombres viejos, para las pestañas que todavía no se rediseñan. */
   --acento:var(--marca); --acento-sup:var(--error-sup); --mal:var(--error); --mal-sup:var(--error-sup);
@@ -206,15 +205,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
   transition:opacity 160ms var(--ease-out),transform 160ms var(--ease-out),visibility 0s linear 160ms,translate .28s var(--ease-out)}
 .barra.visible{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0);
   transition:opacity 220ms var(--ease-out),transform 220ms var(--ease-out),visibility 0s,translate .28s var(--ease-out)}
-.barra-superior.oculta + .barra{translate:0 calc(var(--alto-cab,84px) * -1)}
+.cab-oculta .barra{translate:0 calc(var(--alto-cab,84px) * -1)}
 .barra.error{background:var(--error-sup);border-color:var(--error)}
+.barra.visible{cursor:pointer}               /* un clic lo cierra (app.js) */
 
 main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 auto}
 .panel{display:none}
 /* Al cambiar de pestaña, solo entra la nueva (nunca hay que esperar que la
-   otra salga): sube 6 px y se funde en 180 ms. */
-.panel.activa{display:block;animation:panel-entra 180ms var(--ease-out)}
-@keyframes panel-entra{from{opacity:0;transform:translateY(6px)}}
+   otra salga): sube 4 px y se funde en 150 ms. Es navegación frecuente, así
+   que apenas se nota; con teclado no se anima (lo corta app.js). */
+.panel.activa{display:block;animation:panel-entra 150ms var(--ease-out)}
+@keyframes panel-entra{from{opacity:0;transform:translateY(4px)}}
 
 /* ------------------------- cabeceras de sección ------------------------ */
 .bloque{margin:44px 0 0}
@@ -487,7 +488,6 @@ tbody tr:last-child td{border-bottom:none}
   .cab{flex-wrap:wrap;row-gap:0;padding:0 20px}
   .tabs{order:3;flex-basis:100%;min-height:44px;margin:0 -20px;padding:0 12px;border-top:1px solid var(--cab-linea)}
   .cartelera-caja{margin-left:auto}
-  :root{--tope:110px}
 }
 @media (max-width:900px){
   .cartelera-caja{display:none}
@@ -813,7 +813,9 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 /* Es la pantalla de LEER: una columna de lectura (~70 caracteres) y, al lado, un
    índice fijo que marca dónde vas. */
 .guia-marco{display:grid;grid-template-columns:220px minmax(0,780px);gap:56px;justify-content:center;align-items:start}
-.guia-indice{position:sticky;top:calc(var(--tope) + 22px);display:grid;gap:2px;transition:top .28s var(--ease-out)}
+.guia-indice{position:sticky;top:calc(var(--alto-cab,84px) + 22px);display:grid;gap:2px;transition:translate .28s var(--ease-out)}
+/* Si la cabecera se esconde, el índice sube con ella (translate, no top). */
+.cab-oculta .guia-indice{translate:0 calc(var(--alto-cab,84px) * -1)}
 .guia-indice-tit{font:700 13px/1 var(--display);letter-spacing:.09em;text-transform:uppercase;color:var(--tenue);margin:0 0 8px}
 .guia-indice a{display:block;padding:7px 0 7px 14px;font:700 15px/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;
   color:var(--txt2);text-decoration:none;position:relative}
@@ -900,23 +902,24 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   background:var(--resalte);animation:destello 900ms var(--ease-out) forwards}
 @keyframes destello{from{opacity:1}to{opacity:0}}
 /* Lo que se presiona responde: botones, patas y carteleras se achican apenas. */
-.pata,.cart{transition:border-color .16s ease,background-color .16s ease,transform 200ms var(--ease-out)}
+.pata,.cart{transition:border-color .16s ease,background-color .16s ease,transform 160ms var(--ease-out)}
 .pata:active:not(.bloqueada),.cart:active{transform:scale(.985)}
-.retrato img,.retrato svg{transition:transform 280ms var(--ease-out)}
+.retrato img,.retrato svg{transition:transform 240ms ease}
 /* Hover solo con mouse: en pantallas táctiles el toque dispara hovers falsos.
-   Lo que se puede tocar sube 2 px; en las peleas, que no son botones, solo se
-   acercan un poco los retratos. */
+   Las carteleras para elegir suben 2 px. Las patas no: son cifras que estás
+   leyendo y comparando, y el borde ya avisa el hover. En las peleas solo se
+   acercan un poco los retratos, dentro de su marco: los números no se mueven. */
 @media (hover:hover) and (pointer:fine){
-  .pata:not(.bloqueada):hover,.cart:hover:not(:disabled){transform:translateY(-2px)}
+  .cart:hover:not(:disabled){transform:translateY(-2px)}
   .pelea:hover .retrato img,.pelea:hover .retrato svg,.estelar:hover .retrato img,.estelar:hover .retrato svg{transform:scale(1.03)}
 }
 /* Menos movimiento: nada se desliza, escala ni late; los fundidos se quedan
    porque ayudan a entender qué cambió. */
 @media (prefers-reduced-motion: reduce){
-  .barra-superior,.col-boleto,.guia-indice{transition:none}
+  .barra-superior,.guia-indice{transition:none}
   .vivo-caja.activo span::before{animation:none}
   button:active:not(:disabled),.pata:active:not(.bloqueada),.cart:active{transform:none}
-  .pata:not(.bloqueada):hover,.cart:hover:not(:disabled){transform:none}
+  .cart:hover:not(:disabled){transform:none}
   .pelea:hover .retrato img,.pelea:hover .retrato svg,.estelar:hover .retrato img,.estelar:hover .retrato svg{transform:none}
   .tab::before{transition:opacity .2s ease}
   .panel.activa{animation-name:panel-funde}
