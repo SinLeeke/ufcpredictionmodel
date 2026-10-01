@@ -59,8 +59,14 @@ def load_features() -> pd.DataFrame:
     return df
 
 
-def _ventana(df: pd.DataFrame, hasta) -> pd.DataFrame:
-    """Recorta a los últimos C.TRAIN_WINDOW_YEARS años antes de `hasta`."""
+def ventana(df: pd.DataFrame, hasta) -> pd.DataFrame:
+    """
+    Recorta a los últimos C.TRAIN_WINDOW_YEARS años antes de `hasta` (inclusive).
+
+    La usan también los walk-forward de backtest_valor y backtest_metodo, que
+    generan los calibradores y el modelo de 6 vías: tienen que entrenar como el
+    modelo de producción, o el calibrador aprende a corregir otro modelo.
+    """
     hasta = pd.Timestamp(hasta)
     sub = df[df["date"] <= hasta]
     if C.TRAIN_WINDOW_YEARS:
@@ -71,7 +77,7 @@ def _ventana(df: pd.DataFrame, hasta) -> pd.DataFrame:
 
 def temporal_split(df: pd.DataFrame):
     """Train <= TRAIN_END_DATE (recortado a la ventana), Test >= TEST_START_DATE."""
-    train = _ventana(df, C.TRAIN_END_DATE)
+    train = ventana(df, C.TRAIN_END_DATE)
     test = df[df["date"] >= C.TEST_START_DATE]
     v = f", ventana {C.TRAIN_WINDOW_YEARS} años" if C.TRAIN_WINDOW_YEARS else ""
     print(f"[split temporal] train={len(train)}  test={len(test)}  "
@@ -244,13 +250,13 @@ def entrenar_produccion(df: pd.DataFrame) -> None:
     en 4 de 5 (+0,0117 de AUC de media).
     """
     fin = df["date"].max()
-    full = _ventana(df, fin)
+    full = ventana(df, fin)
     cols_w = columnas_disponibles(full)
     cols_m = columnas_disponibles(full, con_oposicion=False, con_corto=False)
 
     print("\n=== MODELOS DE PRODUCCIÓN (entrenados con TODO hasta hoy) ===")
     print(f"  {len(full)} filas  ({full.date.min():%Y-%m-%d} a {full.date.max():%Y-%m-%d})")
-    print(f"  +{len(full) - len(_ventana(df, C.TRAIN_END_DATE))} filas más que el modelo de medición")
+    print(f"  +{len(full) - len(ventana(df, C.TRAIN_END_DATE))} filas más que el modelo de medición")
 
     w = XGBClassifier(
         n_estimators=400, max_depth=4, learning_rate=0.03, subsample=0.85,

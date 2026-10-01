@@ -37,6 +37,7 @@ import pandas as pd
 from xgboost import XGBClassifier
 
 import config as C
+from modelado.train_model import ventana
 from src.features import columnas_disponibles
 from src.value import (analizar_lote, vig, ajustar_calibrador, combinar,
                        MIN_DISCREPANCIA, MIN_EV)
@@ -86,7 +87,12 @@ def predicciones_walk_forward(df: pd.DataFrame, primer_anio: int) -> pd.DataFram
 
     salida = []
     for anio in anios:
-        train = df[df["date"].dt.year < anio]
+        # Misma ventana que el modelo de producción. Antes entrenaba con TODO el
+        # historial, o sea que el calibrador aprendía a corregir un modelo
+        # distinto al que predice, y mezclaba las dos escalas de golpeo de
+        # Kaggle (por pelea hasta 2018, por minuto desde 2020). Medido 2021-2026:
+        # con la ventana, log loss mejor en 4/6 (-0,0045) y AUC 4/6 (+0,0068).
+        train = ventana(df, f"{anio - 1}-12-31")
         test = df[df["date"].dt.year == anio]
         if len(train) < 500 or test.empty:
             continue

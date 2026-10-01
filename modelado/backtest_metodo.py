@@ -42,6 +42,7 @@ from scipy.optimize import minimize
 from xgboost import XGBClassifier
 
 import config as C
+from modelado.train_model import ventana
 from src.features import columnas_disponibles
 
 CACHE = C.DATA_PROCESSED / "walkforward_metodo.csv"
@@ -154,7 +155,11 @@ def predicciones_walk_forward(df: pd.DataFrame, primer_anio: int) -> pd.DataFram
     df = df.reset_index(drop=True)
     salida = []
     for anio in sorted(a for a in df["date"].dt.year.unique() if a >= primer_anio):
-        train = df[df["date"].dt.year < anio]
+        # Misma ventana que producción (y que entrenar_modelo6). Antes entrenaba
+        # con TODO el historial, mezclando las dos escalas de golpeo de Kaggle
+        # (por pelea hasta 2018, por minuto desde 2020). Medido 2021-2026 en el
+        # modelo de 6 clases: log loss mejor en 5/6, -0,0144 de media.
+        train = ventana(df, f"{anio - 1}-12-31")
         test = df[df["date"].dt.year == anio]
         if len(train) < 500 or test.empty:
             continue
@@ -178,6 +183,17 @@ def predicciones_walk_forward(df: pd.DataFrame, primer_anio: int) -> pd.DataFram
     if not salida:
         raise SystemExit("No hubo años con suficiente historial.")
     return pd.concat(salida, ignore_index=True)
+
+
+def entrenar_modelo6(full: pd.DataFrame):
+    """
+    (modelo, columnas, filas) del modelo de 6 clases que usa card.py, con la
+    misma ventana que el modelo de producción de ganador. Antes entrenaba con
+    todo desde 2010, mezclando las dos escalas de golpeo de Kaggle.
+    """
+    full = ventana(full, full["date"].max())
+    cols = columnas_disponibles(full, con_oposicion=False)
+    return _modelo().fit(full[cols], full["y6"]), cols, len(full)
 
 
 # --------------------------------------------------------------------------- #
@@ -420,17 +436,14 @@ def main():
     print(f"\n  [ok] calibrador de método guardado (mercado {cal['peso_mercado']:.2f}, "
           f"modelo {cal['peso_modelo']:.2f}, n={cal['n']})")
 
-    # Modelo final de 6 clases entrenado con TODO el historial, para predecir
-    # carteleras futuras. El walk-forward de arriba mide; este predice.
+    # Modelo final de 6 clases para predecir carteleras futuras. El
+    # walk-forward de arriba mide; este predice.
     try:
-        full = cargar()
-        cols = columnas_disponibles(full, con_oposicion=False)
-        m = _modelo()
-        m.fit(full[cols], full["y6"])
+        m, cols, n = entrenar_modelo6(cargar())
         with open(MODELO6, "wb") as fh:
             pickle.dump({"modelo": m, "cols": cols}, fh)
         print(f"  [ok] modelo de 6 clases guardado -> {MODELO6.name} "
-              f"({len(full)} filas)")
+              f"({n} filas, ventana {C.TRAIN_WINDOW_YEARS} años)")
         print("       card.py lo usará si el CSV trae las 6 cuotas de método.")
     except SystemExit:
         raise
