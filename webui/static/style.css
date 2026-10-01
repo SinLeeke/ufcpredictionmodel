@@ -1072,7 +1072,9 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 [data-estilo="juez"] .z-que b{font:700 19px/1.15 var(--maquina);letter-spacing:-.01em}
 [data-estilo="juez"] .z-dato{border-left-color:var(--linea)}
 [data-estilo="juez"] .z-dato b{font:700 24px/1.05 var(--maquina);letter-spacing:-.05em}
-[data-estilo="juez"] .zocalo{grid-template-columns:168px minmax(0,1fr) 128px 96px 124px}
+@media (min-width:901px){
+  [data-estilo="juez"] .zocalo{grid-template-columns:168px minmax(0,1fr) 128px 96px 124px}   /* el valor a máquina es más ancho */
+}
 [data-estilo="juez"] .grupo-motivo{margin:0;padding:9px 16px 10px;max-width:none;border-top:1px dashed var(--linea)}
 [data-estilo="juez"] .sin-apuestas{background:var(--sup);border:1.5px solid var(--forma)}
 [data-estilo="juez"] .sin-apuestas .marca-ok{border-radius:50%;background:transparent;color:var(--ok);border:4px double var(--ok);transform:rotate(-8deg)}
