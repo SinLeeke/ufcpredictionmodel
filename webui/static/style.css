@@ -1247,6 +1247,19 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 [data-estilo="juez"] .cart-ir{border-left-color:var(--forma)}
 [data-estilo="juez"] .elegir-archivo{border-color:var(--forma);background:var(--sup)}
 
+/* --- Mantenimiento: el parte de estado y la pauta de tareas --- */
+[data-estilo="juez"] .tareas{background:var(--forma);border-color:var(--forma)}
+[data-estilo="juez"] .tablero,[data-estilo="juez"] .ajustes{background:var(--forma);border-color:var(--forma)}
+/* El estado como lista de chequeo: la casilla, con el visto o la cruz. */
+[data-estilo="juez"] .estado .luz{background:var(--sup) !important;border:2px solid currentColor}
+[data-estilo="juez"] .estado.hay .luz{color:var(--ok)}
+[data-estilo="juez"] .estado.falta .luz{color:var(--error)}
+[data-estilo="juez"] .estado b{font-family:var(--maquina);font-weight:700;letter-spacing:-.01em}
+[data-estilo="juez"] .ajustes .v{font:700 32px/1 var(--maquina);letter-spacing:-.05em}
+[data-estilo="juez"] .tarea h4{font-family:var(--maquina);font-weight:700;letter-spacing:-.01em;text-transform:uppercase}
+[data-estilo="juez"] .consejo{border:1px solid var(--linea)}
+[data-estilo="juez"] #log{border-top:5px double var(--forma)}
+
 @media (max-width:1080px){
   [data-estilo="juez"] .peleas-lista{grid-template-columns:minmax(0,1fr)}
 }
