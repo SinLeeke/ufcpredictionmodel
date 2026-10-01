@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from fastapi import FastAPI, HTTPException, UploadFile, File           # noqa: E402
-from fastapi.responses import FileResponse, JSONResponse                # noqa: E402
+from fastapi.responses import FileResponse, JSONResponse, Response      # noqa: E402
 from fastapi.staticfiles import StaticFiles                             # noqa: E402
 from pydantic import BaseModel                                          # noqa: E402
 
@@ -248,12 +248,14 @@ def salud():
 def foto_peleador(nombre: str):
     """
     La foto del peleador, de Wikipedia o Sherdog, bajada una vez y servida desde
-    disco. 404 si no hay (o si no se puede saber con certeza cuál es): la UI
-    muestra entonces una silueta. No toca /api/estado ni el contrato JSON.
+    disco. 204 si no hay (o si no se puede saber con certeza cuál es): la UI
+    muestra entonces una silueta. Es 204 y no 404 porque "no hay foto" es una
+    respuesta normal, no un error, y el navegador anota cada 404 en la consola
+    como si algo se hubiera roto. No toca /api/estado ni el contrato JSON.
     """
     ruta = fotos.foto(nombre)
     if ruta is None:
-        raise HTTPException(404, "Sin foto")
+        return Response(status_code=204)
     # A diferencia del resto de /api/, una foto no cambia: que el navegador la
     # guarde y no la pida en cada repintado de la cartelera.
     return FileResponse(ruta, headers={"Cache-Control": "private, max-age=86400"})

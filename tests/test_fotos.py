@@ -10,8 +10,6 @@ from pathlib import Path
 from unittest import mock
 
 import requests
-from fastapi import HTTPException
-
 from webui import fotos, server
 
 
@@ -155,11 +153,12 @@ class Sherdog(_Base):
 
 class Endpoint(_Base):
 
-    def test_sin_foto_responde_404_para_que_la_ui_ponga_la_silueta(self):
+    def test_sin_foto_responde_204_para_que_la_ui_ponga_la_silueta(self):
+        # 204 y no 404: "no hay foto" es lo normal para un debutante, y un 404
+        # queda anotado como error en la consola del navegador.
         with mock.patch.object(fotos, "foto", lambda n: None):
-            with self.assertRaises(HTTPException) as e:
-                server.foto_peleador("Guilherme Pat")
-        self.assertEqual(e.exception.status_code, 404)
+            r = server.foto_peleador("Guilherme Pat")
+        self.assertEqual(r.status_code, 204)
 
     def test_un_nombre_que_intenta_salir_de_la_carpeta_no_se_consulta(self):
         with mock.patch.object(fotos.requests, "get") as get:
