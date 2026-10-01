@@ -128,53 +128,60 @@
 <!-- ======================== PARLAY ========================= -->
 <section id="tab-parlay" class="panel">
   <div id="parlay-vacio" class="bienvenida">
-    <h2>Combinada (parlay)</h2>
-    <p>Acá armas una apuesta múltiple de hasta 13 selecciones, que es el máximo que
-       acepta Betano, y el sistema te dice si conviene <b>y por qué</b>.</p>
+    <h2>Combinada</h2>
+    <p class="bienvenida-lead">Acá armas una apuesta múltiple (parlay) de hasta 13 selecciones,
+       que es el máximo que acepta Betano, y el sistema te dice si conviene <b>y por qué</b>.</p>
     <p class="nota">Necesitas una cartelera <b>con cuotas</b>: sin precio no hay forma
        de saber si una selección tiene valor. Carga una desde Betano.</p>
-    <button class="primario" data-ir="datos">Cargar una cartelera</button>
+    <div class="bienvenida-botones">
+      <button class="primario" data-ir="datos">Cargar una cartelera</button>
+    </div>
   </div>
 
-  <div id="parlay-contenido" class="oculto">
+  <!-- La combinada mide lo que la ventana: la lista tiene su propio scroll y el
+       boleto queda siempre a la vista al lado, sin que la página se alargue. -->
+  <div id="parlay-contenido" class="combinada oculto">
     <div class="explicacion-tiers" id="explica-tiers"></div>
 
     <div class="parlay-grid">
-      <div class="col-patas">
-        <div class="bloque-cab fila">
-          <h2>Selecciones disponibles</h2>
+      <section class="col-patas" aria-labelledby="tit-selecciones">
+        <div class="patas-cab">
+          <h2 id="tit-selecciones">Selecciones disponibles</h2>
           <div class="botonera">
-            <button id="btn-sugerir" class="secundario">✨ Armar la mejor</button>
-            <button id="btn-limpiar" class="secundario">Vaciar</button>
+            <button id="btn-sugerir" class="secundario"><span data-ico="chispa"></span>Armar la mejor</button>
+            <button id="btn-limpiar" class="secundario"><span data-ico="vaciar"></span>Vaciar</button>
           </div>
         </div>
-        <div class="filtros">
-          <span class="filtros-tit">Mostrar:</span>
+        <div class="filtros" role="group" aria-label="Qué selecciones mostrar">
+          <span class="filtros-tit">Mostrar</span>
           <label class="chk"><input type="checkbox" class="filtro-tier" value="A" checked>
             <span class="pill tA">Probado</span></label>
           <label class="chk"><input type="checkbox" class="filtro-tier" value="B" checked>
             <span class="pill tB">Sin ventaja clara</span></label>
           <label class="chk"><input type="checkbox" class="filtro-tier" value="C">
             <span class="pill tC">Ruido</span></label>
-          <label class="chk sep"><input type="checkbox" id="solo-positivo">
-            solo las que pagan de más</label>
+          <label class="chk chk-texto"><input type="checkbox" id="solo-positivo">
+            <span>solo las que pagan de más</span></label>
         </div>
-        <div id="lista-patas"></div>
-      </div>
+        <div id="lista-patas" class="lista-scroll"></div>
+      </section>
 
-      <aside class="col-boleto">
+      <aside class="col-boleto" aria-labelledby="tit-boleto">
         <div class="boleto-caja">
-          <div class="bloque-cab fila">
-            <h2>Tu boleto</h2>
+          <div class="boleto-cab">
+            <span data-ico="boleto"></span>
+            <h2 id="tit-boleto">Tu boleto</h2>
             <span id="cuenta-patas" class="badge">0/13</span>
           </div>
-          <div id="boleto"></div>
-          <div class="campo-inline">
-            <label for="bankroll">Bankroll
-              <small>toda tu plata para apostar, no esta apuesta</small></label>
-            <input type="number" id="bankroll" value="100" min="1" step="10">
+          <div class="boleto-cuerpo">
+            <div id="boleto"></div>
+            <div class="campo-inline">
+              <label for="bankroll">Bankroll
+                <small>toda tu plata para apostar, no esta apuesta</small></label>
+              <input type="number" id="bankroll" value="100" min="1" step="10">
+            </div>
+            <div id="parlay-resultado"></div>
           </div>
-          <div id="parlay-resultado"></div>
         </div>
       </aside>
     </div>

@@ -578,7 +578,8 @@ function pintarTiers(tiers) {
   const nombres = {A:'Probado', B:'Sin ventaja clara', C:'Ruido'};
   $('#explica-tiers').innerHTML = orden.map(k => `
     <div class="tier-mini">
-      <span class="pill t${k}">${nombres[k]}</span>
+      <div class="tier-mini-cab"><span class="pill t${k}">${nombres[k]}</span>
+        <b>${esc(tiers[k].resumen || '')}</b></div>
       <p>${esc(tiers[k].detalle)}</p>
     </div>`).join('');
 }
@@ -645,38 +646,42 @@ function pintarPatas() {
     }
   }
 
-  const V = { si:['si','✓','Conviene'], quizas:['quizas','~','Se puede'], no:['no','✕','No conviene'] };
+  // El veredicto lleva su palabra y su ícono: el color nunca es la única señal.
+  const V = { si:['si','ok','Conviene'], quizas:['quizas','aprox','Se puede'], no:['no','no','No conviene'] };
 
   const tarjeta = p => {
     const on = S.elegidas.includes(p.id);
     const bl = bloqueo[p.id];
-    const [k, ico, lbl] = V[p.veredicto] || V.no;
+    const [k, icono, lbl] = V[p.veredicto] || V.no;
     const aviso = bl
       ? `<div class="choque">${bl.tipo === 'excluyente'
-          ? '✕ Imposible junto con lo que ya elegiste: no pueden pasar las dos.'
-          : '≈ Se solapa con lo que ya elegiste: Betano casi no sube la cuota al combinarlas.'}</div>`
+          ? `${ico('prohibido')}<span>Imposible junto con lo que ya elegiste: no pueden pasar las dos.</span>`
+          : `${ico('aprox')}<span>Se solapa con lo que ya elegiste: Betano casi no sube la cuota al combinarlas.</span>`}</div>`
       : '';
-    return `<div class="pata ${on?'elegida':''} ${bl?'bloqueada':''}" data-id="${p.id}">
-      <div class="top">
-        <div>
-          <div class="sel">${esc(p.seleccion)}</div>
+    const estado = on ? ico('ok') : bl ? ico('candado') : ico('mas');
+    return `<div class="pata ${on?'elegida':''} ${bl?'bloqueada':''}" data-id="${p.id}" role="button" tabindex="0"
+        aria-pressed="${on}" ${bl ? 'aria-disabled="true"' : ''}>
+      <div class="pata-top">
+        <div class="pata-sel">
+          <b class="sel">${esc(p.seleccion)}</b>
           <div class="meta">
             <span class="pill n-${p.nivel}" title="${esc(p.nivel_detalle)}">${esc(p.nivel)}</span>
             <span class="pill t${p.tier}" title="Esto habla del PRECIO, no de la probabilidad: ${esc(p.tier_detalle)}">${esc(p.tier_nombre)}</span>
-          </div>
-          <div class="probs">
-            <span title="Lo que dice el modelo por su cuenta, sin mirar la cuota">
-              modelo <b>${p.p_modelo != null ? pct(p.p_modelo) : 'sin dato'}</b></span>
-            <span title="El modelo combinado con la línea de la casa. Es la estimación más certera de las dos (~70% de acierto contra 67%).">
-              con la cuota <b>${pct(p.p)}</b></span>
           </div>
         </div>
         <div class="precio">
           <span class="cuota">${cuota(p.cuota)}</span>
           <span class="ev ${cls(p.ev)}">${sgn(p.ev)}</span>
         </div>
+        <span class="pata-estado" aria-hidden="true">${estado}</span>
       </div>
-      <div class="porque"><b class="${k}">${ico} ${lbl}.</b> ${esc(p.por_que)}</div>
+      <div class="probs">
+        <span title="Lo que dice el modelo por su cuenta, sin mirar la cuota">
+          modelo <b>${p.p_modelo != null ? pct(p.p_modelo) : 'sin dato'}</b></span>
+        <span title="El modelo combinado con la línea de la casa. Es la estimación más certera de las dos (~70% de acierto contra 67%).">
+          con la cuota <b>${pct(p.p)}</b></span>
+      </div>
+      <div class="porque"><b class="${k}">${ico(icono)}${lbl}.</b> ${esc(p.por_que)}</div>
       ${aviso}
     </div>`;
   };
@@ -705,7 +710,7 @@ function pintarPatas() {
 
     const grupos = Array.from(porPelea.values()).map(ps => `
       <div class="pelea-grupo">
-        <div class="pelea-grupo-cab">${esc(ps[0].pelea)}</div>
+        <h4 class="pelea-grupo-cab">${esc(ps[0].pelea)}</h4>
         <div class="pelea-grupo-opciones">${ps.map(tarjeta).join('')}</div>
       </div>`).join('');
 
@@ -718,9 +723,13 @@ function pintarPatas() {
     </section>`;
   }).filter(Boolean).join('');
 
-  $('#lista-patas').innerHTML = secciones || `<p class="nota">No hay selecciones con
+  $('#lista-patas').innerHTML = secciones || `<p class="lista-vacia">No hay selecciones con
     esos filtros. Prueba activando más categorías arriba.</p>`;
 
+  // Con teclado también: cada pata es un botón (Enter o Espacio).
+  $$('#lista-patas .pata').forEach(el => el.onkeydown = (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); el.click(); }
+  });
   $$('#lista-patas .pata').forEach(el => el.onclick = () => {
     const id = el.dataset.id;
     const bl = bloqueo[id];
@@ -742,12 +751,12 @@ function pintarPatas() {
   const byId = Object.fromEntries(S.patas.map(p => [p.id,p]));
   $('#boleto').innerHTML = S.elegidas.length
     ? S.elegidas.map(id => { const p = byId[id];
-        return `<div class="boleto-item">
-          <span>${esc(p.seleccion)}<br><span class="sub">${esc(p.pelea)}</span></span>
-          <span class="boleto-cuota"><b>${cuota(p.cuota)}</b>
-            <button data-q="${id}" title="Quitar">×</button></span>
+        return `<div class="boleto-item" data-b="${id}">
+          <div class="bi-que"><b>${esc(p.seleccion)}</b><span class="sub">${esc(p.pelea)}</span></div>
+          <span class="bi-cuota">${cuota(p.cuota)}</span>
+          <button data-q="${id}" title="Quitar" aria-label="Quitar ${esc(p.seleccion)}">${ico('no')}</button>
         </div>`; }).join('')
-    : `<div class="boleto-vacio">Toca una selección de la izquierda para agregarla.</div>`;
+    : `<div class="boleto-vacio">${ico('boleto')}<span>Toca una selección de la izquierda para agregarla.</span></div>`;
   $$('#boleto button').forEach(b => b.onclick = (ev) => {
     ev.stopPropagation();
     S.elegidas = S.elegidas.filter(x => x !== b.dataset.q);
@@ -758,7 +767,7 @@ function pintarPatas() {
 async function evaluarParlay() {
   const out = $('#parlay-resultado');
   if (S.elegidas.length < 2) {
-    out.innerHTML = `<p class="nota">Elige al menos 2 selecciones.<br><br>
+    out.innerHTML = `<p class="boleto-nota"><b>Elige al menos 2 selecciones.</b>
       Recuerda que una combinada <b>multiplica el error</b> de cada pronóstico:
       si cada uno está un poco inflado, juntos pueden estarlo mucho. Por eso este
       sistema prefiere apuestas simples y combinadas cortas.</p>`;
@@ -767,11 +776,13 @@ async function evaluarParlay() {
   try {
     const r = await post('/api/parlay', {
       ids:S.elegidas, bankroll: parseFloat($('#bankroll').value) || 100 });
-    if (!r.ok) { out.innerHTML = `<div class="aviso err"><span class="ai">✕</span>
+    if (!r.ok) { out.innerHTML = `<div class="aviso err"><span class="ai">${ico('prohibido')}</span>
       <div>${esc(r.error)}</div></div>`; return; }
 
     out.innerHTML = `
-      <div class="veredicto ${r.nivel}">${esc(r.veredicto)}</div>
+      <div class="veredicto ${r.nivel}"><span class="ai">${ico(
+        {bueno:'ok', aceptable:'info', flojo:'alerta', malo:'prohibido'}[r.nivel] || 'info')}</span>
+        <div>${esc(r.veredicto)}</div></div>
       <div class="metricas">
         <div class="metrica"><div class="k">Paga</div>
           <div class="v">${cuota(r.cuota_combinada)}×</div>
@@ -799,7 +810,7 @@ async function evaluarParlay() {
             se sostiene.</div></div>
       </div>
       <ul class="motivos">${r.motivos.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`;
-  } catch (e) { out.innerHTML = `<div class="aviso err"><span class="ai">✕</span>
+  } catch (e) { out.innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span>
     <div>${esc(e.message)}</div></div>`; }
 }
 
@@ -960,6 +971,14 @@ async function seguirJob() {
 }
 
 $('#btn-cancelar').onclick = () => S.job && post(`/api/tareas/${S.job}/cancelar`);
+
+/* La Combinada mide lo que la ventana menos la cabecera. Se mide la cabecera
+   una vez (y al cambiar el tamaño) y no su estado escondido/visible: si no, la
+   combinada crecería y se encogería cada vez que la barra entra o sale. */
+const medirCabecera = () => document.documentElement.style.setProperty(
+  '--alto-cab', $('#barra-superior').offsetHeight + 'px');
+medirCabecera();
+addEventListener('resize', medirCabecera);
 
 /* ====================== BARRA SUPERIOR AL HACER SCROLL ================= */
 /* Al bajar se esconde entera (cabecera + pestañas) para dejar la pantalla a la
