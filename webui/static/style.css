@@ -171,8 +171,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30ch;display:block;
 }
 .cartelera-activa:hover:not(:disabled){color:var(--cab-txt);border:0}
-.cartelera-x{background:none;border:1px solid var(--cab-linea);color:var(--cab-tenue);
-  width:22px;height:22px;padding:0;justify-content:center;font-size:15px}
+.cartelera-x{position:relative;background:none;border:1px solid var(--cab-linea);color:var(--cab-tenue);
+  width:22px;height:22px;padding:0;justify-content:center}
+.cartelera-x .ico{width:12px;height:12px}
+.cartelera-x::after{content:"";position:absolute;inset:-11px}   /* toque de 44 px */
 .cartelera-x:hover:not(:disabled){color:var(--cab-txt);border-color:var(--cab-tenue)}
 
 .cabecera-acciones{display:flex;align-items:center;gap:12px;flex:none}
@@ -198,15 +200,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
    esconde al hacer scroll, el aviso sube con ella usando la propiedad translate
    (aparte de transform, que queda para la entrada y la salida). */
 .barra{position:fixed;z-index:40;left:50%;top:calc(var(--alto-cab,84px) + 12px);width:max-content;max-width:min(720px,calc(100vw - 32px));
-  padding:11px 18px;font-size:14px;font-weight:500;line-height:1.45;background:var(--sup);color:var(--txt);
-  border:1.5px solid var(--txt);box-shadow:0 10px 28px rgba(8,7,6,.22);
+  padding:11px 18px;font-size:14px;font-weight:500;line-height:1.45;
+  /* Invertido respecto de la página (tinta en el claro, hueso en el oscuro):
+     se despega de cualquier cosa que tenga debajo sin necesitar borde. */
+  background:var(--txt);color:var(--bg);box-shadow:0 10px 28px rgba(8,7,6,.22);
   /* Escondido: arriba y transparente. Sale más rápido (160 ms) de lo que entra (220 ms). */
   opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-10px);
   transition:opacity 160ms var(--ease-out),transform 160ms var(--ease-out),visibility 0s linear 160ms,translate .28s var(--ease-out)}
 .barra.visible{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0);
   transition:opacity 220ms var(--ease-out),transform 220ms var(--ease-out),visibility 0s,translate .28s var(--ease-out)}
 .cab-oculta .barra{translate:0 calc(var(--alto-cab,84px) * -1)}
-.barra.error{background:var(--error-sup);border-color:var(--error)}
+.barra.error{background:var(--error);color:var(--sobre-solido)}
 .barra.visible{cursor:pointer}               /* un clic lo cierra (app.js) */
 
 main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 auto}
@@ -317,7 +321,9 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
 .cara-top{position:absolute;top:12px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:8px;z-index:2;pointer-events:none}
 .cara-top>*{pointer-events:auto}
 .cara-seg{font:700 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue);margin-right:4px}
-.btn-q{width:26px;height:26px;padding:0;justify-content:center;font:800 14px/1 var(--display);
+/* El cuadro mide 26 px, pero el área que responde al toque mide 44 (::after). */
+.btn-q::after{content:"";position:absolute;inset:-9px}
+.btn-q{position:relative;width:26px;height:26px;padding:0;justify-content:center;font:800 14px/1 var(--display);
   background:var(--sup);color:var(--txt2);border:1.5px solid var(--linea)}
 .cara{display:grid;grid-template-columns:184px minmax(0,1fr) 184px;align-items:stretch}
 .cara .retrato{min-height:262px}
@@ -468,10 +474,12 @@ tbody tr:last-child td{border-bottom:none}
 
 /* -------------------------------- modal ------------------------------- */
 .modal{position:fixed;inset:0;background:rgba(8,7,6,.66);z-index:60;display:grid;place-items:center;padding:20px}
-.modal-caja{background:var(--sup);border-top:5px solid var(--marca);padding:28px 30px;max-width:580px;width:100%;
+.modal-caja{background:var(--sup);border-top:3px solid var(--txt);padding:28px 30px;max-width:580px;width:100%;
   position:relative;max-height:84vh;overflow:auto}
 .modal-caja h2{font-size:28px;margin:0 30px 12px 0}
-.modal-cerrar{position:absolute;top:12px;right:12px;border:0;background:none;font-size:24px;line-height:1;color:var(--tenue);padding:4px 9px}
+.modal-cerrar{position:absolute;top:8px;right:8px;width:44px;height:44px;padding:0;justify-content:center;border:0;background:none;color:var(--tenue)}
+.modal-cerrar:hover{color:var(--txt)}
+.modal-cerrar .ico{width:18px;height:18px}
 
 /* -------------------------------- pie --------------------------------- */
 .pie{margin-top:40px;background:var(--cab-bg);color:var(--cab-tenue);border-top:3px solid var(--cab-regla)}
@@ -530,6 +538,13 @@ tbody tr:last-child td{border-bottom:none}
   .estelar-cab{padding:10px 14px;flex-wrap:wrap}
   .jaula-escena{padding:12px 8px}
   .pie-cuerpo{padding:24px 16px 28px}
+  /* En el celular, todo lo que se toca mide al menos 44 px. */
+  .cabecera-acciones button{min-width:44px;min-height:44px}
+  .seg{min-height:44px}
+  button.primario,button.secundario{min-height:44px}
+  input[type=text],input[type=number]{min-height:44px}
+  .enlace{position:relative}
+  .enlace::after{content:"";position:absolute;inset:-11px 0}
 }
 
 /* ------------------------------ combinada ----------------------------- */
@@ -558,7 +573,9 @@ tbody tr:last-child td{border-bottom:none}
    apagados, tenues y tachados. La casilla queda para el teclado y el lector. */
 .chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;position:relative}
 .chk input{position:absolute;opacity:0;width:1px;height:1px}
-.chk input:not(:checked)+.pill{opacity:.42;text-decoration:line-through}
+/* Apagado: tachado y en tenue, sin bajar la opacidad (con .42 el texto quedaba
+   bajo 3:1). Sigue siendo un control que se puede tocar, así que se tiene que leer. */
+.chk input:not(:checked)+.pill{background:transparent;border-color:var(--linea);color:var(--tenue);text-decoration:line-through}
 .chk:has(input:focus-visible){outline:2px solid var(--marca);outline-offset:2px}
 .chk-texto{margin-left:auto;padding:5px 10px;border:1.5px solid var(--linea);font-weight:600;color:var(--txt2)}
 .chk-texto:has(input:checked){border-color:var(--txt);background:var(--txt);color:var(--bg)}
@@ -710,6 +727,7 @@ tbody tr:last-child td{border-bottom:none}
 .campo{margin-top:16px}
 .campo label{display:block;font:700 13px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--tenue);margin-bottom:7px}
 .fila-input{display:flex;gap:8px;align-items:stretch;position:relative}
+.fila-input input{min-width:0}               /* si no, el ancho propio del input desborda a 320 px */
 .input-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--tenue);pointer-events:none;width:16px;height:16px}
 .fila-input .input-ico+input[type=text]{padding-left:38px}
 input[type=text],input[type=number]{width:100%;padding:10px 12px;background:var(--bg);color:var(--txt);
@@ -743,7 +761,7 @@ input:focus{outline:2px solid var(--marca);outline-offset:-1px}
 .guardado-que b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .guardado .secundario{padding:8px 12px;font-size:13px}
 
-@media (max-width:900px){ .cargar{grid-template-columns:1fr} }
+@media (max-width:900px){ .cargar{grid-template-columns:minmax(0,1fr)} }
 @media (max-width:560px){
   .cart{grid-template-columns:1fr auto;grid-template-rows:auto 1fr}
   .cart-cuando{grid-column:1/-1;justify-content:flex-start;padding:6px 12px;clip-path:none}
@@ -881,7 +899,8 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   .guia-indice{position:static;display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
   .guia-indice::-webkit-scrollbar{display:none}
   .guia-indice-tit{display:none}
-  .guia-indice a{white-space:nowrap;padding:7px 11px;border:1.5px solid var(--linea);font-size:13.5px}
+  .guia-indice a{white-space:nowrap;padding:7px 11px;border:1.5px solid var(--linea);font-size:13.5px;
+    min-height:44px;display:flex;align-items:center}
   .guia-indice a::before{display:none}
   .guia-indice a.activo{border-color:var(--txt);background:var(--txt);color:var(--bg)}
 }

@@ -132,6 +132,12 @@ function modal(html) {
   delete m.dataset.cerrando;
   if (m.classList.contains('oculto')) focoAntesDelModal = document.activeElement;
   $('#modal-cuerpo').innerHTML = html;
+  // El título del modal es su primer encabezado: es lo que lee un lector de
+  // pantalla al abrirlo (antes leía el cuerpo entero).
+  $('#modal-cuerpo').querySelector('h1,h2,h3')?.setAttribute('id', 'modal-titulo');
+  // Todo lo de atrás queda inerte mientras está abierto: sin esto, Tab sacaba
+  // el foco del modal y lo dejaba detrás del velo.
+  $$('body > *').forEach(e => { if (e !== m && e.tagName !== 'SCRIPT') e.inert = true; });
   m.classList.remove('oculto');
   $('.modal-cerrar').focus();
   if (porTeclado) return;
@@ -143,7 +149,11 @@ function modal(html) {
 function cerrarModal(alInstante = false) {
   const m = $('#modal');
   if (m.classList.contains('oculto') || m.dataset.cerrando) return;
-  const fin = () => { m.classList.add('oculto'); delete m.dataset.cerrando; focoAntesDelModal?.focus?.(); };
+  const fin = () => {
+    m.classList.add('oculto'); delete m.dataset.cerrando;
+    $$('body > *').forEach(e => { e.inert = false; });
+    focoAntesDelModal?.focus?.();
+  };
   if (alInstante || porTeclado) { m.getAnimations({ subtree: true }).forEach(a => a.cancel()); fin(); return; }
   m.dataset.cerrando = '1';
   if (!reducir()) $('.modal-caja').animate([{ transform: 'none' }, { transform: 'scale(0.98)' }],
