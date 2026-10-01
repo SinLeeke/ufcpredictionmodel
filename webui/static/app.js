@@ -207,7 +207,7 @@ function pintarCartelera(d, mov) {
         </div>
         <div class="det">${esc(a.pelea)} — apostar el <b>${pct(a.kelly)}</b> de tu bankroll.
           ${a.tier==='A'
-            ? 'Este mercado es el único con ventaja demostrada: +16,5% de retorno sobre 1.056 apuestas históricas.'
+            ? 'Este mercado es el único con ventaja demostrada: +15,4% de retorno sobre 1.145 apuestas históricas.'
             : 'Ojo: el mercado de ganador quedó en empate técnico con la casa en las pruebas, así que esto es un complemento, no una base.'}</div>
       </div>`).join('');
     const exp = validas.reduce((s,a) => s + a.kelly, 0);

@@ -327,8 +327,8 @@ def analizar(p_modelo_a: float, cuota_a, cuota_b,
 #     pierde -40% a -50%.
 #   * Y al revés, INFRAVALORA las decisiones: les asigna 23.8% y ocurren 29.5%.
 #     Apostar "decisión del favorito" a ciegas ya da +3.8% de ROI, sin modelo.
-#   * Con el modelo filtrando, las decisiones con EV>=0 dieron +16.5% de ROI
-#     (t=3.1) en el periodo con datos homogéneos.
+#   * Con el modelo filtrando, las decisiones con EV>=0 dieron +15.4% de ROI
+#     (t=3.0) en el periodo con datos homogéneos.
 #
 # Esa es la única ventaja del proyecto que aguanta el test estadístico. Ver la
 # advertencia sobre límites de apuesta en el veredicto de backtest_metodo.py.

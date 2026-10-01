@@ -72,7 +72,7 @@ TIERS = {
     "A": {
         "nombre": "Probado",
         "orden": 0,
-        "resumen": "+16,5% de ROI, t=3,1 (1.056 apuestas, 2018-2024)",
+        "resumen": "+15,4% de ROI, t=3,0 (1.145 apuestas, 2018-2024)",
         "detalle": ("Apostar DECISIONES en el mercado de método es la única ventaja del "
                     "proyecto que aguanta el test estadístico. El público paga de más por "
                     "las finalizaciones, así que las decisiones quedan baratas."),
@@ -264,7 +264,7 @@ class Pata:
                 return (f"La mejor clase de selección que ofrece este sistema. El modelo le "
                         f"da {self.p*100:.0f}% de probabilidad y la casa la paga a "
                         f"{self.cuota:.2f}, o sea paga de más: {ev_pct:+.1f}% de valor. "
-                        f"Apostar a que la pelea llega a decisión rindió +16,5% sobre 1.056 "
+                        f"Apostar a que la pelea llega a decisión rindió +15,4% sobre 1.145 "
                         f"apuestas históricas.")
             return (f"Es el mercado bueno, pero no a este precio: la cuota {self.cuota:.2f} "
                     f"no alcanza a cubrir el {self.p*100:.0f}% que le da el modelo "

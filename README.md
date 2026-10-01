@@ -30,12 +30,13 @@
 
 | | Acierto | Brier |
 |---|:---:|:---:|
-| Modelo solo | 66-69 % | 0,211 |
+| Modelo solo | 66-69 % | 0,211-0,213 |
 | Mercado solo (Betano) | ~69 % | 0,197 |
 | **Modelo + mercado** | **~70 %** | **0,195** |
-| Solo picks de confianza ≥75 % | ~85 % | — |
+| Solo picks de confianza ≥75 % | ~81-86 % | — |
 
-`Acc 0,669` · `AUC 0,726` · `Brier 0,211` — sobre **1.256 peleas fuera de muestra**
+`Acc 0,662` · `AUC 0,718` · `Brier 0,213` — sobre **628 peleas de 2025-2026 fuera de muestra**
+(probabilidad simetrizada; reentrenar con los mismos datos mueve estas cifras ~±0,008)
 
 </div>
 
@@ -278,7 +279,19 @@ Solo lo usa el modelo de **ganador**: si alguien entra de reemplazo cambia *si* 
 - El split es **temporal**, nunca aleatorio. Uno aleatorio pondría una fila y su espejo en
   lados distintos, o sea la misma pelea en train y test.
 - `backtest_carteleras.py` reconstruye a cada peleador **tal como estaba el día del
-  evento**, no como está hoy. Sin eso el backtest daba 92 % falso; el real es 70 %.
+  evento**, no como está hoy. Sin eso el backtest daba 92 % falso.
+- Y aun así tenía **tres fugas más**, encontradas en la revisión de septiembre 2026. Daba
+  76-78 % de acierto en 203 peleas donde el modelo, fuera de muestra, acierta 67 %:
+  1. **UFCStats pone al ganador primero** (en el 100 % de las peleas) y la probabilidad
+     salía orientada a él, así que cualquier sesgo hacia la columna A empujaba hacia el
+     resultado real. Ahora A es la esquina roja cuando se conoce, y si no, el orden alfabético.
+  2. **Usaba la tabla de ELO final**, que para un evento anterior al corte de Kaggle ya
+     incluye esa pelea: el ganador tenía más ELO el 72 % de las veces, contra 58 % con el
+     ELO pre-pelea. Ahora se reconstruye a la fecha.
+  3. **Evaluaba con el modelo de producción**, que ya había entrenado con esas peleas.
+     Ahora usa el de medición, y lo que ninguno de los dos vio queda fuera.
+
+  Corregido: modelo **69 %**, mercado **72 %**, mezcla **71 %** en 208 peleas con cuota.
 
 </details>
 
@@ -411,8 +424,15 @@ exacto** de finalización, un mercado que este proyecto no toca todavía.
 | **Subir a 12 los rivales de la calidad de oposición** | ganaba en **7 de 8 semillas** sobre el test… y perdía **2 de 3** al validar en otros períodos | Revertido a 5 |
 | **Tapar el hueco de 4 meses de Kaggle** con filas armadas desde UFCStats + BestFightOdds (150 peleas, 82 % con cuota) | 4 cortes: acc +0,0044 / +0,0127 / +0,0094 / **−0,0588**. **El AUC no mejora en ninguno.** Media: acc −0,0081, AUC −0,0039 | No entra. Son el 2-5 % de una ventana de 5 años |
 | **Poner `NaN` en vez de `0`** en los stats de peleadores sin datos | la premisa era falsa: las peleas con alguien de pocos datos se aciertan **71 %** y las de datos completos **58 %** (140 peleas) | El cero funciona como proxy de "no probado" |
+| **`lost_by_finish_rate` real al entrenar** (Kaggle no lo trae y se pone 0,35 a todos; al predecir se usa el real) | walk-forward 2021-2026: ganador mejor en 3/6 (log loss) y 2/6 (Brier); método 2/6. Gana en 2025-26, pierde en 2021-24 | No entra: mixto |
+| **Y al revés: 0,35 también al predecir**, para que calce con el entrenamiento | ganador neutro (2/4 semestres); método **peor** (log loss +0,004 y +0,007, 2/4) | No entra: el dato real, aunque fuera de rango, predice mejor el método |
+| **Ventana de 5 años en el modelo de 6 vías** (Kaggle cambió de escala en 2019: golpes por pelea → por minuto) | log loss del modelo mejor en 5/6 (−0,0144)… pero el ROI de las decisiones 2018-2024 baja de **+15,4 % (t=3,0) a +7,0 % (t=1,3)** y pierde 8 de 9 años | Revertido: en ese mercado manda el ROI |
+| **Intercepto en el calibrador** ("la esquina roja gana más de lo que dice el mercado") | el efecto existe (6/6 años, +0,9 a +5,3 pts), pero aun si A fuera siempre la roja el intercepto mejora el log loss solo 3/6; con orientación incierta, sacarlo gana 6/6 | Fuera: nada garantiza que la columna A del CSV sea la roja |
 
-**Las dos últimas son las que más enseñaron.**
+**El balanceo del método y el N=12 son los que más enseñaron** — y la ventana del modelo
+de 6 vías agregó una lección más: **mejor log loss no es mejor apuesta.** El modelo mejoraba
+en 5 de 6 años y la apuesta que lo justifica empeoraba en 8 de 9. Hay que medir la métrica
+que se usa para decidir, no la que es más cómoda de calcular.
 
 El modelo de método **balanceado** tenía accuracy 0,488 y parecía "solo un poco peor". Lo
 que delató el bug fue comparar su log loss contra el de **cantar las tasas base** (1,008):
@@ -424,6 +444,28 @@ mismo período de test*: miden consistencia entre semillas, no entre épocas. Al
 períodos que no se habían usado para elegir N, ganó 1 de 3 y se revirtió. Desde entonces
 todo se valida en varios períodos, que es por qué las tablas de esta sección dicen "4/4" o
 "3/7" y no "p < 0,05".
+
+</details>
+
+<details>
+<summary><b>✅ Lo que entró en la revisión de septiembre 2026 (y su medición)</b></summary>
+
+<br>
+
+| Cambio | Por qué | Medido |
+|---|---|---|
+| **Probabilidad de ganador simetrizada** (promedio con la pelea espejo) | dar vuelta A y B en el CSV movía la p 3,8 pts de media (máx 8,7) y cambiaba el pick en 2 de 25 peleas reales | log loss mejor en 5/6 años que la orientación del dataset; empata con la invertida |
+| **Mercado de 6 y 5 vías simetrizado** | el calibrador de método ya se ajustaba así; al predecir no | log loss 5/6 |
+| **Calibrador sin intercepto** | ver "Intercepto en el calibrador" arriba | 6/6 con orientación incierta |
+| **Walk-forward del calibrador de ganador con la ventana de 5 años** | entrenaba con todo; producción usa 5 años | log loss 4/6, AUC 4/6; la estrategia calibrada sigue en empate técnico |
+| **ELO de la división de la última pelea** | se tomaba la primera fila del nombre, cuyo orden no depende del peleador (Volkanovski salía con su ELO de peso ligero, 1498, en vez del de pluma, 1655) | acierto +1,7 pts en 4/4 semestres; log loss neutro (2/4). Entra por corrección |
+
+Además se arreglaron bugs que no tocaban el modelo pero sí lo que se predecía: el
+método del historial se leía de toda la fila (cualquier rival o evento con "ko" en el
+nombre convertía una decisión en KO: el 23 % de los peleadores activos tenía las tasas
+de finalización mal), el mercado de 5 vías perdía siempre la cuota de finalización, y el
+modo EN VIVO actualizaba la cuota pero no la probabilidad que se muestra ni la de las
+combinadas. El detalle está en el historial de git.
 
 </details>
 
@@ -557,7 +599,7 @@ mercado**:
 
 | Orden | Mercado | Respaldo medido |
 |:---:|---|---|
-| 1 | decisión en el mercado de método | +16,5 % ROI, **t = 3,1** (1.056 apuestas) |
+| 1 | decisión en el mercado de método | +15,4 % ROI, **t = 3,0** (1.145 apuestas) |
 | 2 | ganador (moneyline) | +1,0 % ROI ± 7,5, t = 0,3 (4.744 apuestas) |
 | 3 | finalización en método | t = 0,5 — no se recomienda |
 
@@ -581,9 +623,13 @@ quedan bloqueadas.
 
 ## ⚠️ Qué tan bien funciona (y qué no)
 
-Sobre 4 carteleras reales: **27/37 global (73 %)**, pero **18/21 (86 %)** en los picks
-≥60 %. La diferencia entre una cartelera buena y una mala no es que el modelo funcione o
-no — es cuántas peleas parejas trae.
+Sobre las 12 carteleras más recientes (abril a septiembre 2026, que ningún modelo vio):
+**71/112 global (63 %)**, pero **55/76 (72 %)** en los picks ≥60 %. La diferencia entre
+una cartelera buena y una mala no es que el modelo funcione o no — es cuántas peleas
+parejas trae: en estas 12 el acierto fue de 50 % a 89 % según la noche.
+
+> Antes este párrafo decía 27/37 (73 %) y 18/21 (86 %). Esos números venían de un backtest
+> con tres fugas (ver "Anti-leakage"); los de arriba son los corregidos.
 
 > [!IMPORTANT]
 > **Lo que este proyecto no puede hacer:**
@@ -592,7 +638,7 @@ no — es cuántas peleas parejas trae.
 >   técnico (+1,0 % ROI ± 7,5). Y filtrar por "donde el modelo discrepa fuerte" **pierde
 >   8,1 %**: cuando el modelo se separa de la línea, el equivocado suele ser el modelo.
 > - La única ventaja que aguantó el test estadístico es apostar **decisiones en el mercado
->   de método** (+16,5 % ROI, t = 3,1) — un mercado con 22 % de comisión, límites bajos y
+>   de método** (+15,4 % ROI, t = 3,0) — un mercado con 22 % de comisión, límites bajos y
 >   casas que cierran cuentas ganadoras. El ROI no dice cuánto volumen aceptan.
 > - **No cubre otras ligas** (Bellator, PFL, ONE): el ELO y las features se construyen
 >   sobre datos de UFC.
@@ -614,6 +660,7 @@ ufc_predictor/
 ├── src/            scrapers, features y predicción
 ├── modelado/       entrenar, medir y validar el modelo (se corren con -m)
 ├── webui/          la UI local: server, engine, parlay, jobs, static/
+├── tests/          pruebas: python -m unittest discover -s tests -t .  (sin red, sin dependencias)
 ├── config.py       rutas, umbrales y constantes
 └── data/ models/ outputs/ cards/ backups/      generados, no versionados
 ```

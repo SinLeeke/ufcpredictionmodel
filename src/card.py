@@ -282,7 +282,7 @@ def _imprimir_valor(valores: list[tuple[dict, object]]) -> None:
 def _imprimir_metodo(metodos: list[tuple[str, str, list[dict]]]) -> None:
     """
     Mercado de método (6 vías). Es el único con ventaja probada del proyecto:
-    +16.5% de ROI (t=3.1) apostando decisiones con EV>=0, porque el público
+    +15.4% de ROI (t=3.0) apostando decisiones con EV>=0, porque el público
     paga de más por las finalizaciones y deja las decisiones baratas.
     """
     print("\n" + "=" * 96)
@@ -319,7 +319,7 @@ def _imprimir_metodo(metodos: list[tuple[str, str, list[dict]]]) -> None:
         for e, o in sorted(apuestas, key=lambda t: -t[1]["ev"]):
             print(f"  {e:32}{o['cuota_decimal']:>7.2f}{o['p_final']*100:>7.1f}%"
                   f"{o['ev']*100:>+7.1f}%{o['kelly']*100:>13.1f}%")
-        print("\n  Las DECISIONES son las que el backtest valida (+16.5% ROI, t=3.1).")
+        print("\n  Las DECISIONES son las que el backtest valida (+15.4% ROI, t=3.0).")
         print("  Las finalizaciones con EV>=0 dieron +5.7% pero con t=0.5: ruido.")
 
     print("\n  ADVERTENCIA: este mercado cobra 22% de comisión, o sea que es")
@@ -504,14 +504,14 @@ def _imprimir_consenso(consenso: list[dict], con_cuotas: bool,
     accionable va PRIMERO y el detalle queda detrás de --detalle.
 
     La jerarquía de apuestas NO es por EV, es por EVIDENCIA:
-      1. decisión en el mercado de método -> +16.5% ROI, t=3.1  (probado)
+      1. decisión en el mercado de método -> +15.4% ROI, t=3.0  (probado)
       2. ganador (moneyline)              -> +1.0% ROI, t=0.3   (empate técnico)
       3. finalización en método           -> +5.7% ROI, t=0.5   (ruido)
     Un EV de +40% en una finalización sigue siendo peor apuesta que un +5% en
     una decisión, porque el primero no sobrevive al test estadístico.
     """
     CORTO = {"KO/TKO": "KO", "Submission": "Sub", "Decision": "Dec"}
-    RESP = {"metodo-dec": "probado (+16.5% ROI)",
+    RESP = {"metodo-dec": "probado (+15.4% ROI)",
             "ganador": "empate técnico"}
     ORDEN = {"metodo-dec": 0, "ganador": 1}
 

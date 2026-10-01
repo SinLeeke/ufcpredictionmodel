@@ -403,7 +403,7 @@ una línea por pelea.
 
 Las apuestas salen ordenadas por **cuánto las respalda el backtest**, no por EV:
 
-1. **decisión en el mercado de método** → probado (+16,5% ROI, t=3,1)
+1. **decisión en el mercado de método** → probado (+15,4% ROI, t=3,0)
 2. **ganador (moneyline)** → empate técnico (t=0,3)
 3. finalización en método → ruido (t=0,5), no se recomienda
 
@@ -637,7 +637,7 @@ Números medidos, no promesas:
   pasas cuotas el sistema mezcla los dos (llega a ~70%).
 - **Apostar al ganador es un empate técnico con la casa** (+1,0% de ROI, margen
   de error ±7,5). La única ventaja que aguantó el test estadístico es apostar
-  **decisiones en el mercado de método** (+16,5%, t=3,1).
+  **decisiones en el mercado de método** (+15,4%, t=3,0).
 - El mercado de método cobra 22% de comisión: es recreativo, con límites bajos, y
   las casas cierran cuentas ganadoras. El ROI no te dice cuánto volumen te aceptan.
 - Que una cartelera no genere ninguna apuesta es el resultado normal y esperado.
@@ -780,7 +780,7 @@ Cada selección lleva **dos** etiquetas, porque responden preguntas distintas.
 
 | Etiqueta | Mercado | Respaldo medido |
 |---|---|---|
-| **Probado** | decisión en el mercado de método | +16,5% ROI, t=3,1 (1.056 apuestas) |
+| **Probado** | decisión en el mercado de método | +15,4% ROI, t=3,0 (1.145 apuestas) |
 | **Sin ventaja clara** | ganador (moneyline) | +1,0% ROI ± 7,5, t=0,3 |
 | **Ruido** | finalización (KO/sub) en método | t=0,5 — indistinguible de la suerte |
 
