@@ -1260,6 +1260,12 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 [data-estilo="juez"] .consejo{border:1px solid var(--linea)}
 [data-estilo="juez"] #log{border-top:5px double var(--forma)}
 
+/* --- Guía: un reglamento impreso --- */
+[data-estilo="juez"] .guia-indice a.activo::before{background:var(--txt)}
+[data-estilo="juez"] .paso{border:1.5px solid var(--forma)}
+[data-estilo="juez"] .paso-n{font:700 54px/.85 var(--maquina);color:var(--forma)}
+[data-estilo="juez"] .glosario{border-top-color:var(--forma)}
+
 @media (max-width:1080px){
   [data-estilo="juez"] .peleas-lista{grid-template-columns:minmax(0,1fr)}
 }
