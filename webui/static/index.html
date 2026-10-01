@@ -4,20 +4,46 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UFC Predictor</title>
+<meta name="description" content="Pronósticos de carteleras de UFC que dicen dónde hay valor y, sobre todo, dónde no.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/marca.svg" type="image/svg+xml">
+<!-- Las fuentes se cargan desde el propio servidor y no desde Google: la UI
+     tiene que abrir sin internet, que es justo cuando se mira una cartelera ya
+     bajada. Son las de Google Fonts (Barlow), copiadas a /fuentes. -->
+<link rel="preload" href="/fuentes/barlow-condensed-800.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fuentes/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-<!-- Cabecera y pestañas van en UN solo contenedor sticky. Antes cada una tenía
-     su propio `top` y el de las pestañas era un offset fijo (71px) que no
-     coincidía con la altura real de la cabecera: se veía una franja cortada al
-     hacer scroll. Con un contenedor único no hay offset que calzar, y además
-     permite esconder las dos juntas al bajar. -->
+<a class="saltar" href="#contenido">Saltar al contenido</a>
+
+<!-- Cabecera y pestañas en UN solo contenedor sticky, que además se esconde
+     entero al bajar. Va siempre oscura, en los dos temas: es la barra del canal,
+     como en una transmisión. -->
 <div class="barra-superior" id="barra-superior">
-<header>
+<header class="cab">
   <div class="marca">
-    <div class="logo" aria-label="UFC"><span>UFC</span></div>
-    <h1>Predictor</h1>
+    <svg class="marca-glifo" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M9 2h14l7 7v14l-7 7H9l-7-7V9z" fill="none" stroke="currentColor" stroke-width="2.6"/>
+      <path d="M11 22L15 10h7" fill="none" stroke="var(--marca)" stroke-width="3.4" stroke-linejoin="bevel"/>
+    </svg>
+    <span class="marca-txt">UFC <b>Predictor</b></span>
+  </div>
+
+  <nav class="tabs" aria-label="Secciones">
+    <button class="tab activa" data-tab="cartelera">Cartelera</button>
+    <button class="tab" data-tab="parlay">Combinada <span id="badge-patas" class="badge">0</span></button>
+    <button class="tab" data-tab="datos">Cargar</button>
+    <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
+    <button class="tab" data-tab="guia">Guía</button>
+  </nav>
+
+  <div class="cartelera-caja">
+    <button id="titulo-cartelera" class="cartelera-activa"
+            title="Cambiar de cartelera">sin cartelera cargada</button>
+    <button id="btn-soltar" class="cartelera-x oculto" title="Soltar esta cartelera"
+            aria-label="Soltar esta cartelera">×</button>
   </div>
 
   <div class="cabecera-acciones">
@@ -29,38 +55,27 @@
       <input type="checkbox" id="chk-vivo"> <span>EN VIVO</span>
     </label>
     <button id="btn-refresh" class="primario" disabled>
-      <span class="ico">⟳</span> Refrescar
+      <span data-ico="refrescar"></span>
+      <span class="btn-txt">Refrescar</span>
     </button>
-    <button id="btn-tema" class="icono" title="Cambiar entre claro y oscuro">◐</button>
+    <button id="btn-tema" class="icono" title="Cambiar entre claro y oscuro" aria-label="Cambiar entre claro y oscuro">
+      <span data-ico="tema"></span>
+    </button>
   </div>
 </header>
-
-<nav class="tabs">
-  <button class="tab activa" data-tab="cartelera">Cartelera</button>
-  <button class="tab" data-tab="parlay">Combinada <span id="badge-patas" class="badge">0</span></button>
-  <button class="tab" data-tab="datos">Cargar</button>
-  <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
-  <button class="tab" data-tab="guia">Guía</button>
-  <div class="cartelera-caja">
-    <button id="titulo-cartelera" class="cartelera-activa"
-            title="Cambiar de cartelera">sin cartelera cargada</button>
-    <button id="btn-soltar" class="cartelera-x oculto"
-            title="Soltar esta cartelera">×</button>
-  </div>
-</nav>
 </div>
 
-<div id="barra-estado" class="barra oculto"></div>
+<div id="barra-estado" class="barra oculto" role="status"></div>
 
-<main>
+<main id="contenido">
 
 <!-- ======================= CARTELERA ======================= -->
 <section id="tab-cartelera" class="panel activa">
 
   <div id="bienvenida" class="bienvenida">
     <h2>Bienvenido</h2>
-    <p>Esto estima quién gana cada pelea de una cartelera de UFC y, si le das las cuotas
-       de la casa, te dice dónde hay valor. Tres pasos:</p>
+    <p class="bienvenida-lead">Esto estima quién gana cada pelea de una cartelera de UFC y, si
+       le das las cuotas de la casa, te dice dónde hay valor. Tres pasos:</p>
     <ol class="pasos">
       <li><b>Carga una cartelera.</b> Baja las cuotas de Betano automáticamente, o sube
           un CSV con los nombres de los peleadores.</li>
@@ -76,27 +91,30 @@
   </div>
 
   <div id="cartelera-contenido" class="oculto">
-    <div id="avisos"></div>
+    <div class="evento">
+      <h1 class="evento-titulo" id="evento-titulo"></h1>
+      <p class="evento-meta" id="evento-origen"></p>
+    </div>
 
     <div id="tarjetas-kpi" class="kpis"></div>
+
+    <div id="avisos" class="avisos"></div>
 
     <section class="bloque">
       <div class="bloque-cab">
         <h2>Qué apostar</h2>
         <p class="nota">Ordenado por <b>cuánta evidencia hay detrás del mercado</b>, no por
-          cuánto promete pagar. Un +40% en una finalización es peor apuesta que un +5% en
+          cuánto promete pagar. Un +40 % en una finalización es peor apuesta que un +5 % en
           una decisión, porque el primero no sobrevive al análisis estadístico.</p>
       </div>
       <div id="resumen"></div>
     </section>
 
     <section class="bloque">
-      <!-- Sin <div> envolviendo al título: `.bloque-cab` es un grid y necesita
-           al h2, a su nota y al control como hijos DIRECTOS. -->
       <div class="bloque-cab fila">
         <h2>Las peleas</h2>
         <p class="nota" id="nota-base"></p>
-        <div class="segmentado">
+        <div class="segmentado" role="group" aria-label="Vista">
           <button class="seg activa" data-vista="tarjetas">Tarjetas</button>
           <button class="seg" data-vista="tabla">Tabla</button>
         </div>
@@ -470,16 +488,22 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
 </main>
 
 <footer class="pie">
-  <div class="pie-linea"></div>
   <div class="pie-cuerpo">
     <div class="pie-marca">
-      <span class="pie-logo"><span>UFC</span></span>
-      <span class="pie-txt">PREDICTOR</span>
+      <svg class="marca-glifo" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M9 2h14l7 7v14l-7 7H9l-7-7V9z" fill="none" stroke="currentColor" stroke-width="2.6"/>
+        <path d="M11 22L15 10h7" fill="none" stroke="var(--marca)" stroke-width="3.4" stroke-linejoin="bevel"/>
+      </svg>
+      <span class="marca-txt">UFC <b>Predictor</b></span>
     </div>
     <p class="pie-nota">
       Proyecto personal de un estudiante universitario, hecho por curiosidad y por
       diversión. Los pronósticos son estimaciones con margen de error, no certezas.
       <b>Si apuestas, es bajo tu propia responsabilidad.</b>
+    </p>
+    <p class="pie-nota pie-legal">
+      Sin relación con UFC ni con sus dueños: el nombre solo dice de qué trata. Fotos de
+      peleadores: Wikipedia/Wikimedia Commons o Sherdog; sin foto, una silueta.
     </p>
     <p class="pie-firma">
       hecho por <a href="https://github.com/SinLeeke/ufcpredictionmodel" target="_blank"
@@ -488,13 +512,14 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
   </div>
 </footer>
 
-<div id="modal" class="modal oculto">
+<div id="modal" class="modal oculto" role="dialog" aria-modal="true" aria-labelledby="modal-cuerpo">
   <div class="modal-caja">
-    <button class="modal-cerrar">×</button>
+    <button class="modal-cerrar" aria-label="Cerrar">×</button>
     <div id="modal-cuerpo"></div>
   </div>
 </div>
 
+<script src="/iconos.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

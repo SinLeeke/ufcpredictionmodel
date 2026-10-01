@@ -22,12 +22,22 @@ const post = (url, obj) => api(url, {
   method:'POST', headers:{'Content-Type':'application/json'},
   body: JSON.stringify(obj || {}) });
 
-const pct = (x, d = 1) => (x * 100).toFixed(d) + '%';
-const sgn = (x, d = 1) => (x >= 0 ? '+' : '') + (x * 100).toFixed(d) + '%';
+/* Cifras en español de Chile: coma decimal y punto de miles, como ya escribía
+   la Guía. El % va pegado con un espacio fino que no corta línea, para que
+   nunca quede "75" en una línea y "%" en la siguiente. */
+const NBSP_FINO = ' ';
+const fmt = (x, d) => Number(x).toLocaleString('es-CL',
+  { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (x, d = 1) => fmt(x * 100, d) + NBSP_FINO + '%';
+const sgn = (x, d = 1) => (x >= 0 ? '+' : '−') + fmt(Math.abs(x) * 100, d) + NBSP_FINO + '%';
+const cuota = (x) => (x ? fmt(x, 2) : 'sin cuota');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const cls = (x) => x >= 0 ? 'pos' : 'neg';
 const miles = (n) => n.toLocaleString('es-CL');
+
+// Los íconos de la cabecera se dibujan desde iconos.js: un solo set en toda la UI.
+$$('[data-ico]').forEach(e => { e.outerHTML = ico(e.dataset.ico); });
 
 /* =============================== TEMA ================================= */
 const temaGuardado = localStorage.getItem('tema');
@@ -44,9 +54,10 @@ $('#btn-tema').onclick = () => {
 /* =============================== TABS ================================= */
 const irA = (t) => $(`.tab[data-tab="${t}"]`).click();
 $$('.tab').forEach(t => t.onclick = () => {
-  $$('.tab').forEach(x => x.classList.remove('activa'));
+  $$('.tab').forEach(x => { x.classList.remove('activa'); x.removeAttribute('aria-current'); });
   $$('.panel').forEach(x => x.classList.remove('activa'));
   t.classList.add('activa');
+  t.setAttribute('aria-current', 'page');
   $('#tab-' + t.dataset.tab).classList.add('activa');
   window.scrollTo({ top: 0 });
   if (t.dataset.tab === 'mantenimiento') cargarTareas();
@@ -63,11 +74,23 @@ $$('.seg').forEach(b => b.onclick = () => {
 });
 
 /* ============================== MODAL ================================= */
-function modal(html) { $('#modal-cuerpo').innerHTML = html; $('#modal').classList.remove('oculto'); }
-$('.modal-cerrar').onclick = () => $('#modal').classList.add('oculto');
-$('#modal').onclick = (e) => { if (e.target.id === 'modal') $('#modal').classList.add('oculto'); };
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') $('#modal').classList.add('oculto'); });
+// Al abrir se lleva el foco a la × y al cerrar se devuelve a quien lo abrió:
+// sin eso, con teclado, el foco quedaba detrás del velo.
+let focoAntesDelModal = null;
+function modal(html) {
+  focoAntesDelModal = document.activeElement;
+  $('#modal-cuerpo').innerHTML = html;
+  $('#modal').classList.remove('oculto');
+  $('.modal-cerrar').focus();
+}
+function cerrarModal() {
+  if ($('#modal').classList.contains('oculto')) return;
+  $('#modal').classList.add('oculto');
+  focoAntesDelModal?.focus?.();
+}
+$('.modal-cerrar').onclick = cerrarModal;
+$('#modal').onclick = (e) => { if (e.target.id === 'modal') cerrarModal(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
 
 /* ============================== BARRA ================================= */
 function barra(txt, tipo) {
@@ -79,18 +102,47 @@ function barra(txt, tipo) {
 }
 
 /* =========================== ESTADO / POLL ============================ */
+// El nombre de la cartelera llega como nombre de archivo
+// ("betano_2026-08-08_gamrot_vs_salkilld"). Se muestra como lo diría la
+// transmisión: "Gamrot vs Salkilld", con la fecha aparte.
+const ES_SLUG = /^[a-z0-9_.\-]+$/;
+function evento(e) {
+  const crudo = (e.titulo || '').replace(/^DEMO · /, '');
+  const candidatos = [e.datos?.titulo, e.csv, crudo].filter(Boolean);
+  const conFecha = candidatos.map(t => t.match(/(\d{4})-(\d{2})-(\d{2})_(.+?)(?:\.csv)?$/)).find(Boolean);
+  let fecha = '';
+  if (conFecha) {
+    const [, a, m, d] = conFecha.map(Number);
+    fecha = new Date(a, m - 1, d).toLocaleDateString('es-CL',
+      { weekday:'short', day:'numeric', month:'short' }).replace(',', '');
+  }
+  const deSlug = (t) => t.replace(/\.csv$/i, '').replace(/^betano_/i, '').replace(/^\d{4}-\d{2}-\d{2}_/, '')
+    .replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    .replace(/\bVs\b/g, 'vs').replace(/\bUfc\b/g, 'UFC').trim();
+  let nombre = crudo;
+  let liga = '';
+  if (!crudo || ES_SLUG.test(crudo)) nombre = deSlug(conFecha ? conFecha[4] : (crudo || e.csv || ''));
+  else if (conFecha) { liga = crudo; nombre = deSlug(conFecha[4]); }
+  return { nombre: nombre || 'Cartelera', fecha, liga, demo: /^DEMO · /.test(e.titulo || ''),
+           crudo: e.titulo || e.csv || '' };
+}
+
 async function tick() {
   try {
     const e = await api('/api/estado');
     S.proximoAuto = e.proximo_auto; S.origen = e.origen; S.vivo = e.vivo;
     const hayCartelera = !!(e.titulo || e.csv);
-    $('#titulo-cartelera').textContent = e.titulo || e.csv || 'sin cartelera cargada';
+    const ev = evento(e);
+    S.evento = ev;
+    S.textosEvento = [e.titulo, e.csv, e.datos?.titulo].filter(Boolean);
+    $('#titulo-cartelera').textContent = hayCartelera ? ev.nombre : 'sin cartelera cargada';
+    $('#titulo-cartelera').title = hayCartelera ? `${ev.crudo}. Toca para cambiar de cartelera.` : 'Cambiar de cartelera';
     // La × solo aparece si hay algo que soltar.
     $('#btn-soltar').classList.toggle('oculto', !hayCartelera);
     $('#btn-refresh').disabled = e.cargando || !e.origen;
 
     if (e.error)         barra(e.error, 'error');
-    else if (e.cargando) barra('⏳ ' + (e.progreso || 'trabajando…'));
+    else if (e.cargando) barra(e.progreso || 'trabajando…');
     else                 barra('');
 
     if (e.datos && JSON.stringify(e.datos) !== JSON.stringify(S.datos)) {
@@ -101,21 +153,33 @@ async function tick() {
       pintarTiers(e.datos.tiers);
       pintarPatas();
       evaluarParlay();
+    } else if (!e.datos && !e.cargando && S.datos === null) {
+      mostrarVacio();
     }
   } catch (err) { barra('No pude hablar con el servidor: ' + err.message, 'error'); }
 }
 
+// Sin cartelera (al abrir, o después de soltarla con la ×) vuelve la
+// bienvenida. Antes, tras soltarla, la pestaña seguía mostrando la anterior.
+function mostrarVacio() {
+  $('#bienvenida').classList.remove('oculto');
+  $('#cartelera-contenido').classList.add('oculto');
+  $('#parlay-vacio').classList.remove('oculto');
+  $('#parlay-contenido').classList.add('oculto');
+  $('#badge-patas').textContent = '0';
+}
+
 // Modo EN VIVO: solo la línea de ganador, 1 petición cada 10 s. Va aparte del
 // refresco completo porque ese re-baja el mercado de método (1 petición POR
-// pelea) y vuelve a correr el modelo — eso no se puede hacer cada 10 segundos
+// pelea) y vuelve a correr el modelo: eso no se puede hacer cada 10 segundos
 // sin que Betano te bloquee.
 $('#chk-vivo').onchange = async (e) => {
   const on = e.target.checked;
   try {
     await post(`/api/vivo?encender=${on}`);
     barra(on
-      ? '🔴 En vivo: la cuota de ganador se refresca cada 10 s. Apágalo cuando no estés mirando.'
-      : '⏸ Modo en vivo apagado.');
+      ? 'En vivo: la cuota de ganador se refresca cada 10 s. Apágalo cuando no estés mirando.'
+      : 'Modo en vivo apagado.');
   } catch { e.target.checked = !on; barra('No pude cambiar el modo en vivo.'); }
 };
 
@@ -129,17 +193,58 @@ function reloj() {
   $('#vivo-caja').classList.toggle('activo', !!S.vivo);
   // El auto-refresco solo tiene sentido con origen Betano: un archivo en disco
   // no cambia solo, y mostrar una cuenta regresiva ahí haría creer lo contrario.
-  if (S.origen !== 'betano') { r.textContent = '📄 archivo — sin cuotas en vivo'; return; }
-  if (!S.proximoAuto) { r.textContent = '⏸ auto apagado'; return; }
+  if (S.origen !== 'betano') { r.textContent = 'archivo: sin cuotas en vivo'; return; }
+  if (!S.proximoAuto) { r.textContent = 'auto apagado'; return; }
   const s = Math.max(0, Math.round(S.proximoAuto - Date.now() / 1000));
-  r.textContent = `⟳ cuotas en ${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  r.innerHTML = `cuotas en <b>${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}</b>`;
 }
 
 setInterval(tick, 2000);
 setInterval(reloj, 1000);
 setInterval(() => { if (S.job) seguirJob(); }, 1200);
 
+/* ============================== FOTOS ================================= */
+// Silueta de peleador en guardia: lo que se ve mientras llega la foto y cuando
+// no hay. Nunca una imagen rota. Los colores salen del tema.
+const SILUETA = `<svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+<rect width="120" height="120" fill="var(--sil-fondo)"/>
+<g fill="var(--sil-fig)"><path d="M8 124C8 99 20 86 38 82c6-1 10-5 12-12V58h20v12c2 7 6 11 12 12 18 4 30 17 30 42Z"/>
+<ellipse cx="60" cy="40" rx="15.5" ry="18.5"/></g>
+<g fill="var(--sil-fig)" stroke="var(--sil-fondo)" stroke-width="2.5" stroke-linejoin="round">
+<path d="M33 77c0-8 5-12 13-12s13 4 13 12v10c0 6-4 10-10 10h-6c-6 0-10-4-10-10Z"/>
+<path d="M87 77c0-8-5-12-13-12s-13 4-13 12v10c0 6 4 10 10 10h6c6 0 10-4 10-10Z"/></g>
+<g fill="var(--sil-fondo)"><rect x="35" y="99" width="22" height="3.5" rx="1.5"/><rect x="63" y="99" width="22" height="3.5" rx="1.5"/></g></svg>`;
+
+// nombre -> URL de la foto, o null mientras se pide / si no hay. Así un
+// repintado (EN VIVO) no vuelve a pedirla ni la hace parpadear.
+const FOTOS = new Map();
+const retrato = (nombre) => {
+  const url = FOTOS.get(nombre);
+  return `<figure class="retrato" data-foto="${esc(nombre)}">${
+    url ? `<img src="${url}" alt="">` : SILUETA}</figure>`;
+};
+function cargarFotos(raiz) {
+  raiz.querySelectorAll('[data-foto]').forEach(f => {
+    const n = f.dataset.foto;
+    if (FOTOS.has(n)) return;
+    FOTOS.set(n, null);
+    const url = '/api/foto/' + encodeURIComponent(n);
+    // 204 = no hay foto: queda la silueta, que ya está puesta.
+    fetch(url).then(r => {
+      if (r.status !== 200) return;
+      FOTOS.set(n, url);
+      document.querySelectorAll(`[data-foto="${CSS.escape(n)}"]`)
+        .forEach(x => { x.innerHTML = `<img src="${url}" alt="">`; });
+    }).catch(() => {});
+  });
+}
+
 /* ============================= CARTELERA ============================== */
+const TXT_TIER = {
+  A: ['Probado', 'Este mercado es el único con ventaja demostrada: +15,4% de retorno sobre 1.145 apuestas históricas.'],
+  B: ['Sin ventaja clara', 'Ojo: el mercado de ganador quedó en empate técnico con la casa en las pruebas, así que esto es un complemento, no una base.'],
+};
+
 function pintarCartelera(d, mov) {
   $('#bienvenida').classList.add('oculto');
   $('#cartelera-contenido').classList.remove('oculto');
@@ -148,31 +253,40 @@ function pintarCartelera(d, mov) {
   $('#parlay-contenido').classList.toggle('oculto', !hayPatas);
   $('#badge-patas').textContent = d.patas.length;
 
+  /* ---- el evento ---- */
+  const ev = S.evento || { nombre: d.titulo, fecha: '' };
+  const origen = { betano: 'Cuotas de Betano', csv: 'Desde un archivo', demo: 'Cartelera de ejemplo' }[S.origen] || '';
+  $('#evento-origen').innerHTML = (ev.demo ? '<span class="demo">Demo</span>' : '') +
+    esc([ev.fecha, ev.liga || origen].filter(Boolean).join(' · '));
+  $('#evento-titulo').textContent = ev.nombre;
+
   /* ---- avisos ---- */
+  // Gravedad: err (bloquea o invalida), warn (cuidado), info (dato). La marca
+  // de la izquierda la dice sin depender del color.
   const av = [];
-  if (!d.modelo_real) av.push(['err','⚠',
+  if (!d.modelo_real) av.push(['err','alerta',
     'No hay un modelo entrenado, así que estas probabilidades son una aproximación gruesa. Ve a Mantenimiento y ejecuta "Solo reentrenar el modelo".']);
-  if (d.con_cuotas && !d.calibrador) av.push(['err','⚠',
+  if (d.con_cuotas && !d.calibrador) av.push(['err','alerta',
     'Hay cuotas pero falta el calibrador, que es lo que permite combinar el modelo con el mercado. Ve a Mantenimiento → "Recalcular el calibrador de ganador". Sin él las señales de valor no son de fiar.']);
-  if (!d.con_cuotas) av.push(['warn','ℹ',
+  const sosp = d.peleas.filter(p => (p.metodo6 || []).some(o => o.sospechoso));
+  if (sosp.length) av.push(['err','prohibido',
+    `Las cuotas de método de ${sosp.length} pelea(s) son <b>demasiado generosas para ser reales</b>. Suelen indicar números escritos a mano en vez de bajados de la casa. Como el valor se calcula con el precio, esas peleas mostrarían valor falso, así que quedan bloqueadas.`]);
+  if (!d.con_cuotas) av.push(['warn','info',
     'Esta cartelera no trae cuotas, así que se predice pero no se puede decir dónde hay valor ni armar combinadas. Bajarla desde Betano suma cuotas y ~3 puntos de acierto.']);
   // Caso muy frecuente y que sin explicación se lee como si el sistema fallara:
   // hay cuotas de ganador pero Betano todavía no abrió el mercado de método, que
   // es justo el único con ventaja demostrada. Sin este aviso el usuario ve una
   // pantalla entera de "sin ventaja clara" y no sabe si es culpa del modelo.
   const hayMetodo = d.patas.some(p => p.mercado !== 'ganador');
-  if (d.con_cuotas && !hayMetodo) av.push(['warn','⏳',
-    '<b>Betano todavía no abre el mercado de método para esta cartelera.</b> Por ahora solo publica "Ganador", que es precisamente el mercado donde las pruebas <b>no</b> encontraron ventaja — por eso todas las selecciones salen como <i>sin ventaja clara</i>. No es un fallo del modelo ni falta de datos. Los mercados de método (KO / sumisión / decisión) suelen abrirse en los días previos al evento: vuelve a refrescar más cerca de la fecha y aparecerán las selecciones <i>probadas</i>.']);
-  if (d.missing.length) av.push(['warn','🔍',
+  if (d.con_cuotas && !hayMetodo) av.push(['warn','info',
+    '<b>Betano todavía no abre el mercado de método para esta cartelera.</b> Por ahora solo publica "Ganador", que es precisamente el mercado donde las pruebas <b>no</b> encontraron ventaja; por eso todas las selecciones salen como <i>sin ventaja clara</i>. No es un fallo del modelo ni falta de datos. Los mercados de método (KO / sumisión / decisión) suelen abrirse en los días previos al evento: vuelve a refrescar más cerca de la fecha y aparecerán las selecciones <i>probadas</i>.']);
+  if (d.missing.length) av.push(['warn','duda',
     `No encontré a estos peleadores en ninguna fuente, probablemente son debutantes absolutos: <b>${d.missing.map(esc).join(', ')}</b>. Sus peleas se omiten en vez de inventar datos.`]);
-  const sosp = d.peleas.filter(p => (p.metodo6 || []).some(o => o.sospechoso));
-  if (sosp.length) av.push(['err','🚩',
-    `Las cuotas de método de ${sosp.length} pelea(s) son <b>demasiado generosas para ser reales</b>. Suelen indicar números escritos a mano en vez de bajados de la casa. Como el valor se calcula con el precio, esas peleas mostrarían valor falso, así que quedan bloqueadas.`]);
   const nMov = Object.keys(mov).length;
-  if (nMov) av.push(['info','📈',
-    `<b>${nMov} cuota(s) se movieron</b> desde el refresco anterior. En la tabla salen con ▲ o ▼; pasa el mouse por encima para ver el valor de antes.`]);
+  if (nMov) av.push(['info','mov',
+    `<b>${nMov} cuota(s) se movieron</b> desde el refresco anterior. En las tarjetas y en la tabla salen con ▲ o ▼; pasa el mouse por encima para ver el valor de antes.`]);
   $('#avisos').innerHTML = av.map(([t,i,m]) =>
-    `<div class="aviso ${t}"><span class="ai">${i}</span><div>${m}</div></div>`).join('');
+    `<div class="aviso ${t}"><span class="ai">${ico(i)}</span><div>${m}</div></div>`).join('');
 
   /* ---- KPIs ---- */
   const apuestas = recolectarApuestas(d);
@@ -181,42 +295,45 @@ function pintarCartelera(d, mov) {
   const solidas = d.peleas.filter(p => ['fuerte','buena'].includes(p.confianza)).length;
   $('#tarjetas-kpi').innerHTML = `
     <div class="kpi"><div class="v">${d.peleas.length}</div><div class="k">peleas analizadas</div></div>
-    <div class="kpi"><div class="v">${solidas}</div><div class="k">pronósticos sólidos (65%+)</div></div>
+    <div class="kpi"><div class="v">${solidas}</div><div class="k">pronósticos sólidos (65${NBSP_FINO}%+)</div></div>
     <div class="kpi"><div class="v ${noFiables ? 'neg' : ''}">${noFiables}</div>
       <div class="k">sin datos suficientes</div></div>
     <div class="kpi"><div class="v ${validas.length ? 'pos' : ''}">${validas.length}</div>
       <div class="k">apuestas sugeridas</div></div>`;
 
   /* ---- qué apostar ---- */
+  // Zócalos agrupados por evidencia. La explicación de cada nivel va una vez
+  // por grupo: repetida en cada fila tapaba lo que cambia de una a otra.
   const descartes = apuestas.filter(a => a.pocos.length);
   let html = '';
   if (!validas.length) {
-    html += `<div class="aviso ok"><span class="ai">✓</span><div>
-      <b>Ninguna apuesta recomendada, y eso está bien.</b> Es el resultado más común:
-      la mayoría de las carteleras no ofrecen una ventaja medible sobre el precio de la
-      casa. Forzar una apuesta donde no hay valor es exactamente cómo se pierde dinero
-      a la larga.</div></div>`;
+    html += `<div class="sin-apuestas"><span class="marca-ok">${ico('ok')}</span><div>
+      <b>Ninguna apuesta recomendada, y eso está bien.</b>
+      <p>Es el resultado más común: la mayoría de las carteleras no ofrecen una ventaja
+      medible sobre el precio de la casa. Forzar una apuesta donde no hay valor es
+      exactamente cómo se pierde dinero a la larga.</p></div></div>`;
   } else {
-    html += validas.map(a => `
-      <div class="pick tier${a.tier}">
-        <div class="cab">
-          <span class="que"><span class="pill t${a.tier}">${a.tier==='A'?'Probado':'Sin ventaja clara'}</span>
-            ${esc(a.que)}</span>
-          <span><span class="sub" style="display:inline">paga</span>
-            <b>${a.cuota.toFixed(2)}</b> · <span class="${cls(a.ev)}">${sgn(a.ev)} de valor</span></span>
-        </div>
-        <div class="det">${esc(a.pelea)} — apostar el <b>${pct(a.kelly)}</b> de tu bankroll.
-          ${a.tier==='A'
-            ? 'Este mercado es el único con ventaja demostrada: +15,4% de retorno sobre 1.145 apuestas históricas.'
-            : 'Ojo: el mercado de ganador quedó en empate técnico con la casa en las pruebas, así que esto es un complemento, no una base.'}</div>
-      </div>`).join('');
+    for (const tier of ['A', 'B']) {
+      const del = validas.filter(a => a.tier === tier);
+      if (!del.length) continue;
+      const [nombre, porque] = TXT_TIER[tier];
+      html += `<div class="grupo-apuestas">${del.map(a => `
+        <div class="zocalo t${tier}">
+          <span class="z-sello">${nombre}</span>
+          <div class="z-que"><b>${esc(a.que)}</b><span>${esc(a.pelea)}</span></div>
+          <div class="z-dato"><small>apostar</small><b>${pct(a.kelly)}</b><small>de tu bankroll</small></div>
+          <div class="z-dato"><small>paga</small><b>${cuota(a.cuota)}</b></div>
+          <div class="z-dato z-valor"><small>valor</small><b class="${cls(a.ev)}">${sgn(a.ev)}</b></div>
+        </div>`).join('')}
+        <p class="grupo-motivo">${porque}</p></div>`;
+    }
     const exp = validas.reduce((s,a) => s + a.kelly, 0);
-    if (exp > 0.15) html += `<div class="aviso warn"><span class="ai">⚠</span><div>
+    if (exp > 0.15) html += `<div class="aviso warn"><span class="ai">${ico('alerta')}</span><div>
       Sumando todo estarías arriesgando el <b>${pct(exp)}</b> de tu bankroll en una sola
       noche. El cálculo de cuánto apostar asume que las apuestas son independientes, y
       las peleas de un mismo evento no lo son del todo.</div></div>`;
   }
-  if (descartes.length) html += `<div class="aviso warn"><span class="ai">🚫</span><div>
+  if (descartes.length) html += `<div class="aviso warn"><span class="ai">${ico('prohibido')}</span><div>
     <b>Descartadas por falta de datos:</b> ${descartes.map(a=>esc(a.que)).join(' · ')}.
     Mostraban valor, pero se apoyan en peleadores de los que casi no hay información.
     Cuando el dato es malo, el valor calculado también lo es.</div></div>`;
@@ -227,7 +344,12 @@ function pintarCartelera(d, mov) {
     ? 'Las probabilidades combinan el modelo con las cuotas de la casa, que es la versión más certera (~70% de acierto).'
     : 'Probabilidades del modelo solo, sin cuotas. Con cuotas acertaría ~3 puntos más.';
 
-  $('#peleas').innerHTML = d.peleas.map(p => tarjetaPelea(p, d)).join('');
+  const idEstelar = estelar(d.peleas, S.textosEvento || [d.titulo]);
+  const principal = d.peleas.find(p => p.id === idEstelar);
+  const resto = d.peleas.filter(p => p.id !== idEstelar);
+  $('#peleas').innerHTML = `<div class="peleas-lista">${
+    principal ? octagonoEstelar(principal, mov) : ''}${resto.map(p => tarjetaPelea(p, mov)).join('')}</div>`;
+  cargarFotos($('#peleas'));
   $$('#peleas [data-explica]').forEach(b => b.onclick = () => {
     const p = d.peleas.find(x => x.id === b.dataset.explica);
     modal(`<h2>${esc(p.a)} vs ${esc(p.b)}</h2>
@@ -236,10 +358,12 @@ function pintarCartelera(d, mov) {
   });
 
   tabla('#tabla-principal',
-    ['Pelea','Ganador','Probabilidad','Confianza','Termina por','No llega a tarjetas','Comparado con lo normal'],
+    ['Pelea','Ganador','Probabilidad','Cuotas','Confianza','Termina por','No llega a tarjetas','Comparado con lo normal'],
     d.peleas.map(p => {
       const pg = Math.max(p.p_a, p.p_b);
+      const m = p.mercado;
       return [esc(`${p.a} vs ${p.b}`), esc(p.ganador), td(pct(pg)),
+        td(m ? `${cuota(m.cuota_a)}${flecha(mov, p.id, 'A')} / ${cuota(m.cuota_b)}${flecha(mov, p.id, 'B')}` : 'sin cuotas'),
         `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>`,
         mejorMetodo(p.metodo), td(pct(p.p_finish,0)), esc(p.tendencia)];
     }));
@@ -263,69 +387,133 @@ function recolectarApuestas(d) {
   return out.sort((x,y) => x.orden - y.orden || y.ev - x.ev);
 }
 
-function tarjetaPelea(p, d) {
-  const ganaA = p.p_a >= p.p_b;
-  const met = [['KO/TKO','KO/TKO'],['Submission','Sumisión'],['Decision','Decisión']];
-  const maxMet = Math.max(...met.map(([k]) => p.metodo[k] || 0));
-  const m = p.mercado;
-  return `
-  <div class="pelea">
-    <div class="pelea-cab">
-      <span class="pelea-seg">${esc(p.segmento) || 'pelea'}</span>
-      <span>
-        <span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>
-        <button class="icono" data-explica="${p.id}" title="¿Qué significa?"
-                style="padding:2px 8px;font-size:12px">?</button>
-      </span>
-    </div>
-
-    <div class="duelo">
-      <div class="esquina a">
-        <span class="lado-nombre ${ganaA?'gana':''}">${esc(p.a)}</span>
-        <span class="lado-pct ${ganaA?'gana':''}">${pct(p.p_a)}</span>
-      </div>
-      <div class="esquina b">
-        <span class="lado-nombre ${!ganaA?'gana':''}">${esc(p.b)}</span>
-        <span class="lado-pct ${!ganaA?'gana':''}">${pct(p.p_b)}</span>
-      </div>
-      <div class="barra-dual">
-        <i class="ba" style="width:${p.p_a*100}%"></i><i class="bb" style="width:${p.p_b*100}%"></i>
-      </div>
-    </div>
-
-    <div class="metodo-fila">
-      ${met.map(([k,lbl]) => {
-        const v = p.metodo[k] || 0;
-        return `<div class="met ${v===maxMet?'top':''}">
-          <span class="mk">${lbl}</span><span class="mv">${Math.round(v*100)}%</span>
-          <span class="mbar"><i style="width:${v*100}%"></i></span></div>`; }).join('')}
-    </div>
-
-    <div class="pelea-pie">
-      <span><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</span>
-      <span>${p.tendencia === 'pelea promedio'
-        ? 'Nada la distingue de una pelea promedio'
-        : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>`}</span>
-    </div>
-
-    ${p.confianza === 'NO FIABLE'
-      ? `<div class="explica alerta">${p.por_que_confianza}</div>` : ''}
-
-    ${m ? `<div class="mercado-mini">
-        <span>Cuotas: <b>${m.cuota_a?m.cuota_a.toFixed(2):'—'}</b> / <b>${m.cuota_b?m.cuota_b.toFixed(2):'—'}</b></span>
-        <span>La casa da al primero <b>${pct(m.p_mercado_a)}</b></span>
-        <span>El modelo solo, <b>${pct(m.p_modelo_a)}</b></span>
-        <span>Comisión de la casa: <b>${pct(m.vig)}</b></span>
-      </div>` : ''}
-  </div>`;
+// La pelea estelar, si se puede saber con certeza: el CSV la rotula "Estelar",
+// o los dos apellidos de UNA pelea están en el nombre de la cartelera
+// ("gamrot_vs_salkilld"). Si no, ninguna: mejor sin octágono que en la pelea
+// equivocada.
+const plano = (s) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function estelar(peleas, textos) {
+  const porSegmento = peleas.filter(p => /^\s*(estelar|main event)\b/i.test(p.segmento || ''));
+  if (porSegmento.length) return porSegmento.length === 1 ? porSegmento[0].id : null;
+  const palabras = new Set(plano(textos.join(' ')).split(' '));
+  const apellido = (n) => plano(n).split(' ').pop();
+  const cand = peleas.filter(p => palabras.has(apellido(p.a)) && palabras.has(apellido(p.b)));
+  return cand.length === 1 ? cand[0].id : null;
 }
 
 const claseConf = (c) => c.toLowerCase().replace(/\s+/g,'');
 const td = (t) => `<td class="num">${t}</td>`;
+function flecha(mov, id, lado) {
+  const m = mov[`${id}:ML:${lado}`];
+  if (!m || m.antes === m.ahora) return '';
+  return `<span class="mov" title="antes ${cuota(m.antes)}">${m.ahora > m.antes ? '▲' : '▼'}</span>`;
+}
+const peleasUFC = (info) => {
+  if (!info || info.n_peleas_hist == null) return '';
+  const n = Number(info.n_peleas_hist);
+  return n === 0 ? 'ninguna pelea en UFC' : `${n} pelea${n === 1 ? '' : 's'} en UFC`;
+};
+
+// Las filas en espejo: lo mismo para cada esquina, enfrentado por el medio.
+function espejo(p, mov) {
+  const m = p.mercado;
+  if (!m) return '';
+  const fila = (a, lbl, b) => `<div><b>${a}</b><span>${lbl}</span><b class="r">${b}</b></div>`;
+  return `<div class="espejo">
+    ${fila(cuota(m.cuota_a) + flecha(mov, p.id, 'A'), 'cuota', cuota(m.cuota_b) + flecha(mov, p.id, 'B'))}
+    ${fila(pct(m.p_mercado_a), 'le da la casa', pct(1 - m.p_mercado_a))}
+    ${fila(pct(m.p_modelo_a), 'el modelo solo', pct(1 - m.p_modelo_a))}
+  </div>`;
+}
+
+function barraDuelo(p) {
+  const favA = p.p_a >= p.p_b;
+  return `<div class="duelo-barra" role="img" aria-label="${esc(p.a)} ${pct(p.p_a)}, ${esc(p.b)} ${pct(p.p_b)}">
+    <i class="${favA ? 'fav' : ''}" style="width:${p.p_a * 100}%"></i><i class="${favA ? '' : 'fav'}" style="width:${p.p_b * 100}%"></i></div>`;
+}
+
+function metodoFila(p) {
+  const met = [['KO/TKO','KO/TKO'],['Submission','Sumisión'],['Decision','Decisión']];
+  const maxMet = Math.max(...met.map(([k]) => p.metodo[k] || 0));
+  return `<div class="metodo">${met.map(([k, lbl]) => {
+    const v = p.metodo[k] || 0;
+    return `<div class="${v === maxMet ? 'top' : ''}"><span class="mv">${fmt(v * 100, 0)}${NBSP_FINO}%</span><span class="mk">${lbl}</span>
+      <span class="mbar"><i style="width:${v * 100}%"></i></span></div>`;
+  }).join('')}</div>`;
+}
+
+function piePelea(p) {
+  const m = p.mercado;
+  return `<div class="pelea-pie">
+    <span><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</span>
+    <span>${p.tendencia === 'pelea promedio'
+      ? 'Nada la distingue de una pelea promedio'
+      : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>`}</span>
+    ${m ? `<span>Comisión de la casa: <b>${pct(m.vig)}</b></span>` : ''}
+  </div>`;
+}
+
+const selloConf = (p) => `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>
+  <button class="btn-q" data-explica="${p.id}" title="¿Qué significa?" aria-label="¿Qué significa ${esc(p.confianza)}?">?</button>`;
+
+function tarjetaPelea(p, mov) {
+  const favA = p.p_a >= p.p_b;
+  return `
+  <article class="pelea">
+    <div class="cara-top">${p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : ''}${selloConf(p)}</div>
+    <div class="cara">
+      ${retrato(p.a)}
+      <div class="centro">
+        <div class="vs-nombres"><span class="n">${esc(p.a)}</span><span class="x">vs</span><span class="n b">${esc(p.b)}</span></div>
+        <div class="vs-sub"><span>${peleasUFC(p.info_a)}</span><span>${peleasUFC(p.info_b)}</span></div>
+        <div class="pcts"><span class="${favA ? '' : 'menos'}">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}">${pct(p.p_b)}</span></div>
+        ${barraDuelo(p)}
+        ${espejo(p, mov)}
+      </div>
+      ${retrato(p.b)}
+    </div>
+    ${metodoFila(p)}
+    ${piePelea(p)}
+    ${p.confianza === 'NO FIABLE' ? `<div class="explica alerta">${ico('alerta')}<div>${p.por_que_confianza}</div></div>` : ''}
+  </article>`;
+}
+
+// La estelar va en el octágono: los porcentajes, la barra y lo que dicen la
+// casa y el modelo adentro de la jaula; los retratos afuera, mirando al centro.
+function octagonoEstelar(p, mov) {
+  const favA = p.p_a >= p.p_b;
+  return `
+  <article class="estelar">
+    <header class="estelar-cab">
+      <span class="estelar-kicker">Pelea estelar${p.segmento ? ` <small>${esc(p.segmento)}</small>` : ''}</span>
+      <span>${selloConf(p)}</span>
+    </header>
+    <div class="estelar-ring">
+      <div class="esquina-e a">${retrato(p.a)}<div class="nombre">${esc(p.a)}</div><div class="u">${peleasUFC(p.info_a)}</div></div>
+      <div class="octagono">
+        <div class="lona">
+          <svg class="oct-linea" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <polygon points="29.3,0.6 70.7,0.6 99.4,29.3 99.4,70.7 70.7,99.4 29.3,99.4 0.6,70.7 0.6,29.3"
+              fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+          <div class="oct-pcts"><span class="${favA ? '' : 'menos'}">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}">${pct(p.p_b)}</span></div>
+          ${barraDuelo(p)}
+          ${espejo(p, mov)}
+          <p class="oct-pie"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</p>
+        </div>
+      </div>
+      <div class="esquina-e b">${retrato(p.b)}<div class="nombre">${esc(p.b)}</div><div class="u">${peleasUFC(p.info_b)}</div></div>
+    </div>
+    ${metodoFila(p)}
+    ${piePelea(p)}
+    ${p.confianza === 'NO FIABLE' ? `<div class="explica alerta">${ico('alerta')}<div>${p.por_que_confianza}</div></div>` : ''}
+  </article>`;
+}
+
 function mejorMetodo(m) {
   const k = Object.keys(m).reduce((a,b) => m[a] > m[b] ? a : b);
   const n = {'KO/TKO':'KO/TKO','Submission':'sumisión','Decision':'decisión'}[k];
-  return `${n} (${Math.round(m[k]*100)}%)`;
+  return `${n} (${fmt(m[k]*100, 0)}${NBSP_FINO}%)`;
 }
 function tabla(sel, cab, filas) {
   $(sel).innerHTML =
@@ -429,14 +617,14 @@ function pintarPatas() {
           </div>
           <div class="probs">
             <span title="Lo que dice el modelo por su cuenta, sin mirar la cuota">
-              modelo <b>${p.p_modelo != null ? pct(p.p_modelo) : '—'}</b></span>
+              modelo <b>${p.p_modelo != null ? pct(p.p_modelo) : 'sin dato'}</b></span>
             <span title="El modelo combinado con la línea de la casa. Es la estimación más certera de las dos (~70% de acierto contra 67%).">
               con la cuota <b>${pct(p.p)}</b></span>
           </div>
         </div>
         <div class="precio">
-          <span class="cuota">${p.cuota.toFixed(2)}</span>
-          <span class="${cls(p.ev)}" style="font-size:12.5px">${sgn(p.ev)}</span>
+          <span class="cuota">${cuota(p.cuota)}</span>
+          <span class="ev ${cls(p.ev)}">${sgn(p.ev)}</span>
         </div>
       </div>
       <div class="porque"><b class="${k}">${ico} ${lbl}.</b> ${esc(p.por_que)}</div>
@@ -491,7 +679,7 @@ function pintarPatas() {
       const p = S.patas.find(x => x.id === id);
       barra(bl.tipo === 'excluyente'
         ? `"${p.seleccion}" y "${bl.contra.seleccion}" no pueden pasar las dos a la vez, así que ninguna casa acepta esa combinada.`
-        : `"${p.seleccion}" ya está contenida en "${bl.contra.seleccion}". Betano casi no sube la cuota al combinarlas —a veces ni la sube— porque estarías pagando dos veces por la misma información.`);
+        : `"${p.seleccion}" ya está contenida en "${bl.contra.seleccion}". Betano casi no sube la cuota al combinarlas (a veces ni la sube) porque estarías pagando dos veces por la misma información.`);
       return;
     }
     const i = S.elegidas.indexOf(id);
@@ -507,7 +695,7 @@ function pintarPatas() {
     ? S.elegidas.map(id => { const p = byId[id];
         return `<div class="boleto-item">
           <span>${esc(p.seleccion)}<br><span class="sub">${esc(p.pelea)}</span></span>
-          <span style="white-space:nowrap"><b>${p.cuota.toFixed(2)}</b>
+          <span class="boleto-cuota"><b>${cuota(p.cuota)}</b>
             <button data-q="${id}" title="Quitar">×</button></span>
         </div>`; }).join('')
     : `<div class="boleto-vacio">Toca una selección de la izquierda para agregarla.</div>`;
@@ -537,7 +725,7 @@ async function evaluarParlay() {
       <div class="veredicto ${r.nivel}">${esc(r.veredicto)}</div>
       <div class="metricas">
         <div class="metrica"><div class="k">Paga</div>
-          <div class="v">${r.cuota_combinada.toFixed(2)}×</div>
+          <div class="v">${cuota(r.cuota_combinada)}×</div>
           <div class="expl">$1.000 se convierten en $${miles(Math.round(r.pago_por_1000))}</div></div>
         <div class="metrica"><div class="k">Valor</div>
           <div class="v ${cls(r.ev)}">${sgn(r.ev)}</div>
@@ -568,13 +756,13 @@ async function evaluarParlay() {
 
 /* ============================== CARGAR ================================ */
 $('#btn-refresh').onclick = async () => {
-  try { await post('/api/refrescar'); barra('⏳ refrescando cuotas…'); }
+  try { await post('/api/refrescar'); barra('refrescando cuotas…'); }
   catch (e) { barra(e.message,'error'); }
 };
 
 // Carteleras de Betano: se listan SOLAS al entrar a la pestaña y cada una
 // predice con un clic. Antes había que apretar un botón, leer los nombres y
-// escribir el nombre a mano en el campo de abajo — tres pasos para algo que
+// escribir el nombre a mano en el campo de abajo: tres pasos para algo que
 // Betano ya nos está diciendo.
 let carterasCargadas = false;
 
@@ -614,7 +802,7 @@ async function listarCarteleras(forzar) {
       try {
         await post('/api/cartelera/betano',
                    { query: b.dataset.q, fecha: b.dataset.fecha || null });
-        barra('⏳ bajando cuotas y prediciendo… puede tardar un minuto.');
+        barra('bajando cuotas y prediciendo… puede tardar un minuto.');
         irA('cartelera');
       } catch (e) { barra(e.message, 'error'); }
     });
@@ -632,7 +820,7 @@ $('#btn-cargar-betano').onclick = async () => {
   if (!q) { barra('Escribe parte del nombre de la cartelera, o toca "Ver qué carteleras hay".','error'); return; }
   try {
     await post('/api/cartelera/betano', { query:q });
-    barra('⏳ bajando cuotas de Betano… puede tardar un minuto.'); irA('cartelera');
+    barra('bajando cuotas de Betano… puede tardar un minuto.'); irA('cartelera');
   } catch (e) { barra(e.message,'error'); }
 };
 
@@ -642,7 +830,7 @@ $('#btn-subir').onclick = async () => {
   const fd = new FormData(); fd.append('archivo', f);
   try {
     await api('/api/cartelera/subir', { method:'POST', body:fd });
-    barra('⏳ analizando la cartelera…'); irA('cartelera');
+    barra('analizando la cartelera…'); irA('cartelera');
   } catch (e) { barra(e.message,'error'); }
 };
 
@@ -657,7 +845,7 @@ async function cargarCSVs() {
       : '<p class="nota">Todavía no hay ninguna cartelera guardada.</p>';
     $$('#lista-csvs button').forEach(b => b.onclick = async () => {
       try { await post('/api/cartelera/csv', { nombre:b.dataset.n });
-            barra('⏳ analizando la cartelera…'); irA('cartelera'); }
+            barra('analizando la cartelera…'); irA('cartelera'); }
       catch (e) { barra(e.message,'error'); }
     });
   } catch (e) { $('#lista-csvs').innerHTML = `<div class="aviso err"><span class="ai">✕</span>
@@ -685,7 +873,7 @@ async function cargarTareas() {
     <div class="tarea">
       <h4>${esc(r.nombre)}</h4>
       <p>${esc(r.descripcion)}</p>
-      <span class="tiempo">⏱ ${esc(r.minutos)}${r.pasos>1?` · ${r.pasos} pasos`:''}</span>
+      <span class="tiempo">${esc(r.minutos)}${r.pasos>1?` · ${r.pasos} pasos`:''}</span>
       <button class="primario" data-r="${r.id}" ${t.ocupado?'disabled':''}>Ejecutar</button>
     </div>`).join('');
   $$('#lista-tareas button').forEach(b => b.onclick = async () => {
@@ -709,13 +897,13 @@ async function seguirJob() {
       if (abajo) log.scrollTop = log.scrollHeight;
     }
     const paso = j.total_pasos > 1 ? ` · paso ${j.paso} de ${j.total_pasos}` : '';
-    $('#job-estado').textContent = `${j.nombre} — ${j.estado}${paso} · ${j.segundos}s`;
+    $('#job-estado').textContent = `${j.nombre}: ${j.estado}${paso} · ${j.segundos}${NBSP_FINO}s`;
     if (j.estado !== 'corriendo') {
       S.job = null;
       $('#btn-cancelar').classList.add('oculto');
       cargarTareas();
-      barra(j.estado==='ok' ? `✓ "${j.nombre}" terminó correctamente.`
-                            : `✕ "${j.nombre}" terminó con estado: ${j.estado}. Revisa el registro.`,
+      barra(j.estado==='ok' ? `"${j.nombre}" terminó correctamente.`
+                            : `"${j.nombre}" terminó con estado: ${j.estado}. Revisa el registro.`,
             j.estado==='ok' ? '' : 'error');
       setTimeout(() => barra(''), 8000);
     }
@@ -745,7 +933,7 @@ $('#btn-cancelar').onclick = () => S.job && post(`/api/tareas/${S.job}/cancelar`
     barra.classList.toggle('oculta', ocultar);
     // El boleto del parlay es sticky y se posiciona bajo la barra: si la barra
     // se fue, puede subir también en vez de dejar un hueco.
-    document.documentElement.style.setProperty('--tope', ocultar ? '18px' : '118px');
+    document.documentElement.style.setProperty('--tope', ocultar ? '0px' : barra.offsetHeight + 'px');
     ultimo = y;
   };
 
@@ -762,7 +950,7 @@ $('#btn-cancelar').onclick = () => S.job && post(`/api/tareas/${S.job}/cancelar`
   // Cambiar de pestaña vuelve al tope: la barra tiene que reaparecer.
   $$('.tab').forEach(t => t.addEventListener('click', () => {
     barra.classList.remove('oculta');
-    document.documentElement.style.setProperty('--tope', '118px');
+    document.documentElement.style.setProperty('--tope', barra.offsetHeight + 'px');
     ultimo = 0;
   }));
 })();
