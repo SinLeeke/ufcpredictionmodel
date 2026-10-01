@@ -162,9 +162,22 @@ def ajustar_calibrador(p_mercado, p_modelo, y, guardar: bool = True) -> dict:
     """
     from sklearn.linear_model import LogisticRegression
 
-    X = np.column_stack([_logit(p_mercado), _logit(p_modelo)])
-    lr = LogisticRegression(C=1e6, max_iter=1000).fit(X, np.asarray(y))
-    cal = {"intercepto": float(lr.intercept_[0]),
+    # SE AJUSTA SOBRE LAS DOS ORIENTACIONES, y por eso el intercepto sale 0.
+    #
+    # Ajustado solo en la orientación del dataset (A = esquina roja), el
+    # intercepto salía +0,08 (t=2,7): en Kaggle la roja gana 57% y el mercado le
+    # da 54,7%. Pero al predecir, A es quien venga primero en el CSV, y ese
+    # +1,9 pts a probabilidad pareja (casi todo el umbral de VALOR, 2 pts) se lo
+    # llevaba la columna A fuera o no la roja. El orden de Betano no está
+    # verificado. Medido en walk-forward 2021-2026, sin intercepto le gana al
+    # promedio de las dos orientaciones en 6/6 (-0,0012 de log loss); aun
+    # suponiendo A = roja siempre, el intercepto solo ganaba 3/6 (+0,0005).
+    p_m, p_k, y = np.asarray(p_mercado, float), np.asarray(p_modelo, float), np.asarray(y)
+    X = np.vstack([np.column_stack([_logit(p_m), _logit(p_k)]),
+                   np.column_stack([_logit(1 - p_m), _logit(1 - p_k)])])
+    lr = LogisticRegression(C=1e6, max_iter=1000, fit_intercept=False).fit(
+        X, np.concatenate([y, 1 - y]))
+    cal = {"intercepto": 0.0,
            "peso_mercado": float(lr.coef_[0][0]),
            "peso_modelo": float(lr.coef_[0][1]),
            "n": int(len(y))}

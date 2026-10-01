@@ -55,5 +55,20 @@ class SimetriaDelMetodo(unittest.TestCase):
         self.assertAlmostEqual(ab["A_FIN"]["p_modelo"], ba["B_FIN"]["p_modelo"], places=9)
 
 
+class CalibradorDeGanador(unittest.TestCase):
+
+    def test_la_mezcla_no_favorece_a_la_columna_a(self):
+        # BUG: el intercepto (+0,076) aprendía que en el dataset la esquina roja
+        # gana más de lo que dice el mercado. Al predecir, ese +1,9 pts se lo
+        # llevaba quien estuviera en la columna A del CSV, sea o no la roja.
+        rng = np.random.default_rng(0)
+        pm = rng.uniform(0.2, 0.8, 4000)
+        pmod = np.clip(pm + rng.normal(0, 0.08, 4000), 0.05, 0.95)
+        y = (rng.uniform(size=4000) < np.clip(pm + 0.03, 0, 1)).astype(int)   # "esquina roja"
+        cal = V.ajustar_calibrador(pm, pmod, y, guardar=False)
+        for a, b in ((0.5, 0.5), (0.62, 0.55), (0.30, 0.40)):
+            self.assertAlmostEqual(V.combinar(a, b, cal), 1 - V.combinar(1 - a, 1 - b, cal), places=9)
+
+
 if __name__ == "__main__":
     unittest.main()
