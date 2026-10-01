@@ -42,7 +42,6 @@ from scipy.optimize import minimize
 from xgboost import XGBClassifier
 
 import config as C
-from modelado.train_model import ventana
 from src.features import columnas_disponibles
 
 CACHE = C.DATA_PROCESSED / "walkforward_metodo.csv"
@@ -155,11 +154,10 @@ def predicciones_walk_forward(df: pd.DataFrame, primer_anio: int) -> pd.DataFram
     df = df.reset_index(drop=True)
     salida = []
     for anio in sorted(a for a in df["date"].dt.year.unique() if a >= primer_anio):
-        # Misma ventana que producción (y que entrenar_modelo6). Antes entrenaba
-        # con TODO el historial, mezclando las dos escalas de golpeo de Kaggle
-        # (por pelea hasta 2018, por minuto desde 2020). Medido 2021-2026 en el
-        # modelo de 6 clases: log loss mejor en 5/6, -0,0144 de media.
-        train = ventana(df, f"{anio - 1}-12-31")
+        # TODO el historial, a propósito (ver entrenar_modelo6): con la ventana
+        # de 5 años el log loss del modelo mejora, pero el ROI de las decisiones
+        # se cae, y en este mercado la métrica que importa es el ROI.
+        train = df[df["date"].dt.year < anio]
         test = df[df["date"].dt.year == anio]
         if len(train) < 500 or test.empty:
             continue
@@ -187,11 +185,21 @@ def predicciones_walk_forward(df: pd.DataFrame, primer_anio: int) -> pd.DataFram
 
 def entrenar_modelo6(full: pd.DataFrame):
     """
-    (modelo, columnas, filas) del modelo de 6 clases que usa card.py, con la
-    misma ventana que el modelo de producción de ganador. Antes entrenaba con
-    todo desde 2010, mezclando las dos escalas de golpeo de Kaggle.
+    (modelo, columnas, filas) del modelo de 6 clases que usa card.py.
+
+    Entrena con TODO el historial, no con la ventana de 5 años del modelo de
+    ganador, Y ESO ESTÁ MEDIDO — no "arreglarlo" sin leer esto:
+
+    La ventana parecía obvia: el dataset de Kaggle cambió de escala en 2019
+    (golpes por pelea hasta 2018, por minuto desde 2020) y con 5 años el log
+    loss del modelo de 6 clases mejora en 5/6 años (2021-2026, -0,0144). Se
+    implementó y se midió el ROI de lo que de verdad se apuesta, con los
+    mismos datos: decisiones con EV >= 0 en 2018-2024,
+        todo el historial  1.145 apuestas  +15,4%  t=3,0  (7/7 años positivos)
+        ventana 5 años     1.049 apuestas   +7,0%  t=1,3  (5/7)
+    y año a año el historial completo gana en 8 de 9. Mejor log loss no es
+    mejor apuesta: en este mercado manda el ROI, así que se revirtió.
     """
-    full = ventana(full, full["date"].max())
     cols = columnas_disponibles(full, con_oposicion=False)
     return _modelo().fit(full[cols], full["y6"]), cols, len(full)
 
@@ -443,7 +451,7 @@ def main():
         with open(MODELO6, "wb") as fh:
             pickle.dump({"modelo": m, "cols": cols}, fh)
         print(f"  [ok] modelo de 6 clases guardado -> {MODELO6.name} "
-              f"({n} filas, ventana {C.TRAIN_WINDOW_YEARS} años)")
+              f"({n} filas, todo el historial)")
         print("       card.py lo usará si el CSV trae las 6 cuotas de método.")
     except SystemExit:
         raise

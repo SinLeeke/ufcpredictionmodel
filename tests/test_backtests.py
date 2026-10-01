@@ -1,11 +1,13 @@
 """
-Pruebas de los walk-forward que generan los calibradores y el modelo de 6 vías:
-que entrenen con la misma ventana de 5 años que el modelo de producción.
+Pruebas de con qué historial entrenan los walk-forward que generan los
+calibradores y el modelo de 6 vías. Las dos decisiones están medidas:
 
-Medido (2021-2026): con la ventana, el modelo de 6 clases mejora el log loss en
-5/6 (-0,0144) y el de ganador del walk-forward en 4/6 (-0,0045). Además el
-dataset de Kaggle cambió de escala en 2019 (golpes POR PELEA hasta 2018, POR
-MINUTO desde 2020): entrenar con todo mezclaba las dos.
+  * GANADOR (backtest_valor): ventana de 5 años, igual que el modelo de
+    producción. Log loss 4/6 (-0,0045), AUC 4/6 (+0,0068) en 2021-2026.
+  * MÉTODO (backtest_metodo): TODO el historial, a propósito. La ventana mejora
+    el log loss del modelo (5/6) pero baja el ROI de las decisiones en
+    2018-2024 de +15,4% (t=3,0) a +7,0% (t=1,3), y año a año pierde 8 de 9. En
+    ese mercado manda el ROI. Estas pruebas evitan que alguien lo "arregle".
 """
 import unittest
 from unittest import mock
@@ -65,18 +67,16 @@ class Ventana(unittest.TestCase):
         self.assertGreaterEqual(self._min_fecha_entrenada(BV, 2, df),
                                 pd.Timestamp("2021-12-31") - pd.DateOffset(years=C.TRAIN_WINDOW_YEARS))
 
-    def test_walk_forward_de_metodo_usa_la_ventana(self):
+    def test_walk_forward_de_metodo_usa_todo_el_historial(self):
         df = _dataset()
-        self.assertGreaterEqual(self._min_fecha_entrenada(BM, 6, df),
-                                pd.Timestamp("2021-12-31") - pd.DateOffset(years=C.TRAIN_WINDOW_YEARS))
+        self.assertEqual(self._min_fecha_entrenada(BM, 6, df), df.date.min())
 
-    def test_modelo_final_de_6_vias_usa_la_ventana(self):
+    def test_modelo_final_de_6_vias_usa_todo_el_historial(self):
         df = _dataset()
         grab = _Grabadora(6)
         with mock.patch.object(BM, "_modelo", lambda: grab):
             BM.entrenar_modelo6(df)
-        self.assertGreaterEqual(df.loc[grab.vistos[-1], "date"].min(),
-                                df.date.max() - pd.DateOffset(years=C.TRAIN_WINDOW_YEARS))
+        self.assertEqual(df.loc[grab.vistos[-1], "date"].min(), df.date.min())
 
 
 if __name__ == "__main__":
