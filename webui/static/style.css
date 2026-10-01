@@ -1199,6 +1199,44 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 .acta.estelar .ac-gana{font-size:26px}
 .acta.estelar .ac-timbre .pill{font-size:17px;padding:8px 14px 7px}
 
+/* --- Combinada: la boleta. Cada selección es un renglón de formulario con
+   su casilla (el visto, a lápiz); el boleto es un ticket con el borde
+   perforado y las cifras a máquina, como un comprobante. --- */
+[data-estilo="juez"] .explicacion-tiers{border:1.5px solid var(--forma)}
+[data-estilo="juez"] .tier-mini+.tier-mini{border-left-color:var(--forma)}
+[data-estilo="juez"] .col-patas{border:1.5px solid var(--forma)}
+[data-estilo="juez"] .patas-cab{border-bottom:5px double var(--forma)}
+[data-estilo="juez"] .patas-cab h2::before,[data-estilo="juez"] .pelea-grupo-cab::before,
+[data-estilo="juez"] .guia h2::before{width:11px;height:11px;background:var(--forma);transform:none}
+[data-estilo="juez"] .pelea-grupo-cab{font:700 15px/1.2 var(--maquina);letter-spacing:-.01em;color:var(--txt)}
+[data-estilo="juez"] .mercado-cab{border-bottom-color:var(--forma)}
+[data-estilo="juez"] .pata{background:var(--sup);border:1px solid var(--forma)}
+[data-estilo="juez"] .pata:hover{border-color:var(--txt)}
+[data-estilo="juez"] .pata.elegida{background:var(--sup2);border-color:var(--txt);box-shadow:inset 0 0 0 1px var(--txt)}
+[data-estilo="juez"] .pata.bloqueada{background:repeating-linear-gradient(-45deg,transparent 0 7px,var(--sup2) 7px 8px),var(--sup)}
+[data-estilo="juez"] .pata .sel{font:700 16px/1.15 var(--maquina);letter-spacing:-.01em}
+[data-estilo="juez"] .pata .cuota{font:700 24px/1 var(--maquina);letter-spacing:-.05em}
+[data-estilo="juez"] .pata .ev,[data-estilo="juez"] .pata .probs b{font-family:var(--maquina);font-weight:700;letter-spacing:-.04em}
+[data-estilo="juez"] .pata-estado{border-color:var(--forma);color:var(--forma);background:var(--sup)}
+[data-estilo="juez"] .pata.elegida .pata-estado,[data-estilo="juez"] .pata.elegida:hover .pata-estado{background:var(--sup);border-color:var(--lapiz);color:var(--lapiz)}
+[data-estilo="juez"] .pata.elegida .pata-estado .ico{width:19px;height:19px}
+[data-estilo="juez"] .boleto-caja{
+  -webkit-mask:radial-gradient(circle 6px at 50% 0,#0000 97%,#000) top/16px 51% repeat-x,
+               radial-gradient(circle 6px at 50% 100%,#0000 97%,#000) bottom/16px 51% repeat-x;
+          mask:radial-gradient(circle 6px at 50% 0,#0000 97%,#000) top/16px 51% repeat-x,
+               radial-gradient(circle 6px at 50% 100%,#0000 97%,#000) bottom/16px 51% repeat-x}
+[data-estilo="juez"] .boleto-cab{padding-top:20px;border-bottom:2px dashed var(--forma)}
+[data-estilo="juez"] .boleto-cab .ico{color:var(--forma)}
+[data-estilo="juez"] .boleto-cab .badge{font:700 20px/1 var(--maquina);letter-spacing:-.04em;color:var(--txt)}
+[data-estilo="juez"] .boleto-item{border-bottom:1px dotted var(--forma)}
+[data-estilo="juez"] .bi-que b{font:700 15px/1.15 var(--maquina);letter-spacing:-.01em}
+[data-estilo="juez"] .bi-cuota{font:700 20px/1 var(--maquina);letter-spacing:-.05em}
+[data-estilo="juez"] .campo-inline{border-top:5px double var(--forma)}
+[data-estilo="juez"] .campo-inline input{font:700 20px var(--maquina)}
+[data-estilo="juez"] .metricas{background:var(--forma);border-color:var(--forma)}
+[data-estilo="juez"] .metrica .v{font:700 27px/1.05 var(--maquina);letter-spacing:-.05em}
+[data-estilo="juez"] .boleto-vacio{border-color:var(--forma)}
+
 @media (max-width:1080px){
   [data-estilo="juez"] .peleas-lista{grid-template-columns:minmax(0,1fr)}
 }
