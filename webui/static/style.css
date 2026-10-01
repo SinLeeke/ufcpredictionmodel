@@ -1237,6 +1237,16 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 [data-estilo="juez"] .metrica .v{font:700 27px/1.05 var(--maquina);letter-spacing:-.05em}
 [data-estilo="juez"] .boleto-vacio{border-color:var(--forma)}
 
+/* --- Cargar: la programación como planilla --- */
+[data-estilo="juez"] .caja{border:1.5px solid var(--forma)}
+[data-estilo="juez"] .caja-cab{border-bottom:5px double var(--forma)}
+[data-estilo="juez"] .caja-cab>.ico{color:var(--forma)}
+[data-estilo="juez"] .cart{border-color:var(--forma);background:var(--sup)}
+[data-estilo="juez"] .cart-cuando{font-family:var(--maquina);font-weight:700;letter-spacing:-.02em;clip-path:none;padding:0 10px;border-right:1px solid var(--forma)}
+[data-estilo="juez"] .cart-cuerpo b{font:700 19px/1.1 var(--maquina);letter-spacing:-.01em}
+[data-estilo="juez"] .cart-ir{border-left-color:var(--forma)}
+[data-estilo="juez"] .elegir-archivo{border-color:var(--forma);background:var(--sup)}
+
 @media (max-width:1080px){
   [data-estilo="juez"] .peleas-lista{grid-template-columns:minmax(0,1fr)}
 }
