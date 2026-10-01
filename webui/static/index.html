@@ -251,23 +251,30 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
   </div>
   <div id="salud" class="salud"></div>
 
-  <div class="bloque-cab">
-    <h2>Tareas</h2>
-    <p class="nota">Se ejecuta <b>una a la vez</b>: casi todas escriben en los mismos
-      archivos de datos y dos en paralelo se pisarían.</p>
-    <p class="nota"><b>¿No sabes cuál lanzar?</b> Para el día a día <b>no necesitas
-      ninguna</b> — basta cargar la cartelera y mirar los pronósticos. Estas tareas son
-      para instalar la base la primera vez y para actualizarla cada tanto.
-      <button class="enlace" data-ir="guia">Ver el flujo completo en la Guía</button></p>
-  </div>
-  <div id="lista-tareas" class="cols"></div>
+  <section class="bloque">
+    <div class="bloque-cab">
+      <h2>Tareas</h2>
+      <p class="nota">Se ejecuta <b>una a la vez</b>: casi todas escriben en los mismos
+        archivos de datos y dos en paralelo se pisarían.</p>
+    </div>
+    <div class="consejo">
+      <span data-ico="idea"></span>
+      <p><b>¿No sabes cuál lanzar?</b> Para el día a día <b>no necesitas
+        ninguna</b>: basta cargar la cartelera y mirar los pronósticos. Estas tareas son
+        para instalar la base la primera vez y para actualizarla cada tanto.
+        <button class="enlace" data-ir="guia">Ver el flujo completo en la Guía</button></p>
+    </div>
+    <div id="lista-tareas" class="tareas"></div>
+  </section>
 
-  <div class="bloque-cab fila">
-    <h2>Registro</h2>
-    <span id="job-estado" class="sub">sin tareas corriendo</span>
-    <button id="btn-cancelar" class="peligro oculto">Cancelar</button>
-  </div>
-  <pre id="log"></pre>
+  <section class="bloque">
+    <div class="bloque-cab fila">
+      <h2>Registro</h2>
+      <span id="job-estado" class="sub">sin tareas corriendo</span>
+      <button id="btn-cancelar" class="peligro oculto"><span data-ico="stop"></span>Cancelar</button>
+    </div>
+    <pre id="log" aria-live="polite"></pre>
+  </section>
 </section>
 
 <!-- ========================== GUÍA ========================= -->

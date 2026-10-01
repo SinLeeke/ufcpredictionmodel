@@ -940,22 +940,36 @@ const NOMBRES_SALUD = {
   calibrador_metodo:'calibrador de método', features:'base de datos',
 };
 
+// La que hay que correr una vez al mes: la única con el botón principal. Con
+// nueve botones rojos iguales no había forma de saber por dónde empezar.
+const TAREA_DEL_MES = 'actualizar_bd';
+
 async function cargarTareas() {
   const [t,s] = await Promise.all([api('/api/tareas'), api('/api/salud')]);
-  $('#salud').innerHTML =
+  const fechaArchivo = (ts) => ts ? new Date(ts * 1000).toLocaleDateString('es-CL',
+    { day:'numeric', month:'short', year:'numeric' }) : '';
+  $('#salud').innerHTML = `<div class="tablero">${
     Object.entries(NOMBRES_SALUD).map(([k,lbl]) => {
       const hay = s[k]?.existe;
-      return `<div class="chip ${hay?'hay':'falta'}"><span class="cm">${hay?'✓':'✕'}</span> ${lbl}</div>`;
-    }).join('') +
-    `<div class="chip hay">entrena con los últimos ${s.ventana_anios} años</div>` +
-    `<div class="chip hay">${miles(s.simulaciones)} simulaciones por pelea</div>`;
+      return `<div class="estado ${hay?'hay':'falta'}">
+        <span class="luz">${ico(hay ? 'ok' : 'no')}</span>
+        <div><b>${lbl}</b><span class="sub">${hay
+          ? `listo · ${fechaArchivo(s[k].modificado)}` : 'falta: se crea con una tarea de abajo'}</span></div>
+      </div>`;
+    }).join('')}</div>
+    <div class="ajustes">
+      <div><span class="v">${s.ventana_anios}${NBSP_FINO}años</span><span class="k">de historia para entrenar</span></div>
+      <div><span class="v">${miles(s.simulaciones)}</span><span class="k">simulaciones por pelea</span></div>
+    </div>`;
 
   $('#lista-tareas').innerHTML = t.recetas.map(r => `
-    <div class="tarea">
-      <h4>${esc(r.nombre)}</h4>
-      <p>${esc(r.descripcion)}</p>
-      <span class="tiempo">${esc(r.minutos)}${r.pasos>1?` · ${r.pasos} pasos`:''}</span>
-      <button class="primario" data-r="${r.id}" ${t.ocupado?'disabled':''}>Ejecutar</button>
+    <div class="tarea ${r.id === TAREA_DEL_MES ? 'del-mes' : ''}">
+      <div class="tarea-txt">
+        <h4>${esc(r.nombre)}</h4>
+        <p>${esc(r.descripcion)}</p>
+        <span class="tiempo">${ico('reloj')}${esc(r.minutos)}${r.pasos>1?` · ${r.pasos} pasos`:''}</span>
+      </div>
+      <button class="${r.id === TAREA_DEL_MES ? 'primario' : 'secundario'}" data-r="${r.id}" ${t.ocupado?'disabled':''}>${ico('play')}Ejecutar</button>
     </div>`).join('');
   $$('#lista-tareas button').forEach(b => b.onclick = async () => {
     try {
