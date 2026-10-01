@@ -27,7 +27,7 @@ def peleador(nombre: str, **cambios) -> dict:
 
 
 @contextlib.contextmanager
-def card_aislado(flag_wikipedia: int = 0):
+def card_aislado(flag_wikipedia: int = 0, modelo=None):
     """
     card.predict_card sin datos, sin modelos y sin red: fichas sintéticas,
     heurístico en vez de XGBoost y salidas a una carpeta temporal.
@@ -47,7 +47,7 @@ def card_aislado(flag_wikipedia: int = 0):
     with tempfile.TemporaryDirectory() as tmp, \
             mock.patch.object(C, "OUTPUTS", Path(tmp)), \
             mock.patch.object(card, "get_stats", lambda n: (peleador(n), "ufcstats")), \
-            mock.patch.object(card, "_load_models", lambda: (None, None)), \
+            mock.patch.object(card, "_load_models", lambda: (modelo, None)), \
             mock.patch.object(card, "_elo", lambda s: C.ELO_BASE), \
             mock.patch.object(card.oposicion, "features", lambda a, b, f: dict(oposicion_neutra)), \
             mock.patch.object(card.oposicion, "resumen", lambda *a, **k: {"n": 0}), \

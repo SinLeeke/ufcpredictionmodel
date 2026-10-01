@@ -53,7 +53,7 @@ import pickle
 import config as C
 from src.card import elo_de_tabla
 from src.control_stats import enriquecer, MIN_PELEAS_FIABLE
-from src.features import columnas_disponibles
+from src.features import columnas_disponibles, probabilidad_ganador
 from src.kaggle_ingest import tabla_elo
 from src import oposicion
 from src import reemplazos
@@ -248,7 +248,8 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
             # (se anuncia el reemplazo días antes), así que no es leakage.
             feat.update(reemplazos.features(a["name"], b["name"], fecha))
             X = pd.DataFrame([feat])
-            p = float(modelo.predict_proba(X[columnas_disponibles(X)])[:, 1][0])
+            # La misma p que usa card.py: simetrizada.
+            p = float(probabilidad_ganador(modelo, X, columnas_disponibles(X))[0])
 
             # mercado y mezcla calibrada (solo si hay cuotas para esta pelea)
             p_mkt = p_cal = None

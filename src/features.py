@@ -386,6 +386,28 @@ def espejo(X: pd.DataFrame, cols: list[str] | None = None) -> pd.DataFrame:
     return Xm
 
 
+def probabilidad_ganador(model, X: pd.DataFrame, cols: list[str] | None = None):
+    """
+    P(gana A) INVARIANTE al orden de los peleadores: promedia la predicción de
+    la pelea con 1 - la de su espejo.
+
+    XGBoost entrena con las dos orientaciones pero no sale perfectamente
+    antisimétrico. Antes se predecía en una sola, y medido en 25 peleas reales
+    dar vuelta el CSV movía la p del modelo 3,8 pts de media (máx 8,7) y
+    cambiaba el pick en 2. Además los dos calibradores se ajustan con esta p
+    simetrizada (backtest_valor), así que predecir en una orientación les
+    pasaba una entrada distinta a la que conocían.
+
+    Medido en walk-forward 2021-2026 (6 años, ventana de 5): log loss mejor que
+    la orientación del dataset en 5/6 (-0,0014) y AUC en 4/6 (+0,0018);
+    empata con la orientación invertida (4/6, -0,0001).
+    """
+    cols = cols or list(X.columns)
+    p = model.predict_proba(X[cols])[:, 1]
+    p_esp = model.predict_proba(espejo(X[cols], cols))[:, 1]
+    return (p + (1.0 - p_esp)) / 2.0
+
+
 def probabilidades_metodo(model, X: pd.DataFrame, cols: list[str] | None = None):
     """
     Probabilidades de método (KO/TKO, Submission, Decision) INVARIANTES al orden

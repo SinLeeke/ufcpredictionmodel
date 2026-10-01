@@ -42,7 +42,8 @@ import pandas as pd
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
 from src.features import (differential_features, FEATURE_COLUMNS,
-                          columnas_disponibles, probabilidades_metodo)
+                          columnas_disponibles, probabilidad_ganador,
+                          probabilidades_metodo)
 from src.simulate import monte_carlo
 from src.visuals import build_report
 from src import ufcstats
@@ -685,8 +686,10 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         if model is not None:
             X0 = X.copy()
             X0["reemplazo_diff"] = 0
-            p_sin = float(model.predict_proba(X0[cols])[:, 1][0])
-            p_con = float(model.predict_proba(X[cols])[:, 1][0])
+            # Simetrizada: la p no depende de quién quedó en la columna A del
+            # CSV (ver features.probabilidad_ganador).
+            p_sin = float(probabilidad_ganador(model, X0, cols)[0])
+            p_con = float(probabilidad_ganador(model, X, cols)[0])
             p_a = p_con
         else:
             p_sin = p_con = p_a = _heuristic(feat)

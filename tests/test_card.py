@@ -1,7 +1,8 @@
 """Pruebas de src/card.py: lectura del CSV de cartelera."""
 import unittest
+from unittest import mock
 
-from tests.util import card_aislado, predecir
+from tests.util import card_aislado, peleador, predecir
 
 
 class CortoAviso(unittest.TestCase):
@@ -30,6 +31,34 @@ class CortoAviso(unittest.TestCase):
         self.assertEqual(fila["corto_a"], 0)           # lo dijo el CSV
         self.assertEqual(fila["corto_b"], 1)           # vacío -> Wikipedia
         self.assertEqual(env["consultas_wiki"], ["Dos Dos"])
+
+
+class _ModeloConSesgo:
+    """Un XGBoost no es perfectamente antisimétrico; este exagera el defecto:
+    le da +0,4 de logit a quien esté en la columna A."""
+
+    def predict_proba(self, X):
+        import numpy as np
+        z = 0.4 + 0.5 * X["streak_diff"].to_numpy(dtype=float)
+        p = 1 / (1 + np.exp(-z))
+        return np.column_stack([1 - p, p])
+
+
+class SimetriaDelGanador(unittest.TestCase):
+
+    def test_invertir_el_csv_no_cambia_la_probabilidad(self):
+        # BUG: se predecía en UNA orientación. Medido en 25 peleas reales: dar
+        # vuelta A y B movía el modelo 3,8 pts de media (máx 8,7) y cambiaba el
+        # pick en 2. Los calibradores ya se ajustaban con la p simetrizada.
+        def corrida(filas):
+            with card_aislado(modelo=_ModeloConSesgo()) as env:
+                ruta = env["tmp"] / "c.csv"
+                ruta.write_text("fighter_a,fighter_b,odds_a,odds_b\n" + "\n".join(filas), encoding="utf-8")
+                with mock.patch.object(env["card"], "get_stats", lambda n: (peleador(n, streak=3 if n == "Uno Uno" else 0), "ufcstats")):
+                    return predecir(env["card"], ruta)["consenso"][0]["v"].p_modelo_a
+        p_ab = corrida(["Uno Uno,Dos Dos,1.80,2.10"])
+        p_ba = corrida(["Dos Dos,Uno Uno,2.10,1.80"])
+        self.assertAlmostEqual(p_ab, 1 - p_ba, places=9)
 
 
 class ResumenDeApuestas(unittest.TestCase):
