@@ -39,6 +39,32 @@ const miles = (n) => n.toLocaleString('es-CL');
 // Los íconos de la cabecera se dibujan desde iconos.js: un solo set en toda la UI.
 $$('[data-ico]').forEach(e => { e.outerHTML = ico(e.dataset.ico, e.className); });
 
+/* ============================ MOVIMIENTO ============================== */
+// Las mismas dos curvas que el CSS (--ease-out, --ease-in-out). Con "reducir
+// movimiento" no se desplaza ni se escala nada, pero los fundidos se quedan:
+// ayudan a entender qué cambió y no marean.
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
+const reducir = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Cada cifra que puede cambiar lleva data-num con una clave estable. Antes de
+// repintar se anota lo que decía; después, la que cambió entra desde abajo y
+// deja un destello que se apaga. Solo se mueve con transform y opacity, y las
+// cifras son tabulares: nada alrededor se corre.
+const capturarCifras = (raiz) => new Map(
+  Array.from(raiz.querySelectorAll('[data-num]'), e => [e.dataset.num, e.textContent]));
+function resaltarCambios(raiz, antes) {
+  raiz.querySelectorAll('[data-num]').forEach(e => {
+    const previo = antes.get(e.dataset.num);
+    if (previo == null || previo === e.textContent) return;
+    e.animate(reducir()
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [{ opacity: 0, transform: 'translateY(35%)' }, { opacity: 1, transform: 'none' }],
+      { duration: 220, easing: EASE_OUT });
+    e.classList.remove('destello'); void e.offsetWidth; e.classList.add('destello');
+  });
+}
+
 /* =============================== TEMA ================================= */
 const temaGuardado = localStorage.getItem('tema');
 if (temaGuardado) document.documentElement.dataset.tema = temaGuardado;
@@ -77,28 +103,44 @@ $$('.seg').forEach(b => b.onclick = () => {
 // Al abrir se lleva el foco a la × y al cerrar se devuelve a quien lo abrió:
 // sin eso, con teclado, el foco quedaba detrás del velo.
 let focoAntesDelModal = null;
+// Entra con el velo fundiéndose y la caja creciendo apenas desde el centro (es
+// un modal: no sale de ningún botón). Sale más rápido de lo que entra, y con
+// Esc se cierra al instante: lo que se hace con el teclado no se anima.
 function modal(html) {
   focoAntesDelModal = document.activeElement;
   $('#modal-cuerpo').innerHTML = html;
-  $('#modal').classList.remove('oculto');
+  const m = $('#modal');
+  m.classList.remove('oculto');
+  m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: EASE_OUT });
+  if (!reducir()) $('.modal-caja').animate(
+    [{ opacity: 0, transform: 'scale(0.97)' }, { opacity: 1, transform: 'none' }],
+    { duration: 200, easing: EASE_OUT });
   $('.modal-cerrar').focus();
 }
-function cerrarModal() {
-  if ($('#modal').classList.contains('oculto')) return;
-  $('#modal').classList.add('oculto');
-  focoAntesDelModal?.focus?.();
+function cerrarModal(alInstante = false) {
+  const m = $('#modal');
+  if (m.classList.contains('oculto') || m.dataset.cerrando) return;
+  const fin = () => { m.classList.add('oculto'); delete m.dataset.cerrando; focoAntesDelModal?.focus?.(); };
+  if (alInstante) { m.getAnimations({ subtree: true }).forEach(a => a.cancel()); fin(); return; }
+  m.dataset.cerrando = '1';
+  if (!reducir()) $('.modal-caja').animate([{ transform: 'none' }, { transform: 'scale(0.98)' }],
+    { duration: 140, easing: EASE_OUT });
+  m.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: EASE_OUT }).onfinish = fin;
 }
-$('.modal-cerrar').onclick = cerrarModal;
+$('.modal-cerrar').onclick = () => cerrarModal();
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') cerrarModal(); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(true); });
 
 /* ============================== BARRA ================================= */
+// El mensaje de estado flota bajo la cabecera en vez de empujar la página: antes
+// aparecía entre la cabecera y el contenido y bajaba todo ~40 px. Entra y sale
+// por el mismo borde (lo hace el CSS con la clase "visible").
 function barra(txt, tipo) {
   const b = $('#barra-estado');
-  if (!txt) { b.classList.add('oculto'); return; }
-  b.className = 'barra' + (tipo === 'error' ? ' error' : '');
+  if (!txt) { b.classList.remove('visible'); return; }
+  b.classList.toggle('error', tipo === 'error');
   b.textContent = txt;
-  b.classList.remove('oculto');
+  b.classList.add('visible');
 }
 
 /* =========================== ESTADO / POLL ============================ */
@@ -146,7 +188,14 @@ async function tick() {
     else                 barra('');
 
     if (e.datos && JSON.stringify(e.datos) !== JSON.stringify(S.datos)) {
+      const previo = S.datos;
       S.datos = e.datos; S.patas = e.datos.patas;
+      // ¿Es otra cartelera o la misma con cifras nuevas (EN VIVO)? Solo en la
+      // misma tiene sentido comparar cifras; en otra, las barras se llenan.
+      const clave = `${e.titulo}|${e.csv}|${e.datos.titulo}`;
+      S.otraCartelera = clave !== S.claveCartelera;
+      S.claveCartelera = clave;
+      S.previo = S.otraCartelera ? null : previo;
       const vivos = new Set(S.patas.map(p => p.id));
       S.elegidas = S.elegidas.filter(id => vivos.has(id));
       pintarCartelera(e.datos, e.movimiento || {});
@@ -246,6 +295,8 @@ const TXT_TIER = {
 };
 
 function pintarCartelera(d, mov) {
+  const raiz = $('#cartelera-contenido');
+  const antes = S.otraCartelera ? new Map() : capturarCifras(raiz);
   $('#bienvenida').classList.add('oculto');
   $('#cartelera-contenido').classList.remove('oculto');
   const hayPatas = d.patas.length > 0;
@@ -294,11 +345,11 @@ function pintarCartelera(d, mov) {
   const noFiables = d.peleas.filter(p => p.confianza === 'NO FIABLE').length;
   const solidas = d.peleas.filter(p => ['fuerte','buena'].includes(p.confianza)).length;
   $('#tarjetas-kpi').innerHTML = `
-    <div class="kpi"><div class="v">${d.peleas.length}</div><div class="k">peleas analizadas</div></div>
-    <div class="kpi"><div class="v">${solidas}</div><div class="k">pronósticos sólidos (65${NBSP_FINO}%+)</div></div>
-    <div class="kpi"><div class="v ${noFiables ? 'neg' : ''}">${noFiables}</div>
+    <div class="kpi"><div class="v"><span data-num="kpi:peleas">${d.peleas.length}</span></div><div class="k">peleas analizadas</div></div>
+    <div class="kpi"><div class="v"><span data-num="kpi:solidas">${solidas}</span></div><div class="k">pronósticos sólidos (65${NBSP_FINO}%+)</div></div>
+    <div class="kpi"><div class="v ${noFiables ? 'neg' : ''}"><span data-num="kpi:nofiables">${noFiables}</span></div>
       <div class="k">sin datos suficientes</div></div>
-    <div class="kpi"><div class="v ${validas.length ? 'pos' : ''}">${validas.length}</div>
+    <div class="kpi"><div class="v ${validas.length ? 'pos' : ''}"><span data-num="kpi:apuestas">${validas.length}</span></div>
       <div class="k">apuestas sugeridas</div></div>`;
 
   /* ---- qué apostar ---- */
@@ -365,11 +416,52 @@ function pintarCartelera(d, mov) {
     d.peleas.map(p => {
       const pg = Math.max(p.p_a, p.p_b);
       const m = p.mercado;
-      return [esc(`${p.a} vs ${p.b}`), esc(p.ganador), td(pct(pg)),
-        td(m ? `${cuota(m.cuota_a)}${flecha(mov, p.id, 'A')} / ${cuota(m.cuota_b)}${flecha(mov, p.id, 'B')}` : 'sin cuotas'),
+      return [esc(`${p.a} vs ${p.b}`), esc(p.ganador), td(`<span data-num="t:${p.id}:p">${pct(pg)}</span>`),
+        td(m ? `<span data-num="t:${p.id}:cA">${cuota(m.cuota_a)}${flecha(mov, p.id, 'A')}</span> / <span data-num="t:${p.id}:cB">${cuota(m.cuota_b)}${flecha(mov, p.id, 'B')}</span>` : 'sin cuotas'),
         `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>`,
         mejorMetodo(p.metodo), td(pct(p.p_finish,0)), esc(p.tendencia)];
     }));
+
+  if (S.otraCartelera) llenarBarras();
+  else { resaltarCambios(raiz, antes); moverBarras(S.previo); }
+}
+
+// Primer pintado de una cartelera: cada barra se llena desde su esquina (la de
+// A desde la izquierda, la de B desde la derecha), con un desfase corto entre
+// tarjetas. Una vez por cartelera: los repintados de EN VIVO no la repiten.
+function llenarBarras() {
+  if (reducir()) return;
+  $$('#peleas [data-pelea]').forEach((art, i) => {
+    const delay = Math.min(i, 8) * 40;
+    const llenar = (el, origen, extra = 0) => {
+      el.style.transformOrigin = origen;
+      el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
+        { duration: 420, delay: delay + extra, easing: EASE_OUT, fill: 'backwards' });
+    };
+    const [a, b] = art.querySelectorAll('.duelo-barra i');
+    if (a) llenar(a, 'left'); if (b) llenar(b, 'right');
+    art.querySelectorAll('.metodo .mbar i').forEach(m => llenar(m, 'left', 60));
+  });
+}
+
+// EN VIVO: si cambió la probabilidad de una pelea, la barra viaja del reparto
+// viejo al nuevo (escala, no ancho: el ancho mueve el layout).
+function moverBarras(previo) {
+  if (!previo || reducir()) return;
+  const antes = new Map(previo.peleas.map(p => [p.id, p.p_a]));
+  $$('#peleas [data-pelea]').forEach(art => {
+    const p = S.datos.peleas.find(x => x.id === art.dataset.pelea);
+    const viejo = antes.get(art.dataset.pelea);
+    if (!p || viejo == null || Math.abs(viejo - p.p_a) < 1e-4) return;
+    const [a, b] = art.querySelectorAll('.duelo-barra i');
+    const mover = (el, de, a_, origen) => {
+      if (!el || !a_) return;
+      el.style.transformOrigin = origen;
+      el.animate([{ transform: `scaleX(${de / a_})` }, { transform: 'scaleX(1)' }],
+        { duration: 320, easing: EASE_IN_OUT });
+    };
+    mover(a, viejo, p.p_a, 'left'); mover(b, 1 - viejo, p.p_b, 'right');
+  });
 }
 
 function recolectarApuestas(d) {
@@ -437,11 +529,11 @@ const peleasUFC = (info) => {
 function espejo(p, mov) {
   const m = p.mercado;
   if (!m) return '';
-  const fila = (a, lbl, b) => `<div><b>${a}</b><span>${lbl}</span><b class="r">${b}</b></div>`;
+  const fila = (k, a, lbl, b) => `<div><b data-num="${p.id}:${k}:A">${a}</b><span>${lbl}</span><b class="r" data-num="${p.id}:${k}:B">${b}</b></div>`;
   return `<div class="espejo">
-    ${fila(cuota(m.cuota_a) + flecha(mov, p.id, 'A'), 'cuota', cuota(m.cuota_b) + flecha(mov, p.id, 'B'))}
-    ${fila(pct(m.p_mercado_a), 'le da la casa', pct(1 - m.p_mercado_a))}
-    ${fila(pct(m.p_modelo_a), 'el modelo solo', pct(1 - m.p_modelo_a))}
+    ${fila('cuota', cuota(m.cuota_a) + flecha(mov, p.id, 'A'), 'cuota', cuota(m.cuota_b) + flecha(mov, p.id, 'B'))}
+    ${fila('casa', pct(m.p_mercado_a), 'le da la casa', pct(1 - m.p_mercado_a))}
+    ${fila('modelo', pct(m.p_modelo_a), 'el modelo solo', pct(1 - m.p_modelo_a))}
   </div>`;
 }
 
@@ -456,7 +548,7 @@ function metodoFila(p) {
   const maxMet = Math.max(...met.map(([k]) => p.metodo[k] || 0));
   return `<div class="metodo">${met.map(([k, lbl]) => {
     const v = p.metodo[k] || 0;
-    return `<div class="${v === maxMet ? 'top' : ''}"><span class="mv">${fmt(v * 100, 0)}${NBSP_FINO}%</span><span class="mk">${lbl}</span>
+    return `<div class="${v === maxMet ? 'top' : ''}"><span class="mv" data-num="${p.id}:met:${k}">${fmt(v * 100, 0)}${NBSP_FINO}%</span><span class="mk">${lbl}</span>
       <span class="mbar"><i style="width:${v * 100}%"></i></span></div>`;
   }).join('')}</div>`;
 }
@@ -479,14 +571,14 @@ const selloConf = (p) => `<span class="pill ${claseConf(p.confianza)}">${p.confi
 function tarjetaPelea(p, mov) {
   const favA = p.p_a >= p.p_b;
   return `
-  <article class="pelea">
+  <article class="pelea" data-pelea="${p.id}">
     <div class="cara-top">${p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : ''}${selloConf(p)}</div>
     <div class="cara">
       ${retrato(p.a)}
       <div class="centro">
         <div class="vs-nombres"><span class="n">${esc(p.a)}</span><span class="x">vs</span><span class="n b">${esc(p.b)}</span></div>
         <div class="vs-sub"><span>${peleasUFC(p.info_a)}</span><span>${peleasUFC(p.info_b)}</span></div>
-        <div class="pcts"><span class="${favA ? '' : 'menos'}">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}">${pct(p.p_b)}</span></div>
+        <div class="pcts"><span class="${favA ? '' : 'menos'}" data-num="${p.id}:pA">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}" data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
         ${barraDuelo(p)}
         ${espejo(p, mov)}
       </div>
@@ -513,8 +605,8 @@ function lineaLona() {
 function datosJaula(p, mov) {
   const m = p.mercado;
   if (!m) return '';
-  const fila = (n, a, lbl, b) => `<div class="j-a j-dato j-f${n}">${a}</div>
-    <div class="j-lomo j-rot j-f${n}">${lbl}</div><div class="j-b j-dato j-f${n}">${b}</div>`;
+  const fila = (n, a, lbl, b) => `<div class="j-a j-dato j-f${n}"><span data-num="${p.id}:j${n}:A">${a}</span></div>
+    <div class="j-lomo j-rot j-f${n}">${lbl}</div><div class="j-b j-dato j-f${n}"><span data-num="${p.id}:j${n}:B">${b}</span></div>`;
   return fila(1, cuota(m.cuota_a) + flecha(mov, p.id, 'A'), 'cuota', cuota(m.cuota_b) + flecha(mov, p.id, 'B')) +
          fila(2, pct(m.p_mercado_a), 'le da la casa', pct(1 - m.p_mercado_a)) +
          fila(3, pct(m.p_modelo_a), 'el modelo solo', pct(1 - m.p_modelo_a));
@@ -528,7 +620,7 @@ function jaula(p, mov, tipo) {
   const titulo = tipo === 'estelar' ? 'Pelea estelar' : (esCoSegmento(p) ? 'Co-estelar' : '');
   const postes = [1,2,3,4,5,6,7,8].map(n => `<i class="poste p${n}"></i>`).join('');
   return `
-  <article class="estelar ${tipo}">
+  <article class="estelar ${tipo}" data-pelea="${p.id}">
     <header class="estelar-cab">
       ${titulo ? `<span class="estelar-kicker">${titulo}${p.segmento ? ` <small>${esc(p.segmento)}</small>` : ''}</span>`
                : (p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : '')}
@@ -546,8 +638,8 @@ function jaula(p, mov, tipo) {
         <div class="j-a j-nombre">${esc(p.a)}<small>${peleasUFC(p.info_a)}</small></div>
         <div class="j-lomo j-vs">vs</div>
         <div class="j-b j-nombre">${esc(p.b)}<small>${peleasUFC(p.info_b)}</small></div>
-        <div class="j-a j-pct ${favA ? '' : 'menos'}">${pct(p.p_a)}</div>
-        <div class="j-b j-pct ${favA ? 'menos' : ''}">${pct(p.p_b)}</div>
+        <div class="j-a j-pct ${favA ? '' : 'menos'}"><span data-num="${p.id}:pA">${pct(p.p_a)}</span></div>
+        <div class="j-b j-pct ${favA ? 'menos' : ''}"><span data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
         <div class="j-todo j-barra">${barraDuelo(p)}</div>
         ${datosJaula(p, mov)}
         <p class="j-todo j-pie"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</p>
@@ -586,9 +678,11 @@ function pintarTiers(tiers) {
 
 $$('.filtro-tier').forEach(c => c.onchange = pintarPatas);
 $('#solo-positivo').onchange = pintarPatas;
-$('#btn-limpiar').onclick = () => { S.elegidas = []; pintarPatas(); evaluarParlay(); };
+$('#btn-limpiar').onclick = () => quitarDelBoleto(S.elegidas.slice());
 $('#btn-sugerir').onclick = () => {
-  S.elegidas = (S.datos?.sugerencia || []).slice();
+  const nuevas = (S.datos?.sugerencia || []).slice();
+  S.entrantes = nuevas.filter(id => !S.elegidas.includes(id));
+  S.elegidas = nuevas;
   if (!S.elegidas.length) barra('No hay ninguna selección con respaldo y con valor en esta cartelera. Es lo normal, no un error.');
   pintarPatas(); evaluarParlay();
 };
@@ -630,7 +724,27 @@ function conflicto(a, b) {
   return cruzan ? 'similar' : 'excluyente';
 }
 
+// Sacar patas del boleto: primero salen (más rápido de lo que entraron), y recién
+// después se repinta. Si se repintara antes, desaparecerían de golpe.
+function quitarDelBoleto(ids) {
+  const quitar = () => {
+    S.elegidas = S.elegidas.filter(x => !ids.includes(x));
+    pintarPatas(); evaluarParlay();
+  };
+  const items = ids.map(id => $(`#boleto [data-b="${CSS.escape(id)}"]`)).filter(Boolean);
+  if (!items.length) return quitar();
+  items.forEach(el => { el.style.pointerEvents = 'none'; });
+  const anims = items.map(el => el.animate(reducir()
+    ? [{ opacity: 1 }, { opacity: 0 }]
+    : [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(12px)' }],
+    { duration: 140, easing: EASE_OUT, fill: 'forwards' }));
+  Promise.all(anims.map(a => a.finished)).then(quitar, quitar);
+}
+
 function pintarPatas() {
+  const raizP = $('#parlay-contenido');
+  const antes = S.otraCartelera ? null : capturarCifras(raizP);
+  const cuentaAntes = $('#cuenta-patas').textContent;
   const tiers = $$('.filtro-tier').filter(c => c.checked).map(c => c.value);
   const soloPos = $('#solo-positivo').checked;
   const elegidas = S.patas.filter(p => S.elegidas.includes(p.id));
@@ -670,8 +784,8 @@ function pintarPatas() {
           </div>
         </div>
         <div class="precio">
-          <span class="cuota">${cuota(p.cuota)}</span>
-          <span class="ev ${cls(p.ev)}">${sgn(p.ev)}</span>
+          <span class="cuota" data-num="pata:${p.id}">${cuota(p.cuota)}</span>
+          <span class="ev ${cls(p.ev)}" data-num="ev:${p.id}">${sgn(p.ev)}</span>
         </div>
         <span class="pata-estado" aria-hidden="true">${estado}</span>
       </div>
@@ -740,10 +854,10 @@ function pintarPatas() {
         : `"${p.seleccion}" ya está contenida en "${bl.contra.seleccion}". Betano casi no sube la cuota al combinarlas (a veces ni la sube) porque estarías pagando dos veces por la misma información.`);
       return;
     }
-    const i = S.elegidas.indexOf(id);
-    if (i >= 0) S.elegidas.splice(i,1);
-    else if (S.elegidas.length >= 13) { barra('Betano acepta un máximo de 13 selecciones.'); return; }
-    else S.elegidas.push(id);
+    if (S.elegidas.includes(id)) { quitarDelBoleto([id]); return; }
+    if (S.elegidas.length >= 13) { barra('Betano acepta un máximo de 13 selecciones.'); return; }
+    S.elegidas.push(id);
+    S.entrantes = [id];
     pintarPatas(); evaluarParlay();
   });
 
@@ -753,15 +867,29 @@ function pintarPatas() {
     ? S.elegidas.map(id => { const p = byId[id];
         return `<div class="boleto-item" data-b="${id}">
           <div class="bi-que"><b>${esc(p.seleccion)}</b><span class="sub">${esc(p.pelea)}</span></div>
-          <span class="bi-cuota">${cuota(p.cuota)}</span>
+          <span class="bi-cuota" data-num="bol:${id}">${cuota(p.cuota)}</span>
           <button data-q="${id}" title="Quitar" aria-label="Quitar ${esc(p.seleccion)}">${ico('no')}</button>
         </div>`; }).join('')
     : `<div class="boleto-vacio">${ico('boleto')}<span>Toca una selección de la izquierda para agregarla.</span></div>`;
   $$('#boleto button').forEach(b => b.onclick = (ev) => {
     ev.stopPropagation();
-    S.elegidas = S.elegidas.filter(x => x !== b.dataset.q);
-    pintarPatas(); evaluarParlay();
+    quitarDelBoleto([b.dataset.q]);
   });
+
+  // Lo que acaba de entrar al boleto baja desde arriba, con un desfase corto si
+  // entraron varias ("Armar la mejor"); la cuenta late una vez si cambió.
+  (S.entrantes || []).forEach((id, i) => {
+    const el = $(`#boleto [data-b="${CSS.escape(id)}"]`);
+    if (el) el.animate(reducir()
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 200, delay: Math.min(i, 6) * 40, easing: EASE_OUT, fill: 'backwards' });
+  });
+  S.entrantes = [];
+  if (cuentaAntes !== $('#cuenta-patas').textContent && !reducir())
+    $('#cuenta-patas').animate([{ transform: 'scale(1.18)' }, { transform: 'none' }],
+      { duration: 160, easing: EASE_OUT });
+  if (antes) resaltarCambios(raizP, antes);
 }
 
 async function evaluarParlay() {

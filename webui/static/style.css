@@ -28,6 +28,7 @@
   --sobre-solido:#faf7f1;              /* texto sobre un sello sólido (fuerte, NO FIABLE) */
   --sil-fondo:#e2dbcd; --sil-fig:#c3b9a8;
   --reja:#141210; --reja-hilo:rgba(239,233,223,.16);
+  --resalte:rgba(20,18,16,.13);
   --foco:rgba(255,255,255,.55); --foco-lona:rgba(255,255,255,.9);
 
   /* La barra del canal: igual en los dos temas, como en la tele. */
@@ -37,6 +38,10 @@
   --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --texto:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
   --incl:12deg;                        /* la inclinación de la gráfica de transmisión */
+  /* Dos curvas para todo el movimiento de la UI: ease-out fuerte para lo que
+     entra, sale o responde; ease-in-out para lo que viaja por la pantalla. */
+  --ease-out:cubic-bezier(0.23,1,0.32,1);
+  --ease-in-out:cubic-bezier(0.77,0,0.175,1);
   --tope:84px;                         /* lo mueve app.js: alto visible de la barra */
 
   /* Nombres viejos, para las pestañas que todavía no se rediseñan. */
@@ -56,6 +61,7 @@
     --probado:#efe9df; --sobre-probado:#0e0d0c; --sobre-solido:#0e0d0c;
     --sil-fondo:#221f1c; --sil-fig:#3d3832;
     --reja:#2b2722; --reja-hilo:rgba(239,233,223,.12);
+    --resalte:rgba(239,233,223,.2);
     --foco:rgba(239,233,223,.06); --foco-lona:rgba(239,233,223,.07);
   }
 }
@@ -68,6 +74,7 @@
   --probado:#efe9df; --sobre-probado:#0e0d0c; --sobre-solido:#0e0d0c;
   --sil-fondo:#221f1c; --sil-fig:#3d3832;
   --reja:#2b2722; --reja-hilo:rgba(239,233,223,.12);
+  --resalte:rgba(239,233,223,.2);
   --foco:rgba(239,233,223,.06); --foco-lona:rgba(239,233,223,.07);
 }
 
@@ -110,10 +117,10 @@ button{
   font:600 14px/1 var(--texto);color:var(--txt);background:var(--sup);
   border:1.5px solid var(--linea);padding:10px 16px;cursor:pointer;
   display:inline-flex;align-items:center;gap:8px;border-radius:0;
-  transition:background-color .16s ease,color .16s ease,border-color .16s ease,transform .1s ease;
+  transition:background-color .16s ease,color .16s ease,border-color .16s ease,transform 160ms var(--ease-out);
 }
 button:hover:not(:disabled){border-color:var(--txt)}
-button:active:not(:disabled){transform:translateY(1px)}
+button:active:not(:disabled){transform:scale(.97)}
 button:disabled{opacity:.45;cursor:not-allowed}
 .primario,.secundario,.peligro{font:800 14px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;padding:11px 18px}
 .primario{background:var(--marca);border-color:var(--marca);color:var(--sobre-marca);
@@ -129,7 +136,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .botonera{display:flex;gap:8px;flex-wrap:wrap}
 
 /* --------------------------- barra superior --------------------------- */
-.barra-superior{position:sticky;top:0;z-index:30;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+.barra-superior{position:sticky;top:0;z-index:30;transition:transform .28s var(--ease-out)}
 .barra-superior.oculta{transform:translateY(-100%)}
 .cab{
   display:flex;align-items:center;gap:22px;min-height:60px;padding:0 28px;
@@ -151,7 +158,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
 /* La pestaña activa es un bloque hueso inclinado, como la etiqueta de la gráfica. */
 .tab::before{content:"";position:absolute;inset:12px 0;background:var(--cab-txt);z-index:-1;
   transform:skewX(calc(var(--incl) * -1)) scaleX(.6);opacity:0;
-  transition:opacity .2s ease,transform .26s cubic-bezier(.2,.8,.2,1)}
+  transition:opacity .2s ease,transform 200ms var(--ease-out)}
 .tab{z-index:0}
 .tab.activa{color:var(--cab-bg)}
 .tab.activa::before{opacity:1;transform:skewX(calc(var(--incl) * -1)) scaleX(1)}
@@ -188,13 +195,26 @@ button:disabled{opacity:.45;cursor:not-allowed}
   margin-right:7px;vertical-align:1px;animation:latido 1.4s ease-in-out infinite}
 @keyframes latido{0%,100%{opacity:1}50%{opacity:.25}}
 
-/* Mensaje de estado bajo la barra. */
-.barra{padding:10px 28px;font-size:14px;font-weight:500;background:var(--sup2);color:var(--txt);border-bottom:1px solid var(--linea)}
-.barra.error{background:var(--error-sup);color:var(--txt)}
+/* Aviso flotante bajo la cabecera: no empuja la página. Si la cabecera se
+   esconde al hacer scroll, el aviso sube con ella usando la propiedad translate
+   (aparte de transform, que queda para la entrada y la salida). */
+.barra{position:fixed;z-index:40;left:50%;top:calc(var(--alto-cab,84px) + 12px);width:max-content;max-width:min(720px,calc(100vw - 32px));
+  padding:11px 18px;font-size:14px;font-weight:500;line-height:1.45;background:var(--sup);color:var(--txt);
+  border:1.5px solid var(--txt);box-shadow:0 10px 28px rgba(8,7,6,.22);
+  /* Escondido: arriba y transparente. Sale más rápido (160 ms) de lo que entra (220 ms). */
+  opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,-10px);
+  transition:opacity 160ms var(--ease-out),transform 160ms var(--ease-out),visibility 0s linear 160ms,translate .28s var(--ease-out)}
+.barra.visible{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,0);
+  transition:opacity 220ms var(--ease-out),transform 220ms var(--ease-out),visibility 0s,translate .28s var(--ease-out)}
+.barra-superior.oculta + .barra{translate:0 calc(var(--alto-cab,84px) * -1)}
+.barra.error{background:var(--error-sup);border-color:var(--error)}
 
 main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 auto}
 .panel{display:none}
-.panel.activa{display:block}
+/* Al cambiar de pestaña, solo entra la nueva (nunca hay que esperar que la
+   otra salga): sube 6 px y se funde en 180 ms. */
+.panel.activa{display:block;animation:panel-entra 180ms var(--ease-out)}
+@keyframes panel-entra{from{opacity:0;transform:translateY(6px)}}
 
 /* ------------------------- cabeceras de sección ------------------------ */
 .bloque{margin:44px 0 0}
@@ -512,12 +532,6 @@ tbody tr:last-child td{border-bottom:none}
   .pie-cuerpo{padding:24px 16px 28px}
 }
 
-/* Quien pidió menos movimiento no ve deslizarse ni latir nada. */
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{transition:none !important;animation:none !important}
-}
-
-
 /* ------------------------------ combinada ----------------------------- */
 /* Mide lo que la ventana (menos la cabecera): la lista de selecciones tiene su
    propio scroll y el boleto queda siempre a la vista al lado, sin que la página
@@ -566,8 +580,7 @@ tbody tr:last-child td{border-bottom:none}
 
 /* Cada selección: nombre, sellos, precio y veredicto. El cuadro de arriba a la
    derecha dice qué pasa al tocarla: + la agrega, ✓ ya está, candado bloqueada. */
-.pata{background:var(--bg);border:1.5px solid var(--linea);padding:12px 14px;cursor:pointer;position:relative;
-  transition:border-color .16s ease,background-color .16s ease}
+.pata{background:var(--bg);border:1.5px solid var(--linea);padding:12px 14px;cursor:pointer;position:relative}
 .pata:hover{border-color:var(--txt)}
 .pata:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
 .pata.elegida{border-color:var(--txt);background:var(--sup2)}
@@ -798,7 +811,7 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 /* Es la pantalla de LEER: una columna de lectura (~70 caracteres) y, al lado, un
    índice fijo que marca dónde vas. */
 .guia-marco{display:grid;grid-template-columns:220px minmax(0,780px);gap:56px;justify-content:center;align-items:start}
-.guia-indice{position:sticky;top:calc(var(--tope) + 22px);display:grid;gap:2px;transition:top .28s cubic-bezier(.2,.8,.2,1)}
+.guia-indice{position:sticky;top:calc(var(--tope) + 22px);display:grid;gap:2px;transition:top .28s var(--ease-out)}
 .guia-indice-tit{font:700 13px/1 var(--display);letter-spacing:.09em;text-transform:uppercase;color:var(--tenue);margin:0 0 8px}
 .guia-indice a{display:block;padding:7px 0 7px 14px;font:700 15px/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;
   color:var(--txt2);text-decoration:none;position:relative}
@@ -876,3 +889,35 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   .paso-n{font-size:46px}
 }
 
+/* ------------------------------ movimiento ---------------------------- */
+/* Cifras que cambian en EN VIVO: entran desde abajo (lo hace app.js) y dejan
+   un destello que se apaga. inline-block para poder moverlas con transform;
+   isolation para que el destello quede detrás del número y no del fondo. */
+[data-num]{display:inline-block;position:relative;isolation:isolate}
+.destello::after{content:"";position:absolute;inset:-.08em -.22em;z-index:-1;pointer-events:none;
+  background:var(--resalte);animation:destello 900ms var(--ease-out) forwards}
+@keyframes destello{from{opacity:1}to{opacity:0}}
+/* Lo que se presiona responde: botones, patas y carteleras se achican apenas. */
+.pata,.cart{transition:border-color .16s ease,background-color .16s ease,transform 200ms var(--ease-out)}
+.pata:active:not(.bloqueada),.cart:active{transform:scale(.985)}
+.retrato img,.retrato svg{transition:transform 280ms var(--ease-out)}
+/* Hover solo con mouse: en pantallas táctiles el toque dispara hovers falsos.
+   Lo que se puede tocar sube 2 px; en las peleas, que no son botones, solo se
+   acercan un poco los retratos. */
+@media (hover:hover) and (pointer:fine){
+  .pata:not(.bloqueada):hover,.cart:hover:not(:disabled){transform:translateY(-2px)}
+  .pelea:hover .retrato img,.pelea:hover .retrato svg,.estelar:hover .retrato img,.estelar:hover .retrato svg{transform:scale(1.03)}
+}
+/* Menos movimiento: nada se desliza, escala ni late; los fundidos se quedan
+   porque ayudan a entender qué cambió. */
+@media (prefers-reduced-motion: reduce){
+  .barra-superior,.col-boleto,.guia-indice{transition:none}
+  .vivo-caja.activo span::before{animation:none}
+  button:active:not(:disabled),.pata:active:not(.bloqueada),.cart:active{transform:none}
+  .pata:not(.bloqueada):hover,.cart:hover:not(:disabled){transform:none}
+  .pelea:hover .retrato img,.pelea:hover .retrato svg,.estelar:hover .retrato img,.estelar:hover .retrato svg{transform:none}
+  .tab::before{transition:opacity .2s ease}
+  .panel.activa{animation-name:panel-funde}
+  .barra,.barra.visible{transform:translate(-50%,0);transition-property:opacity,visibility}
+}
+@keyframes panel-funde{from{opacity:0}}
