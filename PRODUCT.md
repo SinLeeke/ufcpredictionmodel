@@ -72,10 +72,14 @@ copiar eso sin dejar de vender seguridad.
   constructor de combinada con bloqueos, KPIs, tarjetas de pelea, tabla, log de tareas,
   guía, barra superior que se esconde al bajar.
 - **Fotos de peleadores**: Wikipedia/Commons primero (API `prop=pageimages`, con el
-  User-Agent de `src/reemplazos.py`), Sherdog de respaldo, monograma con iniciales si no
-  hay. Cruce por **nombre exacto con desempate**: mejor sin foto que con la foto de otro.
-- Abierto: formato decimal de las cifras en pantalla (hoy la UI usa punto, `65.0%`, y la
-  Guía coma, `0,64`).
+  User-Agent de `src/reemplazos.py`), Sherdog de respaldo y, si no hay, una **silueta
+  genérica de peleador** (como la foto por defecto de un perfil sin foto, pero de un
+  peleador de UFC), nunca una imagen rota. Cruce por **nombre exacto con desempate**:
+  mejor sin foto que con la foto de otro. Las fotos de UFC.com no se usan: responden 403
+  a los bots y tienen derechos de autor.
+- Cifras con **coma decimal** (`es-CL`) en toda la interfaz.
+- El dueño quiere que la interfaz pase a ser **más llamativa y limpia, con movimiento**:
+  hasta septiembre de 2026 no tenía ninguna animación.
 
 ## Brand Commitments
 
