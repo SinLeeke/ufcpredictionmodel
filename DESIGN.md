@@ -34,6 +34,16 @@ colors:
   canal-tenue: "#a39a8c"
   canal-rojo: "#c41230"
   canal-regla: "#e8293d"
+  juez-escritorio: "#dad8d0"
+  juez-papel: "#f7f6f1"
+  juez-tinta: "#16181b"
+  juez-forma: "#3b4a5e"
+  juez-rotulo: "#46556a"
+  juez-sello: "#b42318"
+  juez-lapiz: "#1f4fa8"
+  juez-carbon: "#171a1f"
+  juez-forma-carbon: "#8d9eb4"
+  juez-lapiz-carbon: "#8fb1ff"
 typography:
   display:
     fontFamily: "Barlow Condensed, Arial Narrow, system-ui, sans-serif"
@@ -71,6 +81,12 @@ typography:
     fontWeight: 800
     lineHeight: 1
     letterSpacing: "0.07em"
+  maquina:
+    fontFamily: "Courier Prime, Courier New, ui-monospace, monospace"
+    fontSize: "18px"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: "-0.05em"
 rounded:
   none: "0"
 spacing:
@@ -167,10 +183,14 @@ advertencia grave se veían iguales), todo metido en la misma caja de 1 px, las 
 sin presencia, la tipografía del sistema, un logo que imitaba el de UFC, emojis como
 íconos y el móvil con scroll horizontal.
 
-**Estilo opcional pendiente: C · Tarjeta del juez.** El dueño la quiere elegible en
-Opciones para quien conozca las tarjetas de los jueces, con más detalle que la maqueta
-del paso 4 (cuadrícula de formulario, campos rotulados, timbres, filas trazadas), como
-una capa de estilo sobre el mismo HTML. No está construida.
+**Estilo opcional: C · Tarjeta del juez ("El acta de la pelea").** Se elige en
+Opciones, para quien conozca las tarjetas de los jueces. Es la misma información con
+otra metáfora: un formulario impreso en tinta pizarra sobre papel, llenado a máquina de
+escribir, con la confianza estampada como timbre de goma y el pronóstico encerrado con
+el lápiz de pasta del juez. En oscuro es una copia al carbón. Se aplica con
+`data-estilo="juez"` en `<html>`: los tokens cambian y el CSS agrega una capa; solo la
+tarjeta de cada pelea tiene su propio armado (`actaPelea()` en `app.js`), con las mismas
+claves `data-num` para que EN VIVO funcione igual.
 
 **Key Characteristics:**
 - Cabecera siempre oscura, como la barra de un canal, en los dos temas.
@@ -234,6 +254,22 @@ algo rojo no es marca, es una advertencia.
 **La regla de la señal única.** Cada color semántico significa una sola cosa. Una
 advertencia nunca comparte color con una etiqueta favorable.
 
+### Estilo C · Tarjeta del juez
+
+| Rol | Papel | Copia al carbón | Uso |
+|---|---|---|---|
+| Escritorio | `juez-escritorio` | `#0d0f12` | El fondo de la página: la mesa donde están las hojas |
+| Papel | `juez-papel` | `juez-carbon` | Cada hoja: cabecera, actas, cajas |
+| Tinta de máquina | `juez-tinta` | `#e9e7e0` | Lo escrito a máquina: nombres y cifras |
+| Tinta del formulario | `juez-forma` | `juez-forma-carbon` | Lo impreso: marcos, filetes y casillas |
+| Rótulo | `juez-rotulo` | `#9cabbd` | Los rótulos impresos de cada casillero (AA sobre papel y escritorio) |
+| Sello | `juez-sello` | `#f26b5b` | La marca y el peligro, como en B: NO FIABLE, faltantes, errores |
+| Lápiz | `juez-lapiz` | `juez-lapiz-carbon` | Solo las marcas del juez: el círculo del pronóstico y el visto de las casillas |
+
+Acierto y alerta son los mismos de Cartel. El destello de EN VIVO es un resaltador
+amarillo. La regla del rojo caro se mantiene: el sello rojo es marca o peligro, y el
+azul del lápiz nunca lleva un dato que no esté también escrito.
+
 ## Typography
 
 **Display Font:** Barlow Condensed 600 / 700 / 800 (con Arial Narrow y la sans del sistema)
@@ -252,6 +288,12 @@ la Barlow normal es la que se lee tranquila. Las dos son de Google Fonts, servid
   peleador.
 - **Body** (400, 15 px, 1,55): explicaciones, con línea de 65 a 75 caracteres.
 - **Label** (800, 12,5 a 15 px, 0,06 a 0,08 em, mayúsculas): sellos, rótulos, pestañas.
+
+**Máquina (estilo C):** Courier Prime 400 y 700, de Google Fonts y servida desde el
+propio servidor; se descarga solo si ese estilo está elegido. Va en todo lo "llenado"
+(nombres, cifras, títulos de acta) con el espaciado un poco cerrado (-0,05 em), porque en
+monoespaciada la coma ocupa una celda entera. Los rótulos impresos siguen en Barlow
+Condensed y los textos largos en Barlow, para que se lean igual de fácil.
 
 ### Named Rules
 
@@ -345,6 +387,29 @@ Dos retratos que ocupan todo el alto (cara arriba, nunca hundida), nombres, porc
 enfrentados, la barra dual y las filas en espejo. Sin foto oficial, una silueta de
 peleador; nunca la foto de otro.
 
+### Acta de la pelea (estilo C)
+La hoja con su marco impreso de doble filete y las perforaciones de la carpeta. Arriba,
+tres casilleros: pelea (su lugar en la cartelera), segmento y confianza (un timbre:
+sólido para lo más fuerte o lo más grave, doble filete para lo intermedio, punteado para
+moneda). Las dos esquinas con su foto de carnet y el nombre a máquina. Las cifras en
+filas como los asaltos de la tarjeta, con el rótulo en la columna del medio. "Cómo
+termina" como tres casillas, la más probable tachada con lápiz. El pronóstico encerrado
+con lápiz, salvo en moneda y NO FIABLE (un juez no marca ganador ahí). Observaciones
+sobre renglones y la letra chica "Estimación del modelo, no una tarjeta oficial". La
+estelar y la coestelar ocupan todo el ancho con las fotos a los costados (la estelar,
+sujeta con clip); el resto va de a dos por fila y una en el celular.
+
+En las otras pestañas el estilo C es una capa: Qué apostar como libro de registro con
+los niveles de evidencia como timbres, la Combinada como boleta (casillas y un ticket
+con el borde perforado), Cargar y Mantenimiento como planillas, la Guía como reglamento
+impreso.
+
+### Opciones
+Un panel que cuelga del botón de la cabecera: el estilo (con una muestra dibujada de
+cada uno) y el tema (automático, claro u oscuro). Se recuerdan en el navegador; sin
+tema elegido, la página sigue al sistema. Cambiar de estilo vuelve a pintar la cartelera
+sin animar nada, porque ningún dato cambió.
+
 ### Movimiento
 Dos curvas para todo: `--ease-out` `cubic-bezier(0.23, 1, 0.32, 1)` para lo que entra,
 sale o responde, y `--ease-in-out` `cubic-bezier(0.77, 0, 0.175, 1)` para lo que viaja
@@ -359,6 +424,8 @@ por la pantalla. Solo `transform` y `opacity`.
 - Pestaña: el panel nuevo sube 4 px y aparece en 150 ms.
 - Aviso: entra en 220 ms y sale en 160 ms por el mismo borde. Modal: 180 a 200 ms de
   entrada, 140 ms de salida.
+- Estilo C, solo en la primera vista de una cartelera: el timbre cae (220 ms) y el lápiz
+  encierra al ganador (450 ms).
 - Con teclado (Enter, Espacio, Esc) nada se anima. Con "menos movimiento" se quitan
   desplazamientos, escalas y el latido de EN VIVO; quedan los fundidos y el destello.
 
