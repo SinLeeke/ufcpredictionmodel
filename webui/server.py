@@ -26,7 +26,7 @@ from fastapi.staticfiles import StaticFiles                             # noqa: 
 from pydantic import BaseModel                                          # noqa: E402
 
 import config as C                                                      # noqa: E402
-from webui import engine, parlay as P                                   # noqa: E402
+from webui import engine, fotos, parlay as P                            # noqa: E402
 from webui.jobs import GESTOR, RECETAS                                  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -239,6 +239,24 @@ def salud():
         "ventana_anios": C.TRAIN_WINDOW_YEARS,
         "simulaciones": C.N_SIMULATIONS,
     }
+
+
+# --------------------------------------------------------------------------- #
+# Fotos de peleadores
+# --------------------------------------------------------------------------- #
+@app.get("/api/foto/{nombre}")
+def foto_peleador(nombre: str):
+    """
+    La foto del peleador, de Wikipedia o Sherdog, bajada una vez y servida desde
+    disco. 404 si no hay (o si no se puede saber con certeza cuál es): la UI
+    muestra entonces una silueta. No toca /api/estado ni el contrato JSON.
+    """
+    ruta = fotos.foto(nombre)
+    if ruta is None:
+        raise HTTPException(404, "Sin foto")
+    # A diferencia del resto de /api/, una foto no cambia: que el navegador la
+    # guarde y no la pida en cada repintado de la cartelera.
+    return FileResponse(ruta, headers={"Cache-Control": "private, max-age=86400"})
 
 
 # --------------------------------------------------------------------------- #
