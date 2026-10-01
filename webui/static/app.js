@@ -1058,6 +1058,21 @@ addEventListener('resize', medirCabecera);
   }));
 })();
 
+/* =============================== GUÍA ================================= */
+// El índice marca la sección que estás leyendo. IntersectionObserver y no un
+// listener de scroll: no corre en cada frame.
+(() => {
+  const enlaces = new Map($$('.guia-indice a').map(a => [a.getAttribute('href').slice(1), a]));
+  const visibles = new Set();
+  const obs = new IntersectionObserver((entradas) => {
+    entradas.forEach(e => e.isIntersecting ? visibles.add(e.target.id) : visibles.delete(e.target.id));
+    const primero = $$('.guia h2[id]').find(h => visibles.has(h.id));
+    if (!primero) return;
+    enlaces.forEach((a, id) => a.classList.toggle('activo', id === primero.id));
+  }, { rootMargin: '-20% 0px -60% 0px' });
+  $$('.guia h2[id]').forEach(h => obs.observe(h));
+})();
+
 /* ============================== ARRANQUE ============================== */
 tick();
 reloj();

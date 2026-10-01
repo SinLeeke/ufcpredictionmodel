@@ -794,38 +794,85 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   .tarea button{justify-self:start}
 }
 
-/* ======================================================================
-   PESTAÑAS QUE TODAVÍA NO SE REDISEÑAN (Guía). Conservan su estructura con la paleta y las fuentes nuevas; cada una
-   se reemplaza en su propio commit.
-   ====================================================================== */
-/* Guía */
-.guia{max-width:840px;margin:0 auto}
-.guia h2{margin:34px 0 12px;font-size:28px}
+/* --------------------------------- guía ------------------------------- */
+/* Es la pantalla de LEER: una columna de lectura (~70 caracteres) y, al lado, un
+   índice fijo que marca dónde vas. */
+.guia-marco{display:grid;grid-template-columns:220px minmax(0,780px);gap:56px;justify-content:center;align-items:start}
+.guia-indice{position:sticky;top:calc(var(--tope) + 22px);display:grid;gap:2px;transition:top .28s cubic-bezier(.2,.8,.2,1)}
+.guia-indice-tit{font:700 13px/1 var(--display);letter-spacing:.09em;text-transform:uppercase;color:var(--tenue);margin:0 0 8px}
+.guia-indice a{display:block;padding:7px 0 7px 14px;font:700 15px/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;
+  color:var(--txt2);text-decoration:none;position:relative}
+.guia-indice a::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;background:var(--linea)}
+.guia-indice a:hover{color:var(--txt)}
+.guia-indice a.activo{color:var(--txt)}
+.guia-indice a.activo::before{background:var(--marca)}
+.guia{min-width:0}
+.guia h2{margin:52px 0 14px;font-size:32px;display:flex;align-items:center;gap:12px;scroll-margin-top:calc(var(--alto-cab,84px) + 20px)}
+.guia h2::before{content:"";width:11px;height:24px;background:var(--marca);flex:none;transform:skewX(calc(var(--incl) * -1))}
 .guia h2:first-child{margin-top:0}
-.guia p{color:var(--txt2);font-size:15px}
+.guia p{color:var(--txt2);font-size:16px;line-height:1.65;max-width:70ch}
+.guia .nota{font-size:15px}
 .guia b{color:var(--txt)}
-.callout{background:var(--sup);border-left:6px solid var(--marca);padding:16px 20px;margin:16px 0}
-.callout h3{color:var(--txt);margin-bottom:6px}
+.guia-lead{font-size:18px !important;color:var(--txt) !important}
+.guia-h3{margin:30px 0 4px;font-size:19px;color:var(--txt);letter-spacing:.05em}
+
+/* Los tres modos de uso, como una pauta: número grande, título y cuándo. El
+   tercero, el de todos los días, resaltado. */
+.flujo{display:grid;gap:12px;margin:20px 0 10px}
+.paso{background:var(--sup);padding:20px 24px 18px}
+.paso-normal{background:var(--sup2)}
+.paso-cab{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;align-items:end;margin-bottom:12px}
+.paso-n{grid-row:span 2;font:800 58px/.82 var(--display);color:var(--marca)}
+.paso h3{margin:0;color:var(--txt);font-size:22px;letter-spacing:.03em}
+.paso-sub{margin:3px 0 0;font-size:14px;color:var(--tenue)}
+.paso-sub b{color:var(--txt2)}
+.paso>p{margin:0 0 9px;font-size:15px}
+.paso ol,.paso ul{margin:9px 0;padding-left:22px;color:var(--txt2);font-size:15px}
+.paso li{margin:6px 0;line-height:1.55}
+.paso li::marker{color:var(--tenue);font-weight:700}
+.paso .nota{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--linea);font-size:14px}
+
+.callout{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:start;background:var(--sup2);padding:18px 22px;margin:20px 0}
+.callout-ico{width:32px;height:32px;padding:7px;background:var(--marca);color:var(--sobre-marca)}
+.callout h3{color:var(--txt);margin:2px 0 6px;font-size:19px;letter-spacing:.03em}
 .callout p{margin:0;color:var(--txt)}
-.callout.aviso-legal{border-left-color:var(--alerta)}
-.glosario{margin:14px 0}
-.glosario dt{font-weight:700;margin-top:14px;font-size:15px}
-.glosario dd{margin:4px 0 0;color:var(--txt2);font-size:14.5px}
-.tarjetas-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:14px 0}
-.info-card{background:var(--sup);padding:14px}
+.callout.aviso-legal{background:var(--alerta-sup)}
+.callout.aviso-legal .callout-ico{background:var(--alerta);color:var(--sobre-solido)}
+
+.glosario{margin:14px 0;display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);border-top:1px solid var(--linea)}
+.glosario dt{font:700 18px/1.25 var(--display);text-transform:uppercase;letter-spacing:.02em;padding:13px 16px 13px 0;border-bottom:1px solid var(--linea)}
+/* La t del estadístico va en minúscula: en mayúscula es otra cosa. */
+.glosario dt.sin-mayus{text-transform:none}
+.glosario dd{margin:0;color:var(--txt2);font-size:15px;line-height:1.6;padding:12px 0;border-bottom:1px solid var(--linea)}
+.tarjetas-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;margin:16px 0;background:var(--linea);border:1px solid var(--linea)}
+.info-card{background:var(--sup);padding:14px 16px}
 .info-card.ancha{grid-column:1/-1}
-.info-card>b{display:block;margin:8px 0 4px;font-size:14.5px}
-.info-card p{margin:0;font-size:13.5px;color:var(--txt2)}
-.lista-no{color:var(--txt2);font-size:14.5px;padding-left:20px}
-.lista-no li{margin:8px 0}
-.flujo{display:grid;gap:14px;margin:16px 0 30px}
-.paso{background:var(--sup);border-left:5px solid var(--txt);padding:18px 22px 16px}
-.paso-cab{display:flex;align-items:center;gap:11px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--linea)}
-.paso-n{flex:0 0 auto;font:800 30px/1 var(--display);color:var(--marca)}
-.paso h3{margin:0;color:var(--txt);font-size:18px}
-.paso-sub{margin:0 0 0 auto;font-size:13px;color:var(--tenue);text-align:right}
-.paso>p{margin:0 0 9px}
-.paso ol,.paso ul{margin:9px 0;padding-left:22px}
-.paso li{margin:5px 0}
-.paso .nota{margin-top:11px;padding-top:10px;border-top:1px dashed var(--linea);font-size:13px}
-@media (max-width:640px){.paso-cab{flex-wrap:wrap}.paso-sub{margin:4px 0 0;text-align:left;width:100%}}
+.info-card.grave{background:var(--error-sup)}
+/* El ">" importa: solo el <b> que hace de TÍTULO de la tarjeta va en bloque; con
+   ".info-card b" también caían las negritas de dentro de los párrafos. */
+.info-card>b{display:block;margin:9px 0 4px;font:700 18px/1.15 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.info-card p{margin:0 0 6px;font-size:14.5px;color:var(--txt2)}
+.niveles{display:flex;flex-wrap:wrap;gap:8px 18px;margin:10px 0 !important}
+.niveles>span{display:inline-flex;align-items:center;gap:7px;color:var(--txt2);font-size:14px}
+.lista-no{color:var(--txt2);font-size:15.5px;padding-left:20px;max-width:70ch}
+.lista-no li{margin:9px 0;line-height:1.55}
+.lista-no li::marker{color:var(--marca)}
+
+@media (max-width:1080px){
+  .guia-marco{grid-template-columns:minmax(0,1fr);gap:20px}
+  /* Angosto: el índice pasa a una fila de chips que se desliza de lado. */
+  .guia-indice{position:static;display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+  .guia-indice::-webkit-scrollbar{display:none}
+  .guia-indice-tit{display:none}
+  .guia-indice a{white-space:nowrap;padding:7px 11px;border:1.5px solid var(--linea);font-size:13.5px}
+  .guia-indice a::before{display:none}
+  .guia-indice a.activo{border-color:var(--txt);background:var(--txt);color:var(--bg)}
+}
+@media (max-width:640px){
+  .guia h2{font-size:26px}
+  .glosario{grid-template-columns:1fr}
+  .glosario dt{border-bottom:0;padding-bottom:2px}
+  .paso{padding:16px 16px 14px}
+  .paso-n{font-size:46px}
+}
+
