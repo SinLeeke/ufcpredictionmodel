@@ -359,6 +359,26 @@ def cargar_calibrador_metodo() -> dict | None:
         return None
 
 
+# Permutación que intercambia los lados de las 6 clases (A_* <-> B_*).
+ESPEJO6 = [3, 4, 5, 0, 1, 2]
+
+
+def _p6_simetrica(modelo, feat_df, cols) -> np.ndarray:
+    """
+    Las 6 probabilidades del modelo de método, INVARIANTES al orden de los
+    peleadores: se promedia la pelea con su espejo (con las clases de lado
+    intercambiadas). Es exactamente lo que hace backtest_metodo al ajustar el
+    calibrador de método; antes aquí se predecía en una sola orientación, así
+    que el calibrador recibía una entrada distinta a la que conocía.
+    Medido en walk-forward 2021-2026: log loss mejor en 5/6 (-0,0013).
+    """
+    from src.features import espejo
+    p = modelo.predict_proba(feat_df[cols])[0]
+    p_esp = modelo.predict_proba(espejo(feat_df[cols], cols))[0][ESPEJO6]
+    s = (p + p_esp) / 2.0
+    return s / s.sum()
+
+
 def mercado_metodo(cuotas6) -> tuple[np.ndarray, float]:
     """
     6 cuotas -> (probabilidades sin comisión, sobrerredondeo).
@@ -391,7 +411,7 @@ def analizar_metodo(feat_df, cuotas6, min_ev: float = 0.0) -> list[dict]:
     if sobre < MIN_SOBRERREDONDEO:
         return [{"error": f"cuotas imposibles (suman {sobre:.3f})"}]
 
-    p = modelo.predict_proba(feat_df[cols])[0]
+    p = _p6_simetrica(modelo, feat_df, cols)
     z = (cal["peso_mercado"] * np.log(np.clip(q, 1e-9, 1))
          + cal["peso_modelo"] * np.log(np.clip(p, 1e-9, 1)))
     z -= z.max()
@@ -465,7 +485,7 @@ def analizar_metodo5(feat_df, cuotas4, min_ev: float = 0.0) -> list[dict]:
         return [{"error": f"cuotas imposibles (suman {sobre:.3f})"}]
     q = bruta / sobre
 
-    p6 = modelo.predict_proba(feat_df[cols])[0]
+    p6 = _p6_simetrica(modelo, feat_df, cols)
     i = {c: k for k, c in enumerate(CLASES_METODO)}
     p = np.array([p6[i["A_KO"]] + p6[i["A_SUB"]], p6[i["A_DEC"]],
                   p6[i["B_KO"]] + p6[i["B_SUB"]], p6[i["B_DEC"]]], dtype=float)

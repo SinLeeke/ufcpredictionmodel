@@ -1,0 +1,59 @@
+"""Pruebas de src/value.py: mercados de método."""
+import unittest
+from unittest import mock
+
+import numpy as np
+import pandas as pd
+
+from src import value as V
+from src.features import espejo
+
+COLS = ["streak_diff", "fight_finish_potential"]
+CAL = {"peso_mercado": 0.95, "peso_modelo": 0.45, "n": 1}
+CUOTAS6 = [10.0, 6.2, 4.0, 3.5, 5.5, 4.5]          # A_KO, A_SUB, A_DEC, B_KO, B_SUB, B_DEC
+
+
+class _ModeloConSesgo:
+    """6 clases; favorece a la columna A más allá de lo que dicen las features."""
+
+    def predict_proba(self, X):
+        s = X["streak_diff"].to_numpy(dtype=float)
+        base = np.array([0.20, 0.08, 0.30, 0.12, 0.06, 0.24])
+        filas = []
+        for v in s:
+            w = base * np.exp(np.array([1, 1, 1, -1, -1, -1]) * 0.3 * v)
+            filas.append(w / w.sum())
+        return np.array(filas)
+
+
+def _analizar(feat, cuotas, fn=V.analizar_metodo):
+    with mock.patch.object(V, "cargar_modelo_metodo", lambda: (_ModeloConSesgo(), COLS)), \
+            mock.patch.object(V, "cargar_calibrador_metodo", lambda: CAL):
+        return {o["clase"]: o for o in fn(feat, cuotas)}
+
+
+class SimetriaDelMetodo(unittest.TestCase):
+
+    def test_6_vias_invariante_al_orden(self):
+        # BUG: se predecía en una sola orientación aunque el calibrador de método
+        # se ajustó con la predicción simetrizada (backtest_metodo, ESPEJO).
+        feat = pd.DataFrame([{"streak_diff": 2.0, "fight_finish_potential": 0.2}])
+        ab = _analizar(feat, CUOTAS6)
+        ba = _analizar(espejo(feat, COLS), CUOTAS6[3:] + CUOTAS6[:3])
+        lado = {"A": "B", "B": "A"}
+        for clase, o in ab.items():
+            otra = ba[lado[clase[0]] + clase[1:]]
+            self.assertAlmostEqual(o["p_modelo"], otra["p_modelo"], places=9, msg=clase)
+            self.assertAlmostEqual(o["p_final"], otra["p_final"], places=9, msg=clase)
+
+    def test_5_vias_invariante_al_orden(self):
+        feat = pd.DataFrame([{"streak_diff": 2.0, "fight_finish_potential": 0.2}])
+        c4 = [2.2, 3.0, 2.9, 8.0]                          # A_FIN, A_DEC, B_FIN, B_DEC
+        ab = _analizar(feat, c4, V.analizar_metodo5)
+        ba = _analizar(espejo(feat, COLS), c4[2:] + c4[:2], V.analizar_metodo5)
+        self.assertAlmostEqual(ab["A_DEC"]["p_final"], ba["B_DEC"]["p_final"], places=9)
+        self.assertAlmostEqual(ab["A_FIN"]["p_modelo"], ba["B_FIN"]["p_modelo"], places=9)
+
+
+if __name__ == "__main__":
+    unittest.main()
