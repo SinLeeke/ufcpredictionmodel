@@ -80,17 +80,68 @@ function resaltarCambios(raiz, antes) {
   });
 }
 
-/* =============================== TEMA ================================= */
-const temaGuardado = localStorage.getItem('tema');
-if (temaGuardado) document.documentElement.dataset.tema = temaGuardado;
-$('#btn-tema').onclick = () => {
-  const oscuroAhora = document.documentElement.dataset.tema
-    ? document.documentElement.dataset.tema === 'oscuro'
-    : matchMedia('(prefers-color-scheme: dark)').matches;
-  const nuevo = oscuroAhora ? 'claro' : 'oscuro';
-  document.documentElement.dataset.tema = nuevo;
-  localStorage.setItem('tema', nuevo);
+/* ============================== OPCIONES ============================== */
+// El estilo (la transmisión o la tarjeta del juez) y el tema se guardan en este
+// navegador. Sin tema elegido, la página sigue al del sistema. localStorage
+// puede no estar (ventana privada, sitio bloqueado): entonces simplemente no
+// se recuerda, pero todo funciona.
+const leer = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const guardar = (k, v) => {
+  try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* sin memoria */ }
 };
+const raizDoc = document.documentElement;
+const esJuez = () => raizDoc.dataset.estilo === 'juez';
+function aplicarTema(t) {
+  if (t === 'claro' || t === 'oscuro') raizDoc.dataset.tema = t; else delete raizDoc.dataset.tema;
+}
+function aplicarEstilo(e) {
+  if (e === 'juez') raizDoc.dataset.estilo = 'juez'; else delete raizDoc.dataset.estilo;
+}
+aplicarTema(leer('tema'));
+aplicarEstilo(leer('estilo'));
+$(`input[name="tema"][value="${raizDoc.dataset.tema || 'auto'}"]`).checked = true;
+$(`input[name="estilo"][value="${esJuez() ? 'juez' : 'transmision'}"]`).checked = true;
+
+const btnOpciones = $('#btn-opciones'), panelOpciones = $('#panel-opciones');
+// Se despliega desde el botón (arriba a la derecha) y se cierra con Esc, con
+// un clic afuera o con el mismo botón. Con teclado, sin animación.
+function abrirOpciones(abrir) {
+  panelOpciones.classList.toggle('oculto', !abrir);
+  btnOpciones.setAttribute('aria-expanded', abrir);
+  if (!abrir) return;
+  panelOpciones.querySelector('input:checked')?.focus();
+  if (!porTeclado) panelOpciones.animate(reducir()
+    ? [{ opacity: 0 }, { opacity: 1 }]
+    : [{ opacity: 0, transform: 'scale(0.97)' }, { opacity: 1, transform: 'none' }],
+    { duration: 150, easing: EASE_OUT });
+}
+btnOpciones.onclick = () => abrirOpciones(panelOpciones.classList.contains('oculto'));
+document.addEventListener('click', (e) => {
+  if (!panelOpciones.classList.contains('oculto') && !e.target.closest('.opciones')) abrirOpciones(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || panelOpciones.classList.contains('oculto')) return;
+  abrirOpciones(false); btnOpciones.focus();
+});
+$$('input[name="tema"]').forEach(r => r.onchange = () => {
+  aplicarTema(r.value);
+  guardar('tema', r.value === 'auto' ? null : r.value);
+});
+$$('input[name="estilo"]').forEach(r => r.onchange = () => {
+  aplicarEstilo(r.value);
+  guardar('estilo', r.value === 'juez' ? 'juez' : null);
+  repintarEstilo();
+});
+// Cambiar de estilo cambia cómo se arma cada pelea (octágono o acta), así que
+// la cartelera se vuelve a pintar; sin animar nada, porque ningún dato cambió.
+function repintarEstilo() {
+  medirCabecera();
+  if (!S.datos) return;
+  const previo = S.previo;
+  S.previo = null;
+  pintarCartelera(S.datos, S.mov || {});
+  S.previo = previo;
+}
 
 /* =============================== TABS ================================= */
 const irA = (t) => $(`.tab[data-tab="${t}"]`).click();
@@ -243,7 +294,8 @@ async function tick() {
       S.previo = S.otraCartelera ? null : previo;
       const vivos = new Set(S.patas.map(p => p.id));
       S.elegidas = S.elegidas.filter(id => vivos.has(id));
-      pintarCartelera(e.datos, e.movimiento || {});
+      S.mov = e.movimiento || {};
+      pintarCartelera(e.datos, S.mov);
       pintarTiers(e.datos.tiers);
       pintarPatas();
       evaluarParlay();
@@ -448,9 +500,16 @@ function pintarCartelera(d, mov) {
   const principal = d.peleas.find(p => p.id === idEstelar);
   const segunda = d.peleas.find(p => p.id === idCo);
   const resto = d.peleas.filter(p => p.id !== idEstelar && p.id !== idCo);
+  // Transmisión: la estelar y la coestelar en el octágono, el resto cara a
+  // cara. Tarjeta del juez: todas son actas, la estelar y la coestelar más
+  // grandes. El número de pelea es su lugar en la cartelera.
+  const nro = (p) => d.peleas.indexOf(p) + 1;
+  const pelea = esJuez()
+    ? (p, tipo) => actaPelea(p, mov, tipo, nro(p), d.peleas.length)
+    : (p, tipo) => tipo ? jaula(p, mov, tipo) : tarjetaPelea(p, mov);
   $('#peleas').innerHTML = `<div class="peleas-lista">${
-    principal ? jaula(principal, mov, 'estelar') : ''}${
-    segunda ? jaula(segunda, mov, 'coestelar') : ''}${resto.map(p => tarjetaPelea(p, mov)).join('')}</div>`;
+    principal ? pelea(principal, 'estelar') : ''}${
+    segunda ? pelea(segunda, 'coestelar') : ''}${resto.map(p => pelea(p, '')).join('')}</div>`;
   cargarFotos($('#peleas'));
   $$('#peleas [data-explica]').forEach(b => b.onclick = () => {
     const p = d.peleas.find(x => x.id === b.dataset.explica);
@@ -489,6 +548,15 @@ function llenarBarras() {
     const [a, b] = art.querySelectorAll('.duelo-barra i');
     if (a) llenar(a, 'left'); if (b) llenar(b, 'right');
     art.querySelectorAll('.metodo .mbar i').forEach(m => llenar(m, 'left', 60));
+    // Tarjeta del juez: el timbre cae sobre el papel y después el lápiz
+    // encierra al ganador. Solo aquí, en la primera vista de la cartelera.
+    const timbre = art.querySelector('.ac-timbre .pill');
+    if (timbre) timbre.animate(
+      [{ opacity: 0, transform: 'rotate(-4deg) scale(1.35)' }, { opacity: 1, transform: 'rotate(-4deg) scale(1)' }],
+      { duration: 220, delay: delay + 120, easing: EASE_OUT, fill: 'backwards' });
+    const trazo = art.querySelector('.ac-lapiz path');
+    if (trazo) trazo.animate([{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }],
+      { duration: 450, delay: delay + 300, easing: EASE_OUT, fill: 'backwards' });
   });
 }
 
@@ -696,6 +764,71 @@ function jaula(p, mov, tipo) {
     ${metodoFila(p)}
     ${piePelea(p, true)}
     ${p.confianza === 'NO FIABLE' ? `<div class="explica alerta">${ico('alerta')}<div>${p.por_que_confianza}</div></div>` : ''}
+  </article>`;
+}
+
+/* ===================== ESTILO C: TARJETA DEL JUEZ ===================== */
+// Cada pelea es la tarjeta que llena un juez: casilleros con su rótulo
+// impreso, las cifras escritas a máquina en filas como los asaltos, la forma
+// de terminar como casillas marcadas, el pronóstico encerrado con lápiz y la
+// confianza como un timbre. Son los mismos datos y las mismas claves data-num
+// que la tarjeta de transmisión, así que EN VIVO anima igual.
+
+// El trazo del lápiz alrededor del nombre: a mano, sin cerrar del todo.
+const LAPIZ = `<svg class="ac-lapiz" viewBox="0 0 200 64" preserveAspectRatio="none" aria-hidden="true">
+  <path d="M16 38C8 20 50 7 102 6c54-1 90 10 92 27 2 19-46 27-100 26C40 58 6 49 8 32 9 21 38 12 72 9" pathLength="1"
+        fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+// Un juez no encierra un ganador en una pelea pareja ni sin datos: ahí el
+// nombre queda escrito pero sin el círculo (el timbre ya dice por qué).
+const SIN_LAPIZ = ['moneda', 'NO FIABLE'];
+
+function actaPelea(p, mov, tipo, n, total) {
+  const favA = p.p_a >= p.p_b;
+  const m = p.mercado;
+  const titulo = tipo === 'estelar' ? 'Pelea estelar' : (tipo === 'coestelar' && esCoSegmento(p) ? 'Co-estelar' : '');
+  const segmento = [titulo, p.segmento && p.segmento !== titulo ? p.segmento : ''].filter(Boolean).join(' · ');
+  // menos: el lado que la fila no favorece (en la probabilidad, el no favorito).
+  const fila = (k, lbl, a, b, clase = '', menos = '') => `<div class="ac-fila ${clase}">
+      <span class="ac-v a ${menos === 'a' ? 'menos' : ''}" data-num="${p.id}:${k}:A">${a}</span><span class="ac-rot">${lbl}</span><span class="ac-v b ${menos === 'b' ? 'menos' : ''}" data-num="${p.id}:${k}:B">${b}</span></div>`;
+  const peleador = (lado, nombre, info, fav) => `
+      <div class="ac-peleador ${lado} ${fav ? 'fav' : ''}">
+        <div class="ac-foto">${retrato(nombre)}${tipo === 'estelar' ? `<span class="ac-clip">${ico('clip')}</span>` : ''}</div>
+        <div class="ac-id"><small>Peleador</small><b>${esc(nombre)}</b><span>${peleasUFC(info) || '&nbsp;'}</span></div>
+      </div>`;
+  const conLapiz = !SIN_LAPIZ.includes(p.confianza);
+  const tendencia = p.tendencia === 'pelea promedio'
+    ? 'Nada la distingue de una pelea promedio.'
+    : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>.`;
+  return `
+  <article class="acta ${tipo || ''}" data-pelea="${p.id}">
+    <header class="ac-cab">
+      <div class="ac-campo ac-n"><small>Pelea</small><b>${n} de ${total}</b></div>
+      <div class="ac-campo ac-seg"><small>Segmento</small><b>${esc(segmento)}</b></div>
+      <div class="ac-campo ac-conf"><small>Confianza</small><span class="ac-timbre">${selloConf(p)}</span></div>
+    </header>
+    <div class="ac-cuerpo">
+      ${peleador('a', p.a, p.info_a, favA)}
+      <div class="ac-filas">
+        ${fila('p', 'probabilidad de ganar', pct(p.p_a), pct(p.p_b), 'ac-prob', favA ? 'b' : 'a')}
+        <div class="ac-barra">${barraDuelo(p)}</div>
+        ${m ? fila('cuota', 'cuota', cuota(m.cuota_a) + flecha(mov, p.id, 'A'), cuota(m.cuota_b) + flecha(mov, p.id, 'B'))
+            + fila('casa', 'le da la casa', pct(m.p_mercado_a), pct(1 - m.p_mercado_a))
+            + fila('modelo', 'el modelo solo', pct(m.p_modelo_a), pct(1 - m.p_modelo_a))
+            : '<p class="ac-sin">Sin cuotas: solo la probabilidad del modelo.</p>'}
+      </div>
+      ${peleador('b', p.b, p.info_b, !favA)}
+    </div>
+    <div class="ac-metodo"><small class="ac-tit">Cómo termina</small>${metodoFila(p)}</div>
+    <div class="ac-pronostico">
+      <div class="ac-campo"><small>Pronóstico</small>
+        <span class="ac-gana ${conLapiz ? 'con-lapiz' : ''}">${esc(p.ganador)}${conLapiz ? LAPIZ : ''}</span></div>
+      <div class="ac-campo"><small>No llega a las tarjetas</small><b data-num="${p.id}:fin">${pct(p.p_finish, 0)}</b></div>
+    </div>
+    <div class="ac-obs"><small>Observaciones</small>
+      <p>${tendencia}${m ? ` Comisión de la casa: <b>${pct(m.vig)}</b>.` : ''}</p>
+      ${p.confianza === 'NO FIABLE' ? `<p class="ac-alerta">${ico('alerta')}<span>${p.por_que_confianza}</span></p>` : ''}
+    </div>
+    <footer class="ac-pie"><span>UFC Predictor · tarjeta de pronóstico</span><span>Estimación del modelo, no una tarjeta oficial</span></footer>
   </article>`;
 }
 
@@ -1195,8 +1328,9 @@ $('#btn-cancelar').onclick = () => S.job && post(`/api/tareas/${S.job}/cancelar`
 /* La Combinada mide lo que la ventana menos la cabecera. Se mide la cabecera
    una vez (y al cambiar el tamaño) y no su estado escondido/visible: si no, la
    combinada crecería y se encogería cada vez que la barra entra o sale. */
-const medirCabecera = () => document.documentElement.style.setProperty(
-  '--alto-cab', $('#barra-superior').offsetHeight + 'px');
+function medirCabecera() {
+  document.documentElement.style.setProperty('--alto-cab', $('#barra-superior').offsetHeight + 'px');
+}
 medirCabecera();
 addEventListener('resize', medirCabecera);
 

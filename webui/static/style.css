@@ -14,6 +14,10 @@
 @font-face{font-family:"Barlow";src:url(/fuentes/barlow-500.woff2) format("woff2");font-weight:500;font-display:swap}
 @font-face{font-family:"Barlow";src:url(/fuentes/barlow-600.woff2) format("woff2");font-weight:600;font-display:swap}
 @font-face{font-family:"Barlow";src:url(/fuentes/barlow-700.woff2) format("woff2");font-weight:700;font-display:swap}
+/* Courier Prime: la máquina de escribir del estilo "Tarjeta del juez". Solo se
+   descarga si ese estilo está elegido. */
+@font-face{font-family:"Courier Prime";src:url(/fuentes/courier-prime-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Courier Prime";src:url(/fuentes/courier-prime-700.woff2) format("woff2");font-weight:700;font-display:swap}
 
 /* ------------------------------- tokens ------------------------------- */
 :root{
@@ -38,6 +42,8 @@
   --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --texto:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
   --incl:12deg;                        /* la inclinación de la gráfica de transmisión */
+  /* Grano de tinta de los timbres (estilo C): ruido que deja pasar casi todo. */
+  --grano:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.2 1.95'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
   /* Dos curvas para todo el movimiento de la UI: ease-out fuerte para lo que
      entra, sale o responde; ease-in-out para lo que viaja por la pantalla. */
   --ease-out:cubic-bezier(0.23,1,0.32,1);
@@ -184,6 +190,42 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .cab .primario:hover:not(:disabled){background:var(--cab-txt);border-color:var(--cab-txt);color:var(--cab-bg)}
 .cab .icono{background:none;border-color:var(--cab-linea);color:var(--cab-txt)}
 .cab .icono:hover:not(:disabled){border-color:var(--cab-tenue)}
+
+/* Opciones: un panel que cuelga del botón, en los colores de la página (no del
+   canal), con la regla de tinta de todos los paneles. */
+.opciones{position:relative}
+.cab .icono[aria-expanded="true"]{border-color:var(--cab-txt)}
+.panel-opciones{position:absolute;z-index:45;top:calc(100% + 12px);right:0;width:360px;max-width:calc(100vw - 24px);
+  background:var(--sup);color:var(--txt);border-top:3px solid var(--txt);padding:16px 18px 18px;
+  display:grid;gap:16px;transform-origin:top right;text-align:left}
+.op-grupo{border:0;margin:0;padding:0;display:grid;gap:8px;min-width:0}
+.op-grupo legend{padding:0;margin-bottom:8px;font:800 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue)}
+.op-estilo{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:center;padding:10px;cursor:pointer;
+  border:1.5px solid var(--linea);background:var(--bg);transition:border-color .16s ease,background-color .16s ease}
+.op-estilo:hover{border-color:var(--tenue)}
+.op-estilo:has(input:checked){border-color:var(--txt);background:var(--sup2)}
+.op-estilo:has(input:focus-visible),.op-temas label:has(input:focus-visible){outline:2px solid var(--marca);outline-offset:2px}
+.op-estilo input,.op-temas input{position:absolute;opacity:0;pointer-events:none}
+.op-txt b{display:block;font:800 17px/1.1 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.op-txt small{display:block;margin-top:3px;font-size:13px;line-height:1.4;color:var(--txt2)}
+/* Las muestras son un dibujo de cada estilo, con sus propios colores (no los
+   del tema): dicen cómo se va a ver antes de elegirlo. */
+.op-muestra{position:relative;display:block;width:72px;height:50px;overflow:hidden;border:1px solid rgba(20,18,16,.25)}
+.muestra-b{background:#ece6db}
+.muestra-b i:nth-child(1){position:absolute;inset:0 0 auto;height:13px;background:#0b0a09;border-bottom:2px solid #e8293d}
+.muestra-b i:nth-child(2){position:absolute;left:7px;top:4px;width:16px;height:5px;background:#efe9df;transform:skewX(-12deg)}
+.muestra-b i:nth-child(3){position:absolute;left:26px;top:20px;width:22px;height:22px;background:#141210;
+  clip-path:polygon(29% 0,71% 0,100% 29%,100% 71%,71% 100%,29% 100%,0 71%,0 29%)}
+.muestra-c{background:#f7f6f1 repeating-linear-gradient(180deg,transparent 0 9px,#b7bec8 9px 10px)}
+.muestra-c i:nth-child(1){position:absolute;inset:4px 4px auto;height:10px;border:1px solid #3b4a5c}
+.muestra-c i:nth-child(2){position:absolute;left:9px;top:22px;width:22px;height:2px;background:#16181b;box-shadow:0 10px 0 #16181b}
+.muestra-c i:nth-child(3){position:absolute;right:7px;top:24px;width:26px;height:14px;border:2px solid #b42318;transform:rotate(-8deg)}
+.op-temas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1.5px solid var(--txt)}
+.op-temas label{position:relative;display:grid;place-items:center;min-height:40px;cursor:pointer;
+  font:700 14px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--txt2)}
+.op-temas label+label{border-left:1.5px solid var(--txt)}
+.op-temas label:hover{color:var(--txt)}
+.op-temas label:has(input:checked){background:var(--txt);color:var(--bg)}
 
 /* EN VIVO: apagado por defecto; prendido, late como el rótulo de la tele. */
 .vivo-caja{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;white-space:nowrap;
@@ -910,6 +952,283 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   .glosario dt{border-bottom:0;padding-bottom:2px}
   .paso{padding:16px 16px 14px}
   .paso-n{font-size:46px}
+}
+
+
+/* ================== estilo C: Tarjeta del juez (opcional) ================== */
+/* El acta de la pelea. Papel de formulario impreso en tinta pizarra; las cifras
+   escritas a máquina; la confianza como un timbre de goma; el pronóstico
+   encerrado con lápiz de pasta. Se elige en Opciones y se aplica con
+   data-estilo="juez" en <html>: es una capa sobre los mismos tokens y el mismo
+   HTML, salvo la tarjeta de cada pelea, que la arma actaPelea() en app.js.
+   En oscuro es una copia al carbón: el mismo formulario, en negativo. */
+:root[data-estilo="juez"]{
+  --bg:#dad8d0; --sup:#f7f6f1; --sup2:#ebe9e2; --linea:#bcc2ca;
+  --txt:#16181b; --txt2:#3a4048; --tenue:#46556a;
+  --marca:#b42318; --sobre-marca:#fff;
+  --ok:#1d6a35; --ok-sup:#e2ede0; --alerta:#855300; --alerta-sup:#f5ead2;
+  --error:#b42318; --error-sup:#f7e2df;
+  --probado:#16181b; --sobre-probado:#f7f6f1; --sobre-solido:#f7f6f1;
+  --sil-fondo:#e6e4dc; --sil-fig:#b3b9c1;
+  --resalte:rgba(255,212,0,.55);           /* el destello EN VIVO es un resaltador */
+  --cab-bg:#f7f6f1; --cab-sup:#ebe9e2; --cab-linea:#bcc2ca;
+  --cab-txt:#16181b; --cab-tenue:#46556a; --cab-rojo:#b42318; --cab-regla:#b42318;
+  --forma:#3b4a5e;                         /* la tinta con que está impreso el formulario */
+  --lapiz:#1f4fa8;                         /* el lápiz de pasta del juez */
+  --maquina:"Courier Prime","Courier New",ui-monospace,monospace;
+  --incl:0deg;                             /* el papel no se inclina */
+}
+@media (prefers-color-scheme: dark){
+  :root[data-estilo="juez"]:not([data-tema="claro"]){
+    --bg:#0d0f12; --sup:#171a1f; --sup2:#20242a; --linea:#363d47;
+    --txt:#e9e7e0; --txt2:#c3c7cd; --tenue:#9cabbd;
+    --marca:#f26b5b; --sobre-marca:#0d0f12;
+    --ok:#62c27f; --ok-sup:#15241a; --alerta:#e4a83a; --alerta-sup:#2a2010;
+    --error:#f26b5b; --error-sup:#2e1715;
+    --probado:#e9e7e0; --sobre-probado:#0d0f12; --sobre-solido:#0d0f12;
+    --sil-fondo:#20242a; --sil-fig:#3b424c;
+    --resalte:rgba(255,212,0,.3);
+    --cab-bg:#171a1f; --cab-sup:#20242a; --cab-linea:#363d47;
+    --cab-txt:#e9e7e0; --cab-tenue:#9cabbd; --cab-rojo:#c4302a; --cab-regla:#f26b5b;
+    --forma:#8d9eb4; --lapiz:#8fb1ff;
+  }
+}
+:root[data-estilo="juez"][data-tema="oscuro"]{
+  --bg:#0d0f12; --sup:#171a1f; --sup2:#20242a; --linea:#363d47;
+  --txt:#e9e7e0; --txt2:#c3c7cd; --tenue:#9cabbd;
+  --marca:#f26b5b; --sobre-marca:#0d0f12;
+  --ok:#62c27f; --ok-sup:#15241a; --alerta:#e4a83a; --alerta-sup:#2a2010;
+  --error:#f26b5b; --error-sup:#2e1715;
+  --probado:#e9e7e0; --sobre-probado:#0d0f12; --sobre-solido:#0d0f12;
+  --sil-fondo:#20242a; --sil-fig:#3b424c;
+  --resalte:rgba(255,212,0,.3);
+  --cab-bg:#171a1f; --cab-sup:#20242a; --cab-linea:#363d47;
+  --cab-txt:#e9e7e0; --cab-tenue:#9cabbd; --cab-rojo:#c4302a; --cab-regla:#f26b5b;
+  --forma:#8d9eb4; --lapiz:#8fb1ff;
+}
+
+/* --- cabecera de formulario: papel, doble filete y pestañas de carpeta --- */
+[data-estilo="juez"] .cab{border-bottom:5px double var(--forma)}
+[data-estilo="juez"] .marca-txt{color:var(--txt)}
+[data-estilo="juez"] .tab{color:var(--tenue)}
+[data-estilo="juez"] .tab+.tab{box-shadow:inset 1px 0 0 var(--linea)}   /* divisiones de columna */
+[data-estilo="juez"] .tab::before{inset:10px 4px;border:1.5px solid var(--txt);background:var(--txt)}
+[data-estilo="juez"] .tab.activa{color:var(--sup)}
+[data-estilo="juez"] .tab.activa .badge{color:var(--sup)}
+[data-estilo="juez"] .badge{color:var(--marca)}
+[data-estilo="juez"] .cab .primario{background:var(--txt);border-color:var(--txt);color:var(--sup)}
+[data-estilo="juez"] .cab .primario:hover:not(:disabled){background:var(--marca);border-color:var(--marca);color:var(--sobre-marca)}
+[data-estilo="juez"] .vivo-caja.activo{color:#fff;background:var(--cab-rojo);border-color:var(--cab-rojo)}
+[data-estilo="juez"] .cartelera-activa,[data-estilo="juez"] .reloj-caja{font-family:var(--maquina);font-weight:700;letter-spacing:0}
+[data-estilo="juez"] .pie{border-top:5px double var(--forma)}
+
+/* --- botones y campos --- */
+[data-estilo="juez"] .primario{clip-path:none;background:var(--txt);border-color:var(--txt);color:var(--sup);padding-inline:18px}
+[data-estilo="juez"] .primario:hover:not(:disabled){background:var(--marca);border-color:var(--marca);color:var(--sobre-marca)}
+[data-estilo="juez"] input[type=text],[data-estilo="juez"] input[type=number]{background:var(--sup);border-color:var(--forma);font-family:var(--maquina);font-weight:700}
+[data-estilo="juez"] .seg.activa{background:var(--txt);color:var(--sup)}
+
+/* --- títulos de sección: filete doble y casilla impresa --- */
+[data-estilo="juez"] .bloque-cab{border-top:5px double var(--forma);padding-top:14px}
+[data-estilo="juez"] .bloque-cab>h2::before{width:12px;height:12px;background:var(--forma);transform:none}
+
+/* --- el encabezado del acta: la cartelera --- */
+[data-estilo="juez"] .evento{background:var(--sup);border:1.5px solid var(--forma);padding:16px 20px 16px;position:relative}
+[data-estilo="juez"] .evento::before{content:"Acta de la cartelera";display:block;margin-bottom:8px;
+  font:700 12px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--tenue)}
+[data-estilo="juez"] .evento-titulo{font-family:var(--maquina);font-weight:700;text-transform:uppercase;letter-spacing:-.01em;
+  font-size:clamp(28px,4vw,44px);line-height:1.05}
+[data-estilo="juez"] .evento-meta{font-family:var(--maquina);font-weight:700;letter-spacing:0;text-transform:none;font-size:15px;color:var(--txt2)}
+[data-estilo="juez"] .evento-meta .demo{font-family:var(--display);letter-spacing:.08em;text-transform:uppercase}
+
+/* --- resumen: cuatro casilleros con rótulo impreso y cifra a máquina --- */
+[data-estilo="juez"] .kpis{border:1.5px solid var(--forma);border-top-width:1.5px}
+[data-estilo="juez"] .kpi{display:flex;flex-direction:column-reverse;justify-content:flex-end;padding:10px 16px 14px}
+[data-estilo="juez"] .kpi+.kpi{border-left:1px solid var(--forma)}
+[data-estilo="juez"] .kpi+.kpi::before{display:none}
+[data-estilo="juez"] .kpi .k{margin:0 0 10px;font-size:12.5px;letter-spacing:.08em}
+[data-estilo="juez"] .kpi .v{font:700 46px/1 var(--maquina);letter-spacing:-.05em}
+
+/* --- avisos: notas sobre el acta --- */
+[data-estilo="juez"] .aviso{border:1px solid var(--linea)}
+[data-estilo="juez"] .aviso.err{border-color:var(--error)}
+
+/* --- timbres: la intensidad sigue diciendo la fuerza (sólido = lo más fuerte
+   o lo más grave, doble filete = intermedio, punteado = nada) --- */
+[data-estilo="juez"] .pill{font-weight:800;letter-spacing:.1em;border-width:2px}
+[data-estilo="juez"] .pill.buena,[data-estilo="juez"] .pill.n-buena,
+[data-estilo="juez"] .pill.justa,[data-estilo="juez"] .pill.n-leve,
+[data-estilo="juez"] .pill.tB,[data-estilo="juez"] .pill.tC{border-style:double;border-width:4px;background:transparent}
+[data-estilo="juez"] .pill.moneda,[data-estilo="juez"] .pill.n-coinflip{border-style:dashed;background:transparent}
+
+/* --- qué apostar: un libro de registro con renglones --- */
+[data-estilo="juez"] .grupo-apuestas{background:var(--sup);border:1.5px solid var(--forma)}
+[data-estilo="juez"] .zocalo{background:transparent;margin:0;border-bottom:1px solid var(--linea)}
+[data-estilo="juez"] .z-sello{clip-path:none;align-self:center;justify-self:center;margin:10px 12px;padding:7px 10px 6px;
+  font-size:13px;letter-spacing:.1em;transform:rotate(-3deg)}
+[data-estilo="juez"] .zocalo.tA .z-sello{background:var(--probado);color:var(--sobre-probado);
+  outline:1.5px solid var(--probado);outline-offset:2px}
+[data-estilo="juez"] .zocalo.tB .z-sello{background:transparent;color:var(--txt2);border:4px double var(--txt2)}
+[data-estilo="juez"] .z-que b{font:700 19px/1.15 var(--maquina);letter-spacing:-.01em}
+[data-estilo="juez"] .z-dato{border-left-color:var(--linea)}
+[data-estilo="juez"] .z-dato b{font:700 24px/1.05 var(--maquina);letter-spacing:-.05em}
+[data-estilo="juez"] .zocalo{grid-template-columns:168px minmax(0,1fr) 128px 96px 124px}
+[data-estilo="juez"] .grupo-motivo{margin:0;padding:9px 16px 10px;max-width:none;border-top:1px dashed var(--linea)}
+[data-estilo="juez"] .sin-apuestas{background:var(--sup);border:1.5px solid var(--forma)}
+[data-estilo="juez"] .sin-apuestas .marca-ok{border-radius:50%;background:transparent;color:var(--ok);border:4px double var(--ok);transform:rotate(-8deg)}
+
+/* --- la tabla: un libro de actas --- */
+[data-estilo="juez"] .tabla-scroll{border:1.5px solid var(--forma);border-top-width:1.5px}
+[data-estilo="juez"] th{border-bottom:1.5px solid var(--forma)}
+[data-estilo="juez"] td.num{font-family:var(--maquina);font-weight:700}
+
+/* --- las peleas: un fajo de tarjetas, dos por fila; la estelar y la
+   coestelar ocupan todo el ancho --- */
+[data-estilo="juez"] .peleas-lista{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:stretch}
+[data-estilo="juez"] .acta.estelar,[data-estilo="juez"] .acta.coestelar{grid-column:1/-1}
+
+/* La hoja: borde de papel, el marco impreso con doble filete y, a la
+   izquierda, las perforaciones de la carpeta. */
+.acta{position:relative;display:flex;flex-direction:column;background:var(--sup);color:var(--txt);border:1px solid var(--linea);
+  padding:16px 18px 10px 40px;min-width:0}
+.acta::after{content:"";position:absolute;inset:7px 7px 7px 30px;border:3px double var(--forma);pointer-events:none}
+.acta::before{content:"";position:absolute;left:9px;top:0;bottom:0;width:13px;pointer-events:none;
+  background:radial-gradient(circle,var(--bg) 0 4.5px,var(--linea) 5px 5.8px,transparent 6.3px) center 22%/13px 13px no-repeat,
+             radial-gradient(circle,var(--bg) 0 4.5px,var(--linea) 5px 5.8px,transparent 6.3px) center 78%/13px 13px no-repeat}
+.acta>*{position:relative;z-index:1}
+.acta small{display:block;font:700 11.5px/1.1 var(--display);letter-spacing:.09em;text-transform:uppercase;color:var(--tenue)}
+
+/* Fila de casilleros de arriba. */
+.ac-cab{display:grid;grid-template-columns:auto minmax(0,1fr) auto;border-bottom:1px solid var(--forma)}
+.ac-campo{padding:6px 12px 8px;min-width:0}
+.ac-campo+.ac-campo{border-left:1px solid var(--forma)}
+.ac-cab .ac-campo:first-child{padding-left:0}
+.ac-campo b{display:block;margin-top:4px;font:700 16px/1.15 var(--maquina);overflow-wrap:anywhere}
+.ac-seg b:empty::after{content:"\00a0"}
+.ac-conf{display:flex;flex-direction:column}
+.ac-timbre{display:flex;align-items:center;gap:8px;margin-top:6px}
+.ac-timbre .pill{font-size:14px;padding:6px 11px 5px;transform:rotate(-4deg);
+  -webkit-mask-image:var(--grano);mask-image:var(--grano);-webkit-mask-size:140px;mask-size:140px}
+.ac-timbre .btn-q{background:var(--sup);border-color:var(--forma);color:var(--forma)}
+
+/* Las dos esquinas: foto de carnet, rótulo y nombre a máquina. La de B en
+   espejo. */
+.ac-cuerpo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"a b" "filas filas"}
+.ac-peleador{display:grid;grid-template-columns:66px minmax(0,1fr);gap:12px;align-items:center;padding:12px 0}
+.ac-peleador.a{grid-area:a;padding-right:12px}
+.ac-peleador.b{grid-area:b;grid-template-columns:minmax(0,1fr) 66px;text-align:right;padding-left:12px;border-left:1px solid var(--linea)}
+.ac-peleador.b .ac-foto{order:2}
+.ac-foto{position:relative;width:66px;height:84px;border:1px solid var(--forma);background:var(--sup);padding:3px}
+.ac-foto .retrato{position:absolute;inset:3px;min-height:0}
+.ac-id b{display:block;margin:3px 0 2px;font:700 17px/1.1 var(--maquina);text-transform:uppercase;letter-spacing:-.01em;overflow-wrap:anywhere}
+.ac-id span{font-size:13px;color:var(--tenue)}
+.ac-clip{position:absolute;top:-17px;left:16px;width:30px;height:30px;color:var(--tenue);transform:rotate(-18deg);z-index:2}
+.ac-clip .ico{width:30px;height:30px}
+
+/* Las filas de cifras: como los asaltos de la tarjeta, con el rótulo en la
+   columna del medio y la cifra de cada peleador a su lado. */
+.ac-filas{grid-area:filas;border-top:1px solid var(--forma)}
+.ac-fila{display:grid;grid-template-columns:minmax(0,1fr) 148px minmax(0,1fr);align-items:center;border-bottom:1px solid var(--linea)}
+/* Las cifras a máquina, un poco más juntas: en monoespaciada la coma ocupa
+   una celda entera y "65,0" se leía como "65, 0". */
+.ac-v{padding:7px 14px;font:700 18px/1.1 var(--maquina);letter-spacing:-.05em;white-space:nowrap}
+.ac-v.a{text-align:right}
+.ac-v.b{text-align:left}
+.ac-rot{align-self:stretch;display:grid;place-items:center;padding:6px 8px;text-align:center;background:var(--sup2);
+  border-inline:1px solid var(--forma);font:700 11.5px/1.15 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue)}
+.ac-prob .ac-v{font-size:34px;padding-block:10px 8px}
+.ac-v.menos{color:var(--tenue);font-weight:400}
+.ac-barra{padding:8px 0;border-bottom:1px solid var(--linea)}
+.ac-barra .duelo-barra{height:7px}
+.ac-sin{margin:0;padding:10px 0;font-size:14px;color:var(--txt2)}
+
+/* Cómo termina: tres casillas; la más probable, tachada con lápiz. */
+.ac-metodo{display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;border-bottom:1px solid var(--forma);padding:4px 0}
+.acta .metodo{border-top:0;background:none}
+.acta .metodo>div{display:grid;grid-template-columns:18px auto minmax(0,1fr);grid-template-areas:"caja mk mv" ". barra barra";
+  align-items:center;gap:4px 8px;padding:8px 10px;border-left:1px solid var(--linea)}
+.acta .metodo>div::before{content:"";grid-area:caja;width:16px;height:16px;border:1.5px solid var(--forma);background:var(--sup)}
+.acta .metodo>div.top::before{border-color:var(--lapiz);
+  background:linear-gradient(45deg,transparent 42%,var(--lapiz) 42% 56%,transparent 56%),
+             linear-gradient(-45deg,transparent 42%,var(--lapiz) 42% 56%,transparent 56%),var(--sup)}
+.acta .metodo .mk{grid-area:mk;margin:0;font:700 12.5px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--txt2)}
+.acta .metodo .mv{grid-area:mv;font:700 17px/1 var(--maquina);letter-spacing:-.05em;text-align:right}
+.acta .metodo .top .mv{color:var(--txt)}
+.acta .metodo .mbar{grid-area:barra;margin:2px 0 0;height:3px}
+
+/* Pronóstico y no-llega-a-tarjetas. */
+.ac-pronostico{display:grid;grid-template-columns:minmax(0,1fr) auto;border-bottom:1px solid var(--forma)}
+.ac-pronostico .ac-campo:first-child{padding-left:0}
+.ac-gana{position:relative;display:inline-block;margin:8px 0 2px;padding:5px 20px 4px 22px;font:700 20px/1.1 var(--maquina);text-transform:uppercase;letter-spacing:-.01em}
+.ac-gana:not(.con-lapiz){padding-left:0}
+.ac-lapiz{position:absolute;inset:-5px -8px -6px;width:calc(100% + 16px);height:calc(100% + 11px);color:var(--lapiz);overflow:visible}
+.ac-pronostico .ac-campo b{font-size:22px;margin-top:8px}
+
+/* Observaciones, sobre renglones. */
+.ac-obs{padding:8px 0 4px;flex:1}           /* empuja la letra chica al pie de la hoja */
+.ac-obs p{margin:4px 0 0;font-size:14px;line-height:22px;color:var(--txt2);
+  background:repeating-linear-gradient(180deg,transparent 0 21px,var(--linea) 21px 22px)}
+.ac-alerta{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;color:var(--txt)}
+.ac-alerta .ico{width:16px;height:16px;margin-top:3px;color:var(--error)}
+.ac-pie{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px solid var(--linea);
+  font:600 10.5px/1.3 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue)}
+
+/* La estelar y la coestelar: las fotos de carnet, más grandes y a los
+   costados (la estelar con un clip), y las filas al medio. */
+.acta.estelar .ac-cuerpo,.acta.coestelar .ac-cuerpo{grid-template-columns:var(--foto-g) minmax(0,1fr) var(--foto-g);grid-template-areas:"a filas b";column-gap:22px;padding:14px 0}
+.acta.estelar{--foto-g:210px}
+.acta.coestelar{--foto-g:160px}
+.acta.estelar .ac-peleador,.acta.coestelar .ac-peleador{grid-template-columns:1fr;text-align:center;align-content:start;padding:0;border:0}
+.acta.estelar .ac-peleador.b .ac-foto,.acta.coestelar .ac-peleador.b .ac-foto{order:0}
+.acta.estelar .ac-foto,.acta.coestelar .ac-foto{width:100%;height:auto;aspect-ratio:3/4;padding:5px}
+.acta.estelar .ac-foto .retrato,.acta.coestelar .ac-foto .retrato{inset:5px}
+.acta.estelar .ac-foto{transform:rotate(-1.2deg)}
+.acta.estelar .ac-peleador.b .ac-foto{transform:rotate(1deg)}
+.acta.estelar .ac-filas,.acta.coestelar .ac-filas{border-top:1px solid var(--forma);align-self:center}
+.acta.estelar .ac-v{padding-block:11px}
+.acta.estelar .ac-id b{font-size:24px}
+.acta.coestelar .ac-id b{font-size:20px}
+.acta.estelar .ac-fila{grid-template-columns:minmax(0,1fr) 180px minmax(0,1fr)}
+.acta.estelar .ac-prob .ac-v{font-size:56px}
+.acta.coestelar .ac-prob .ac-v{font-size:44px}
+.acta.estelar .ac-v{font-size:22px}
+.acta.estelar .ac-seg b{font-size:24px;text-transform:uppercase}
+.acta.coestelar .ac-seg b{font-size:20px;text-transform:uppercase}
+.acta.estelar .ac-gana{font-size:26px}
+.acta.estelar .ac-timbre .pill{font-size:17px;padding:8px 14px 7px}
+
+@media (max-width:1080px){
+  [data-estilo="juez"] .peleas-lista{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:760px){
+  .acta.estelar .ac-cuerpo,.acta.coestelar .ac-cuerpo{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"a b" "filas filas";column-gap:12px}
+  .acta.estelar .ac-foto,.acta.coestelar .ac-foto{width:min(100%,150px);justify-self:center}
+  .acta.estelar .ac-fila{grid-template-columns:minmax(0,1fr) 120px minmax(0,1fr)}
+  .acta.estelar .ac-prob .ac-v,.acta.coestelar .ac-prob .ac-v{font-size:34px}
+  .acta.estelar .ac-id b,.acta.coestelar .ac-id b{font-size:18px}
+}
+@media (max-width:640px){
+  .acta{padding:12px 12px 8px}
+  .acta::before{display:none}
+  .acta::after{inset:5px}
+  .ac-cab{grid-template-columns:auto minmax(0,1fr)}
+  .ac-conf{grid-column:1/-1;border-left:0 !important;border-top:1px solid var(--forma);padding-left:0}
+  .ac-peleador{grid-template-columns:52px minmax(0,1fr);gap:8px}
+  .ac-peleador.b{grid-template-columns:minmax(0,1fr) 52px}
+  .ac-foto{width:52px;height:66px}
+  .ac-id b{font-size:15px}
+  .ac-fila{grid-template-columns:minmax(0,1fr) 96px minmax(0,1fr)}
+  .acta.estelar .ac-fila{grid-template-columns:minmax(0,1fr) 96px minmax(0,1fr)}
+  .ac-v{padding:6px 8px;font-size:16px}
+  .ac-prob .ac-v,.acta.estelar .ac-prob .ac-v,.acta.coestelar .ac-prob .ac-v{font-size:24px}
+  .ac-metodo{grid-template-columns:minmax(0,1fr)}
+  .acta .metodo>div{padding:7px 6px;grid-template-columns:16px minmax(0,1fr);grid-template-areas:"caja mk" "mv mv" "barra barra"}
+  .acta .metodo>div:first-child{border-left:0}
+  .acta .metodo .mv{text-align:left}
+  .ac-pronostico{grid-template-columns:minmax(0,1fr)}
+  .ac-pronostico .ac-campo+.ac-campo{border-left:0;border-top:1px solid var(--linea);padding-left:0}
+  [data-estilo="juez"] .kpi .v{font-size:36px}
+  [data-estilo="juez"] .z-que b{font-size:16px}
 }
 
 /* ------------------------------ movimiento ---------------------------- */

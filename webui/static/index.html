@@ -58,9 +58,39 @@
       <span data-ico="refrescar"></span>
       <span class="btn-txt">Refrescar</span>
     </button>
-    <button id="btn-tema" class="icono" title="Cambiar entre claro y oscuro" aria-label="Cambiar entre claro y oscuro">
-      <span data-ico="tema"></span>
-    </button>
+    <!-- Opciones: el estilo (la transmisión o la tarjeta del juez) y el tema.
+         Se guardan en este navegador. -->
+    <div class="opciones">
+      <button id="btn-opciones" class="icono" aria-expanded="false" aria-controls="panel-opciones"
+              title="Opciones de estilo y tema" aria-label="Opciones de estilo y tema">
+        <span data-ico="opciones"></span>
+      </button>
+      <div id="panel-opciones" class="panel-opciones oculto" role="dialog" aria-label="Opciones">
+        <fieldset class="op-grupo">
+          <legend>Estilo</legend>
+          <label class="op-estilo">
+            <input type="radio" name="estilo" value="transmision">
+            <span class="op-muestra muestra-b" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="op-txt"><b>Transmisión</b>
+              <small>La gráfica de la tele: la barra del canal, los zócalos y el octágono.</small></span>
+          </label>
+          <label class="op-estilo">
+            <input type="radio" name="estilo" value="juez">
+            <span class="op-muestra muestra-c" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="op-txt"><b>Tarjeta del juez</b>
+              <small>El acta de la pelea: casilleros, timbres y una tarjeta por combate.</small></span>
+          </label>
+        </fieldset>
+        <fieldset class="op-grupo">
+          <legend>Tema</legend>
+          <div class="op-temas">
+            <label><input type="radio" name="tema" value="auto"><span>Automático</span></label>
+            <label><input type="radio" name="tema" value="claro"><span>Claro</span></label>
+            <label><input type="radio" name="tema" value="oscuro"><span>Oscuro</span></label>
+          </div>
+        </fieldset>
+      </div>
+    </div>
   </div>
 </header>
 </div>

@@ -8,7 +8,7 @@ actualiza `app.js` **en el mismo commit**.
 
 | Zona | IDs |
 |---|---|
-| Cabecera | `barra-superior`, `reloj-caja`, `reloj`, `vivo-caja`, `chk-vivo`, `btn-refresh`, `btn-tema`, `titulo-cartelera`, `btn-soltar`, `badge-patas` |
+| Cabecera | `barra-superior`, `reloj-caja`, `reloj`, `vivo-caja`, `chk-vivo`, `btn-refresh`, `btn-opciones`, `panel-opciones`, `titulo-cartelera`, `btn-soltar`, `badge-patas` |
 | Paneles | `tab-cartelera`, `tab-parlay`, `tab-datos`, `tab-mantenimiento`, `tab-guia` (se arman como `'#tab-' + data-tab`) |
 | Estado | `barra-estado` |
 | Cartelera | `bienvenida`, `cartelera-contenido`, `avisos`, `tarjetas-kpi`, `resumen`, `nota-base`, `peleas`, `tabla-wrap`, `tabla-principal` (vía `tabla('#tabla-principal')`) |
@@ -45,7 +45,9 @@ de `#lista-csvs`, `#lista-tareas` y `#boleto`, que genera él mismo).
 | `data-fecha` | `.cart` | fecha del evento de Betano |
 | `data-n` | botón Analizar de `#lista-csvs` | nombre del CSV |
 | `data-r` | botón Ejecutar de `#lista-tareas` | id de la receta |
-| `data-tema` | `<html>` | tema claro u oscuro elegido a mano |
+| `data-tema` | `<html>` | tema claro u oscuro elegido a mano (sin atributo: el del sistema) |
+| `data-estilo` | `<html>` | `juez` con el estilo Tarjeta del juez; sin atributo, Transmisión |
+| `name="estilo"`, `name="tema"` | radios de `#panel-opciones` | lo que se elige en Opciones (se guarda en localStorage) |
 
 ## Clases que `app.js` genera en sus plantillas
 
