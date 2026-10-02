@@ -116,6 +116,12 @@ def inicio():
     return engine.portada()
 
 
+@app.get("/api/inicio/resultados")
+def resultados_recientes():
+    """Las últimas carteleras de la base: el pronóstico de ese día contra cómo terminó."""
+    return engine.resultados_recientes()
+
+
 @app.get("/api/inicio/imagen/{id_nota}")
 def imagen_nota(id_nota: str):
     """

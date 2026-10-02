@@ -147,3 +147,54 @@ class AvisosYGraficos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResultadosRecientes(unittest.TestCase):
+    """La portada: las últimas carteleras repetidas, calculadas aparte y guardadas."""
+
+    def _pelea(self, a, b, ganador, metodo_real, segmento=""):
+        lado = "a" if ganador == a else "b"
+        return {"a": a, "b": b, "ganador": a, "p_a": 0.7, "p_b": 0.3, "confianza": "buena",
+                "segmento": segmento, "es_titulo": False,
+                "metodo": {"KO/TKO": 0.2, "Submission": 0.1, "Decision": 0.7},
+                "resultado": {"ganador": ganador, "lado": lado, "metodo": metodo_real,
+                              "como": "decisión", "acierto": ganador == a}}
+
+    def test_resume_ganador_y_metodo_con_la_estelar_primero(self):
+        datos = {"con_cuotas": True, "peleas": [
+            self._pelea("X Uno", "Y Dos", "X Uno", "KO/TKO"),
+            self._pelea("Z Tres", "W Cuatro", "Z Tres", "Decision", segmento="Estelar")]}
+        with mock.patch("src.corte.cartelera_de_evento", lambda e, f: Path("c.csv")), \
+                mock.patch.object(E, "_predecir_sync", lambda *a, **k: {}), \
+                mock.patch.object(E, "_serializar", lambda res, ruta: (datos, [])):
+            c = E._resultado_evento("UFC 1: Tres vs. Cuatro", "2026-01-01")
+        self.assertEqual([p["a"] for p in c["peleas"]], ["Z Tres", "X Uno"])
+        self.assertEqual((c["aciertos"], c["resueltas"]), (2, 2))
+        self.assertEqual((c["aciertos_metodo"], c["metodos"]), (1, 2))
+        self.assertTrue(c["peleas"][0]["acierto_metodo"])
+        self.assertFalse(c["peleas"][1]["acierto_metodo"])
+
+    def test_sin_base_no_calcula_nada(self):
+        with mock.patch.object(E, "_ultimos_eventos", side_effect=FileNotFoundError()):
+            self.assertEqual(E.resultados_recientes(),
+                             {"carteleras": [], "sin_base": True, "calculando": False})
+
+    def test_calcula_en_otro_hilo_y_guarda(self):
+        import tempfile
+        import time
+        eventos = [{"evento": "UFC 2", "fecha": "2026-02-01"}]
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(E, "RESULTADOS_JSON", Path(d) / "r.json"), \
+                mock.patch.object(E, "_ultimos_eventos", lambda n: eventos), \
+                mock.patch.object(E, "_firma_resultados", lambda: "f1"), \
+                mock.patch.object(E, "_resultado_evento",
+                                  lambda e, f: {"evento": e, "fecha": f, "peleas": []}):
+            primera = E.resultados_recientes()
+            self.assertTrue(primera["carteleras"][0].get("pendiente"))
+            for _ in range(50):
+                if not E._RESULTADOS_LOCK.locked():
+                    break
+                time.sleep(0.05)
+            lista = E.resultados_recientes()
+            self.assertFalse(lista["calculando"])
+            self.assertEqual(lista["carteleras"][0]["peleas"], [])

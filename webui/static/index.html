@@ -134,6 +134,14 @@
      caché: abre igual sin internet, con lo último que se bajó. -->
 <section id="tab-inicio" class="panel activa">
   <div id="inicio-actual" class="inicio-actual oculto"></div>
+  <!-- Cómo le fue al modelo: las últimas carteleras de la base, predichas con lo
+       que se sabía ese día y comparadas con cómo terminaron. Cada una se abre
+       como un combate: arrancan plegadas y se recuerda cuál dejaste abierta. -->
+  <section id="resultados" class="resultados" aria-labelledby="tit-resultados">
+    <div class="col-cab"><h2 id="tit-resultados">Resultados de las últimas 3 carteleras</h2>
+      <span id="resultados-estado" class="col-dato"></span></div>
+    <div id="resultados-lista" class="res-lista" aria-busy="true"></div>
+  </section>
   <div class="inicio">
     <section class="inicio-noticias" aria-labelledby="tit-noticias">
       <div class="col-cab"><h2 id="tit-noticias">Noticias</h2><span id="noticias-estado" class="col-dato"></span></div>

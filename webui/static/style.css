@@ -742,7 +742,11 @@ td .pelea-debut{display:block;width:fit-content;margin-top:5px}
    peleas que vienen y los eventos al costado) y la gráfica de la transmisión:
    cada columna es un panel con su regla de tinta arriba. */
 .inicio{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(0,1fr) minmax(0,.9fr);gap:18px;align-items:start}
-.col-cab{display:flex;align-items:center;gap:10px;min-height:34px;margin-bottom:8px}
+/* Las tres cabeceras miden lo mismo (la de Próximas lleva el botón
+   Estelar/Todas, que es más alto que un título solo) y el primer rótulo de cada
+   columna también: así los títulos y las reglas de tinta quedan a la misma
+   altura en las tres columnas. */
+.col-cab{display:flex;align-items:center;gap:10px;height:44px;margin-bottom:6px}
 .col-cab h2{display:flex;align-items:center;gap:9px;font:800 17px/1 var(--display);letter-spacing:.07em}
 .col-cab h2::before{content:"";width:7px;height:16px;background:var(--marca);transform:skewX(calc(var(--incl) * -1));flex:none}
 .col-dato{margin-left:auto;font:600 12.5px/1.2 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--tenue);text-align:right}
@@ -800,7 +804,7 @@ td .pelea-debut{display:block;width:fit-content;margin-top:5px}
 
 /* Próximas peleas: cada pelea en dos líneas, una por esquina, con el cuadro de
    color de la esquina y la cuenta regresiva a su parte de la cartelera. */
-.prox-evento{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:14px 0 5px}
+.prox-evento{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-height:20px;margin:14px 0 6px}
 .prox-evento:first-child{margin-top:0}
 .prox-evento b{font:800 15px/1 var(--display);letter-spacing:.04em;text-transform:uppercase}
 .prox-evento span{font-size:12.5px;color:var(--tenue)}
@@ -825,7 +829,7 @@ td .pelea-debut{display:block;width:fit-content;margin-top:5px}
 
 /* Eventos: el sello con el número (o FN) y lo que se puede hacer con cada uno. */
 .ev-grupo{margin:0 0 18px}
-.ev-grupo>h3{margin:0 0 6px;font:800 13px/1 var(--display);letter-spacing:.08em;color:var(--tenue)}
+.ev-grupo>h3{display:flex;align-items:flex-end;height:20px;margin:0 0 6px;font:800 13px/1 var(--display);letter-spacing:.08em;color:var(--tenue)}
 .ev-lista{display:grid;gap:4px}
 .ev{display:grid;grid-template-columns:44px minmax(0,1fr);grid-template-areas:"sello que" "sello datos";gap:2px 11px;align-items:center;
   width:100%;padding:9px 11px;text-align:left;background:var(--sup);border:0;border-top:3px solid var(--txt);color:var(--txt);font:inherit;
@@ -860,6 +864,107 @@ button.ev.cargando{cursor:progress}
 .inicio-esqueleto span{display:block;height:54px;background:var(--sup);border-top:3px solid var(--linea)}
 .inicio-esqueleto span:first-child{height:260px}
 #proximas .inicio-esqueleto span:first-child,#eventos .inicio-esqueleto span:first-child{height:54px}
+
+/* Resultados de las últimas carteleras: una fila por cartelera, plegable como
+   los combates. La tira de cuadros dice pelea por pelea si acertó al ganador
+   (verde) o no (rojo), y los dos marcadores cuentan ganador y método. La
+   palabra y el ícono dicen el veredicto; el color solo lo refuerza. */
+.resultados{margin-bottom:26px}
+.res-lista{display:grid;gap:4px}
+.res-ev{position:relative;background:var(--sup);border-top:3px solid var(--txt)}
+.res-cab{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto 20px;grid-template-areas:"sello nombre tira marcas flecha";
+  align-items:center;gap:6px 18px;padding:10px 14px;list-style:none;user-select:none}
+.res-cab::-webkit-details-marker{display:none}
+summary.res-cab{cursor:pointer;transition:background-color 160ms var(--ease-out)}
+summary.res-cab:hover{background:color-mix(in srgb,var(--sup2) 45%,var(--sup))}
+summary.res-cab:focus-visible{outline:2px solid var(--marca);outline-offset:-2px}
+.res-ev[open]>.res-cab{border-bottom:1px solid var(--linea)}
+.res-cab .ev-sello{transition:background-color 200ms var(--ease-out),color 200ms var(--ease-out)}
+.res-ev[open] .ev-sello:not(.fn),summary.res-cab:hover .ev-sello:not(.fn){background:var(--marca);color:var(--sobre-marca)}
+.res-ev[open] .ev-sello.fn,summary.res-cab:hover .ev-sello.fn{border-color:var(--marca);color:var(--marca)}
+.res-nombre{grid-area:nombre;display:grid;gap:4px;min-width:0}
+.res-nombre b{font:800 19px/1 var(--display);text-transform:uppercase}
+.res-nombre small{font-size:13px;line-height:1.2;color:var(--tenue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-tira{grid-area:tira;display:flex;gap:2px;list-style:none;margin:0;padding:0}
+.res-tira li{width:8px;height:24px;background:var(--sup2);transform-origin:50% 100%}
+.res-tira li[data-acierto="si"]{background:var(--ok)}
+.res-tira li[data-acierto="no"]{background:var(--error)}
+.res-marcas{grid-area:marcas;display:flex;gap:18px}
+.res-marca{display:grid;justify-items:end;gap:3px;min-width:48px}
+.res-marca-n{white-space:nowrap}
+.res-marca-n b{font:800 28px/.9 var(--display)}
+.res-marca-n small{font:700 16px/1 var(--display);color:var(--tenue)}
+.res-marca>span:last-child{font:700 11.5px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue)}
+.res-flecha{grid-area:flecha;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:square;
+  transition:transform 220ms var(--ease-out),translate 200ms var(--ease-out)}
+.res-ev[open] .res-flecha{transform:rotate(180deg)}
+.res-ev[data-cerrando] .res-flecha{transform:rotate(0)}
+@media (hover:hover){summary.res-cab:hover .res-flecha{translate:0 2px}}
+/* Mientras el servidor la predice: un brillo la recorre, como los esqueletos. */
+.res-ev.pendiente,.res-ev.con-error{border-top-color:var(--linea);overflow:hidden}
+.res-ev.con-error{border-top-color:var(--error)}
+.res-ev.pendiente .res-cab,.res-ev.con-error .res-cab{grid-template-columns:44px minmax(0,1fr) auto;grid-template-areas:"sello nombre espera"}
+.res-ev.pendiente .ev-sello{background:var(--sup2);color:var(--tenue)}
+.res-espera{grid-area:espera;display:flex;align-items:center;gap:7px;font-size:13px;line-height:1.3;color:var(--tenue);text-align:right}
+.res-espera .ico{width:15px;height:15px;flex:none}
+.res-ev.pendiente .res-espera .ico{animation:latido 1.2s ease-in-out infinite}
+.res-ev.pendiente::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--sup2) 70%,transparent) 50%,transparent 70%);
+  translate:-100% 0;animation:brillo 1.6s var(--ease-in-out) infinite}
+/* Pelea por pelea: el pronóstico de ese día al lado de cómo terminó, y los dos
+   sellos al final. El borde izquierdo repite el veredicto del ganador. */
+.res-peleas{list-style:none;margin:0;padding:0}
+.res-pelea{display:grid;grid-template-columns:24px minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr) auto;
+  grid-template-areas:"n vs pron real sellos";align-items:center;gap:6px 18px;padding:10px 14px 10px 11px;border-left:3px solid var(--linea);
+  transition:background-color 160ms var(--ease-out)}
+.res-pelea+.res-pelea{border-top:1px solid var(--linea)}
+.res-pelea:hover{background:color-mix(in srgb,var(--sup2) 30%,var(--sup))}
+.res-pelea[data-acierto="si"]{border-left-color:var(--ok)}
+.res-pelea[data-acierto="no"]{border-left-color:var(--error)}
+.res-n{grid-area:n;font:800 14px/1 var(--display);color:var(--tenue)}
+.res-vs{grid-area:vs;display:grid;gap:4px;min-width:0;font:700 16px/1.15 var(--display);text-transform:uppercase;color:var(--tenue)}
+.res-vs b{font-weight:700;overflow-wrap:anywhere}
+.res-vs b.pick{font-weight:800;color:var(--txt)}
+.res-vs small{font-size:12px;font-weight:600}
+.res-cinturon{width:fit-content;font:800 11px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--tenue)}
+.res-pelea.titulo .res-cinturon{color:var(--titulo-tinta)}
+.res-pelea.titulo .res-cinturon::before{content:"";display:inline-block;width:14px;height:4px;margin-right:5px;vertical-align:2px;background:var(--titulo-metal)}
+.res-col{display:grid;gap:3px;min-width:0}
+.res-pron{grid-area:pron}.res-real{grid-area:real}
+.res-col small{font:700 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--tenue)}
+.res-col b{font:800 16px/1.1 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
+.res-col b i{font-style:normal;font-weight:700;color:var(--tenue)}
+.res-col>span{font-size:13px;line-height:1.3;color:var(--txt2)}
+.res-sellos{grid-area:sellos;display:flex;gap:4px;justify-content:flex-end}
+.res-sello{display:inline-flex;align-items:center;gap:5px;padding:5px 8px 4px;white-space:nowrap;
+  font:800 12px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%)}
+.res-sello .ico{width:12px;height:12px}
+.res-sello[data-acierto="si"]{background:var(--ok);color:var(--sobre-solido)}
+.res-sello[data-acierto="no"]{background:var(--error);color:var(--sobre-solido)}
+.res-sello[data-acierto="nd"]{background:var(--sup2);color:var(--tenue)}
+.res-pie{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 18px;padding:12px 14px 14px;border-top:1px solid var(--linea)}
+.res-pie p{margin:0;font-size:13px;line-height:1.45;color:var(--tenue);max-width:72ch}
+.res-repetir{position:relative;overflow:hidden}
+.res-repetir .ico{transition:rotate 380ms var(--ease-out)}
+@media (hover:hover){.res-repetir:hover .ico{rotate:-200deg}}
+.res-repetir.cargando{cursor:progress}
+.res-repetir.cargando::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:35%;background:var(--marca);
+  animation:carga-espera 1.1s var(--ease-in-out) infinite alternate}
+@media (max-width:900px){
+  .res-cab{grid-template-columns:44px minmax(0,1fr) auto 20px;grid-template-areas:"sello nombre marcas flecha" "tira tira tira tira"}
+  .res-tira li{flex:1;max-width:14px;height:8px}
+  .res-pelea{grid-template-columns:24px minmax(0,1fr) minmax(0,1fr);grid-template-areas:"n vs vs" "n pron real" "n sellos sellos"}
+  .res-sellos{justify-content:flex-start}
+}
+@media (max-width:480px){
+  .res-cab{gap:6px 12px;padding:10px 12px}
+  .res-marcas{gap:10px}
+  .res-marca{min-width:0}
+  .res-marca-n b{font-size:24px}
+  .res-ev.pendiente .res-cab,.res-ev.con-error .res-cab{grid-template-columns:44px minmax(0,1fr);grid-template-areas:"sello nombre" "espera espera"}
+  .res-espera{text-align:left}
+  .res-pelea{grid-template-columns:20px minmax(0,1fr);grid-template-areas:"n vs" "n pron" "n real" "n sellos";padding-right:12px}
+}
 
 @media (max-width:1180px){
   .inicio{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
@@ -942,6 +1047,15 @@ button.ev.cargando{cursor:progress}
 .j-resultado .rr-que b{font-size:max(2.8cqw,13px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .j-resultado .rr-que>span{font-size:max(2.2cqw,10.5px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lona:has(.j-resultado) .lona-impresion{opacity:.045}
+/* El veredicto del método, debajo de cómo terminó: el sello de la izquierda
+   habla solo del ganador. */
+.rr-que>.rr-metodo{display:inline-flex;align-items:center;gap:5px;width:fit-content;margin-top:2px;
+  font:800 12.5px/1.1 var(--display);letter-spacing:.06em;text-transform:uppercase}
+.rr-metodo .ico{width:13px;height:13px;flex:none}
+.rr-que>.rr-metodo[data-metodo="si"]{color:var(--ok)}
+.rr-que>.rr-metodo[data-metodo="no"]{color:var(--error)}
+.j-resultado .rr-que>.rr-metodo{font-size:max(1.9cqw,10px);gap:.6cqw;margin-top:.2cqw}
+.j-resultado .rr-metodo .ico{width:max(1.9cqw,10px);height:max(1.9cqw,10px)}
 /* En el encabezado de cada combate: tinta sólida con el ícono del resultado,
    para no confundirse con los sellos de confianza que van al lado. */
 .pill.res{display:inline-flex;align-items:center;gap:5px;background:var(--probado);border-color:var(--probado);color:var(--sobre-probado)}
@@ -2019,3 +2133,8 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 .metodo-veredicto b{color:var(--txt)}
 .estelar-datos .metodo-veredicto{padding-inline:0}
 .acta .metodo-real{display:block;width:fit-content;margin:4px 0 0;grid-column:1/-1}
+@media (prefers-reduced-motion:reduce){
+  .res-ev.pendiente::after,.res-ev.pendiente .res-espera .ico,.res-repetir.cargando::after{animation:none}
+  .res-ev.pendiente::after{display:none}
+  .res-flecha,.res-repetir .ico{transition:none}
+}

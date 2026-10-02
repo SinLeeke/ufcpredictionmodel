@@ -625,14 +625,14 @@ def _claves_cuotas(datos: dict) -> dict[str, float]:
 # Predicción (en hilo aparte)
 # --------------------------------------------------------------------------- #
 def _predecir_sync(csv_path: Path, progreso: Callable[[dict], None] | None = None,
-                   corte: str | None = None) -> dict:
+                   corte: str | None = None, reports: bool = True) -> dict:
     """Usa callbacks para el avance; conserva stdout para el diagnóstico final."""
     from src.card import predict_card
     # Sin corte, la llamada queda idéntica a la de siempre.
     extra = {"corte": corte} if corte else {}
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        res = predict_card(csv_path, reports=True, detalle=False, devolver_todo=True,
+        res = predict_card(csv_path, reports=reports, detalle=False, devolver_todo=True,
                            progreso=progreso, **extra)
     salida = buf.getvalue()
     if not res or not res.get("rows"):
@@ -997,6 +997,132 @@ def cargar_historico(evento: str, fecha: str) -> str:
     ruta = corte.cartelera_de_evento(evento, dia.strftime("%Y-%m-%d"))
     cargar("csv", ruta.name, ruta, corte=dia.strftime("%Y-%m-%d"))
     return ruta.name
+
+
+# --------------------------------------------------------------------------- #
+# Portada: cómo le fue al modelo en las últimas carteleras
+# --------------------------------------------------------------------------- #
+# Las últimas carteleras de la base, predichas como repetición (solo con lo que
+# se sabía ese día) y comparadas con cómo terminaron. Es la misma corrida que
+# "Repetir", así que la portada y la repetición nunca dicen cosas distintas.
+# Predecir una cartelera tarda, y si su fecha es anterior al modelo de
+# producción hay que entrenar uno: se calcula en otro hilo y queda en disco. La
+# UI vuelve a pedir mientras tanto. Se rehace solo si cambia la base o el modelo.
+RESULTADOS_N = 3
+RESULTADOS_JSON = C.DATA_PROCESSED / "resultados_recientes.json"
+_RESULTADOS_LOCK = threading.Lock()
+_METODOS = ("KO/TKO", "Submission", "Decision")
+
+
+def _firma_resultados() -> str:
+    rutas = (C.DATA_PROCESSED / "ufcstats_fights.csv", C.FEATURES_CSV,
+             C.WINNER_MODEL, C.METHOD_MODEL)
+    return ":".join(str(r.stat().st_mtime_ns if r.exists() else 0) for r in rutas)
+
+
+def _ultimos_eventos(n: int) -> list[dict]:
+    """Los `n` eventos más nuevos de la base local, del más nuevo al más viejo."""
+    from src import corte
+    p = corte._peleas()
+    return [{"evento": str(r.event), "fecha": r.date.strftime("%Y-%m-%d")}
+            for r in p.drop_duplicates(["event", "date"]).head(n).itertuples()]
+
+
+def _clave_evento(e: dict) -> str:
+    return f"{e['fecha']}|{e['evento']}"
+
+
+def _leer_resultados(firma: str) -> dict:
+    """{clave: cartelera} guardadas con esta firma; con otra, nada sirve."""
+    import json
+    try:
+        d = json.loads(RESULTADOS_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return d.get("eventos", {}) if d.get("firma") == firma else {}
+
+
+def _guardar_resultados(firma: str, eventos: dict) -> None:
+    import json
+    tmp = RESULTADOS_JSON.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"firma": firma, "eventos": eventos}, ensure_ascii=False),
+                   encoding="utf-8")
+    tmp.replace(RESULTADOS_JSON)          # la UI nunca lee un archivo a medias
+
+
+def _resumen_pelea(p: dict) -> dict:
+    """Lo que la portada muestra de una pelea repetida: pronóstico contra resultado."""
+    r = p.get("resultado") or None
+    metodo = p.get("metodo") or {}
+    # El más probable, con la misma regla de desempate que la UI (aciertoMetodo).
+    top = max(_METODOS, key=lambda k: metodo.get(k) or 0)
+    real = (r or {}).get("metodo")
+    acierto_metodo = (real == top) if r and r.get("ganador") and real in _METODOS else None
+    return {"a": p["a"], "b": p["b"], "ganador": p["ganador"],
+            "p": float(max(p["p_a"], p["p_b"])), "confianza": p["confianza"],
+            "es_titulo": p.get("es_titulo") is True,
+            "estelar": str(p.get("segmento", "")).lower() == "estelar",
+            "metodo": top, "p_metodo": _num(metodo.get(top)),
+            "resultado": r, "acierto": (r or {}).get("acierto"),
+            "acierto_metodo": acierto_metodo}
+
+
+def _resultado_evento(evento: str, fecha: str) -> dict:
+    from src import corte
+    ruta = corte.cartelera_de_evento(evento, fecha)
+    datos, _ = _serializar(_predecir_sync(ruta, corte=fecha, reports=False), ruta)
+    # La cartelera viene como en Betano (preliminares arriba): se muestra al revés,
+    # con la estelar primero.
+    peleas = [_resumen_pelea(p) for p in reversed(datos["peleas"])]
+    peleas.sort(key=lambda p: not p["estelar"])
+    resueltas = [p for p in peleas if p["acierto"] is not None]
+    metodos = [p for p in peleas if p["acierto_metodo"] is not None]
+    return {"evento": evento, "fecha": fecha, "peleas": peleas,
+            "con_cuotas": bool(datos.get("con_cuotas")),
+            "aciertos": sum(p["acierto"] for p in resueltas), "resueltas": len(resueltas),
+            "aciertos_metodo": sum(p["acierto_metodo"] for p in metodos),
+            "metodos": len(metodos)}
+
+
+def _calcular_resultados(pendientes: list[dict], firma: str) -> None:
+    try:
+        for e in pendientes:
+            # Una cartelera que el usuario pidió va primero: esto puede esperar.
+            while ESTADO.cargando:
+                time.sleep(1)
+            try:
+                cartelera = _resultado_evento(e["evento"], e["fecha"])
+            except (Exception, SystemExit) as ex:           # noqa: BLE001
+                # Queda guardado para no reintentarlo en cada pedido de la UI;
+                # con la base o el modelo nuevos se vuelve a intentar.
+                cartelera = {**e, "error": str(ex) or type(ex).__name__}
+            guardadas = _leer_resultados(firma)
+            guardadas[_clave_evento(e)] = cartelera
+            _guardar_resultados(firma, guardadas)
+    finally:
+        _RESULTADOS_LOCK.release()
+
+
+def resultados_recientes() -> dict:
+    """
+    Las últimas RESULTADOS_N carteleras de la base con el pronóstico de ese día y
+    cómo terminó cada pelea. Las que faltan se calculan en otro hilo: vuelven
+    como {"pendiente": True} y `calculando` le dice a la UI que pregunte de nuevo.
+    """
+    try:
+        eventos = _ultimos_eventos(RESULTADOS_N)
+    except Exception:                                       # noqa: BLE001
+        return {"carteleras": [], "sin_base": True, "calculando": False}
+    firma = _firma_resultados()
+    guardadas = _leer_resultados(firma)
+    pendientes = [e for e in eventos if _clave_evento(e) not in guardadas]
+    if pendientes and _RESULTADOS_LOCK.acquire(blocking=False):
+        threading.Thread(target=_calcular_resultados, args=(pendientes, firma),
+                         daemon=True).start()
+    return {"carteleras": [guardadas.get(_clave_evento(e)) or {**e, "pendiente": True}
+                           for e in eventos],
+            "sin_base": False,
+            "calculando": _RESULTADOS_LOCK.locked()}
 
 
 # --------------------------------------------------------------------------- #

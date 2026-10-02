@@ -905,9 +905,18 @@ function entradaJaula(art) {
     anim(poste, [{ opacity: 0, scale: .3 }, { opacity: 1, scale: 1 }], { duration: 260, delay: 90 + i * 28 }));
   anim(j.querySelector('.lona-linea polygon'), [{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }],
     { duration: 720, delay: 120, easing: EASE_IN_OUT });
-  // El dibujo y no su caja: la caja lleva la opacidad tenue de la marca impresa,
-  // y animarla a 1 dejaba la "I" a todo color y después la hacía desaparecer.
-  anim(j.querySelector('.lona-marca'), [{ opacity: 0, scale: .85 }, { opacity: 1, scale: 1 }], { duration: 600, delay: 260 });
+  // La marca impresa se funde hasta SU opacidad tenue (7 %, menos con la placa
+  // del resultado), leída del CSS, y nunca más allá: así al terminar no hay
+  // salto. Antes subía a 1 (en la caja y después en el dibujo, que según el
+  // navegador se componía aparte e ignoraba la opacidad de la caja): la "I"
+  // se veía a todo color y al terminar desaparecía de golpe. La escala va en
+  // el dibujo: la caja ya usa transform para centrarse.
+  const impresion = j.querySelector('.lona-impresion');
+  if (impresion) {
+    impresion.getAnimations().forEach(a => a.cancel());   // reabrir a medio fundido
+    anim(impresion, [{ opacity: 0 }, { opacity: getComputedStyle(impresion).opacity }], { duration: 700, delay: 260 });
+    anim(impresion.querySelector('.lona-marca'), [{ scale: .85 }, { scale: 1 }], { duration: 700, delay: 260 });
+  }
   anim(j.querySelector('.retrato.a'), [{ opacity: 0, translate: '-14% 0', clipPath: 'inset(0 100% 0 0)' },
     { opacity: 1, translate: '0 0', clipPath: 'inset(0 0 0 0)' }], { duration: 460, delay: 140 });
   anim(j.querySelector('.retrato.b'), [{ opacity: 0, translate: '14% 0', clipPath: 'inset(0 0 0 100%)' },
@@ -951,6 +960,9 @@ function revelarResultado(art, delay) {
     { duration: 380, delay, easing: EASE_OUT, fill: 'backwards' });
   r.querySelector('.rr-sello')?.animate([{ opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1 }],
     { duration: 220, delay: delay + 240, easing: EASE_OUT, fill: 'backwards' });
+  // Después del ganador, el veredicto del método: segundo timbre, más chico.
+  r.querySelector('.rr-metodo')?.animate([{ opacity: 0, translate: '-6px 0' }, { opacity: 1, translate: '0 0' }],
+    { duration: 260, delay: delay + 420, easing: EASE_OUT, fill: 'backwards' });
 }
 
 // Una cartelera nueva entra como la presentación de la noche: las cifras de la
@@ -1139,17 +1151,24 @@ function resultadoReal(p, enLona = false) {
   const t = r ? textoResultado(r, enLona)
     : { titulo: 'Todavía no está en la base', detalle: 'Se agrega al actualizar la base en Mantenimiento.' };
   const icono = est.clave === 'si' ? 'ok' : est.clave === 'no' ? 'no' : 'duda';
+  // El sello habla del ganador; el método va aparte, con su propio veredicto.
+  const am = aciertoMetodo(p);
+  const metodo = !am ? '' : `<span class="rr-metodo" data-metodo="${am.acierto ? 'si' : 'no'}">${ico(am.acierto ? 'ok' : 'no')}${
+    am.acierto ? 'Acertó el método' : `Falló el método${enLona ? '' : `: veía ${esc(METODOS.find(([k]) => k === am.top)[1].toLowerCase())}`}`}</span>`;
   return `<div class="resultado-real${enLona ? ' j-todo j-resultado' : ''}" data-acierto="${est.clave}">
     <span class="rr-sello">${ico(icono)}${esc(est.texto)}</span>
-    <span class="rr-que"><small>Resultado real${r && !enLona ? ' · ' + esc(fechaCorta(r.fecha)) : ''}</small><b${r?.lado ? ` data-lado="${r.lado}"` : ''}>${esc(t.titulo)}</b>${t.detalle ? `<span>${esc(t.detalle)}</span>` : ''}</span>
+    <span class="rr-que"><small>Resultado real${r && !enLona ? ' · ' + esc(fechaCorta(r.fecha)) : ''}</small><b${r?.lado ? ` data-lado="${r.lado}"` : ''}>${esc(t.titulo)}</b>${t.detalle ? `<span>${esc(t.detalle)}</span>` : ''}${metodo}</span>
   </div>`;
 }
-// En el encabezado plegable: se sabe cómo terminó sin abrir el combate.
+// En el encabezado plegable: se sabe cómo terminó sin abrir el combate, el
+// ganador y también el método.
 function pillResultado(p) {
   if (!enRepeticion(p)) return '';
   const e = estadoResultado(p);
   if (e.clave === 'nd') return `<span class="pill res res-nd">${esc(e.texto.toLowerCase())}</span>`;
-  return `<span class="pill res res-${e.clave}">${ico(e.clave === 'si' ? 'ok' : 'no')}${esc(e.texto.toLowerCase())}</span>`;
+  const am = aciertoMetodo(p);
+  return `<span class="pill res res-${e.clave}">${ico(e.clave === 'si' ? 'ok' : 'no')}${esc(e.texto.toLowerCase())}</span>${!am ? ''
+    : `<span class="pill res res-${am.acierto ? 'si' : 'no'} res-met" title="${am.acierto ? 'Acertó' : 'Falló'} el método">${ico(am.acierto ? 'ok' : 'no')}método</span>`}`;
 }
 const td = (t) => `<td class="num">${t}</td>`;
 function flecha(mov, id, lado) {
@@ -1829,6 +1848,7 @@ function haceCuanto(iso) {
 
 async function cargarInicio({ forzar = false } = {}) {
   if (INI.pedido && !forzar) return INI.pedido;
+  if (!forzar) cargarResultados();
   INI.pedido = (async () => {
     try {
       const d = await api('/api/inicio');
@@ -1984,6 +2004,197 @@ async function accionEvento(b, accion) {
   try { await accion(); irA('cartelera'); await tick(); }
   catch (e) { barra(e.message, 'error'); }
   finally { b.classList.remove('cargando'); txt.textContent = antes; }
+}
+
+/* ------------------ resultados de las últimas carteleras ------------------ */
+// El pronóstico de ese día contra cómo terminó, cartelera por cartelera
+// (/api/inicio/resultados). Cada una es un plegable como los combates: la
+// primera vez están todas cerradas y después se recuerda cuál dejaste abierta.
+// Mientras el servidor predice las que faltan, se vuelve a preguntar y solo se
+// reemplaza la fila que cambió: la que tienes abierta no se cierra sola.
+const RES = { datos:null, pedido:null, reintento:null, mostrada:false };
+const METODO_TXT = { 'KO/TKO': 'KO/TKO', 'Submission': 'sumisión', 'Decision': 'decisión' };
+const claveRes = (c) => `${c.fecha}|${c.evento}`;
+function abiertosRes() {
+  try { return new Set(JSON.parse(leer('resultados-abiertos') || '[]')); } catch { return new Set(); }
+}
+function recordarRes(clave, abierto) {
+  const s = abiertosRes();
+  if (abierto) s.add(clave); else s.delete(clave);
+  guardar('resultados-abiertos', s.size ? JSON.stringify([...s]) : null);
+}
+
+async function cargarResultados() {
+  if (RES.pedido) return RES.pedido;
+  RES.pedido = (async () => {
+    try {
+      const d = await api('/api/inicio/resultados');
+      RES.datos = d;
+      pintarResultados(d);
+      clearTimeout(RES.reintento);
+      if (d.calculando) RES.reintento = setTimeout(cargarResultados, 5000);
+    } catch (e) {
+      if (!RES.datos) $('#resultados-lista').innerHTML = `<p class="ev-vacio">${esc(e.message)}</p>`;
+    } finally {
+      RES.pedido = null;
+      $('#resultados-lista').removeAttribute('aria-busy');
+    }
+  })();
+  return RES.pedido;
+}
+
+// "UFC 322: Della Maddalena vs. Makhachev" -> sello 322 y el titular aparte.
+function partesEvento(evento) {
+  const [nombre, ...resto] = String(evento).split(':');
+  const n = nombre.match(/^UFC (\d+)\s*$/);
+  return { nombre: nombre.trim(), titular: resto.join(':').trim().replace(/\bvs\.\s/gi, 'vs '),
+    sello: n ? `<span class="ev-sello">${n[1]}</span>` : '<span class="ev-sello fn">FN</span>' };
+}
+const estadoRes = (v) => v === true ? 'si' : v === false ? 'no' : 'nd';
+function selloRes(v, que) {
+  const e = estadoRes(v);
+  const txt = e === 'nd' ? `${que}: sin dato` : `${e === 'si' ? 'Acertó' : 'Falló'} ${que.toLowerCase()}`;
+  return `<span class="res-sello" data-acierto="${e}" title="${esc(txt)}">${ico(e === 'si' ? 'ok' : e === 'no' ? 'no' : 'duda')}<span>${esc(que)}</span></span>`;
+}
+
+function filaResultado(p, i) {
+  const r = p.resultado;
+  const pick = (lado) => p.ganador === p[lado] ? ' class="pick"' : '';
+  const real = !r ? '<b>Todavía no está en la base</b>'
+    : `<b>${r.ganador ? `Ganó ${esc(apellidoDe(r.ganador))}` : r.como === 'sin resultado' ? 'Sin resultado' : 'Empate'}</b>
+       <span>${esc([r.como, r.asalto ? `R${r.asalto}${r.tiempo ? ' ' + r.tiempo : ''}` : ''].filter(Boolean).join(' · '))}</span>`;
+  return `<li class="res-pelea${p.es_titulo ? ' titulo' : ''}" data-acierto="${estadoRes(p.acierto)}">
+    <span class="res-n">${String(i + 1).padStart(2, '0')}</span>
+    <span class="res-vs"><span><b${pick('a')}>${esc(p.a)}</b> <small>vs</small> <b${pick('b')}>${esc(p.b)}</b></span>${
+      p.es_titulo ? '<span class="res-cinturon">Por el título</span>' : p.estelar ? '<span class="res-cinturon estelar">Estelar</span>' : ''}</span>
+    <span class="res-col res-pron"><small>Pronóstico</small><b>${esc(apellidoDe(p.ganador))} <i>${pct(p.p, 0)}</i></b>
+      <span>por ${esc(METODO_TXT[p.metodo] || p.metodo)}${p.p_metodo != null ? ` (${pct(p.p_metodo, 0)})` : ''}</span></span>
+    <span class="res-col res-real"><small>Resultado</small>${real}</span>
+    <span class="res-sellos">${selloRes(p.acierto, 'Ganador')}${selloRes(p.acierto_metodo, 'Método')}</span>
+  </li>`;
+}
+
+function itemResultado(c, i, abiertos) {
+  const ev = partesEvento(c.evento);
+  const cab = `${ev.sello}<span class="res-nombre"><b>${esc(ev.nombre)}</b><small>${esc([ev.titular, fechaCorta(c.fecha)].filter(Boolean).join(' · '))}</small></span>`;
+  if (c.pendiente) return `<div class="res-ev pendiente" data-clave="${esc(claveRes(c))}" data-estado="pendiente">
+    <div class="res-cab">${cab}<span class="res-espera">${ico('reloj')}Prediciendo con los datos de ese día…</span></div></div>`;
+  if (c.error) return `<div class="res-ev con-error" data-clave="${esc(claveRes(c))}" data-estado="error">
+    <div class="res-cab">${cab}<span class="res-espera">${ico('alerta')}No se pudo predecir: ${esc(c.error)}</span></div></div>`;
+  const marca = (ok, n, que) => `<span class="res-marca"><span class="res-marca-n"><b data-num="res:${i}:${que}">${ok}</b><small>/${n}</small></span><span>${que}</span></span>`;
+  return `<details class="res-ev" data-clave="${esc(claveRes(c))}" data-estado="listo"${abiertos.has(claveRes(c)) ? ' open' : ''}>
+    <summary class="res-cab">${cab}
+      <ol class="res-tira" aria-hidden="true">${c.peleas.map(p => `<li data-acierto="${estadoRes(p.acierto)}"></li>`).join('')}</ol>
+      <span class="res-marcas" aria-label="Acertó ${c.aciertos} de ${c.resueltas} ganadores y ${c.aciertos_metodo} de ${c.metodos} métodos">
+        ${marca(c.aciertos, c.resueltas, 'ganador')}${marca(c.aciertos_metodo, c.metodos, 'método')}</span>
+      <svg class="res-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
+    </summary>
+    <div class="res-cuerpo">
+      <ol class="res-peleas">${c.peleas.map(filaResultado).join('')}</ol>
+      <div class="res-pie">
+        <p>Predicha con lo que se sabía ese día${c.con_cuotas ? ' y las cuotas de cierre' : ', sin cuotas'}. Una
+          noche no mide un modelo: con ${c.resueltas} peleas el margen es de ±${Math.round(50 / Math.sqrt(Math.max(1, c.resueltas)))} puntos.</p>
+        <button type="button" class="secundario res-repetir" data-evento="${esc(c.evento)}" data-fecha="${esc(c.fecha)}">${ico('repetir')}<span>Ver la repetición completa</span></button>
+      </div>
+    </div>
+  </details>`;
+}
+
+function pintarResultados(d) {
+  const lista = $('#resultados-lista');
+  const estado = $('#resultados-estado');
+  if (d.sin_base || !d.carteleras?.length) {
+    estado.textContent = '';
+    lista.innerHTML = `<p class="ev-vacio">Cuando la base local tenga resultados (Mantenimiento → <b>Resultados de UFCStats</b>),
+      acá aparece cómo le fue al modelo en las últimas tres carteleras, pelea por pelea.</p>`;
+    return;
+  }
+  const listas = d.carteleras.filter(c => c.peleas);
+  const suma = (k) => listas.reduce((s, c) => s + (c[k] || 0), 0);
+  estado.textContent = d.calculando ? 'calculando…'
+    : `ganador ${suma('aciertos')}/${suma('resueltas')} · método ${suma('aciertos_metodo')}/${suma('metodos')}`;
+  // Solo se reemplaza la fila cuyo estado cambió (la que estaba calculándose).
+  const abiertos = abiertosRes();
+  const previas = new Map($$('#resultados-lista [data-clave]').map(el => [el.dataset.clave, el]));
+  const nuevas = [];
+  const primera = !RES.mostrada;
+  lista.querySelector(':scope > .ev-vacio')?.remove();
+  d.carteleras.forEach((c, i) => {
+    const html = itemResultado(c, i, abiertos);
+    const estadoNuevo = c.pendiente ? 'pendiente' : c.error ? 'error' : 'listo';
+    let el = previas.get(claveRes(c));
+    if (!el || el.dataset.estado !== estadoNuevo) {
+      const t = document.createElement('template');
+      t.innerHTML = html.trim();
+      const nuevo = t.content.firstElementChild;
+      if (el) { el.replaceWith(nuevo); if (!primera) nuevas.push(nuevo); }
+      el = nuevo;
+      prepararResultado(el);
+    }
+    previas.delete(claveRes(c));
+    lista.append(el);                         // en el orden de la respuesta
+  });
+  previas.forEach(el => el.remove());
+  if (primera) { RES.mostrada = true; entradaResultados(); }
+  nuevas.forEach(revelarResultadoListo);
+}
+
+function prepararResultado(el) {
+  if (el.tagName !== 'DETAILS') return;
+  el.querySelector(':scope > summary').addEventListener('click', evento => {
+    evento.preventDefault();
+    const abrir = !(transicionesCombate.get(el)?.abierto ?? el.open);
+    const cerrado = !transicionesCombate.get(el) && !el.open;
+    desplegarCombate(el, abrir);
+    recordarRes(el.dataset.clave, abrir);
+    if (abrir && cerrado) abrirResultado(el);
+  });
+  const b = el.querySelector('.res-repetir');
+  b.onclick = () => conCarga(b, b.querySelector('span'), async () => {
+    await post('/api/cartelera/anterior', { evento: b.dataset.evento, fecha: b.dataset.fecha });
+    irA('cartelera');
+    await tick();
+  });
+}
+
+// Al abrir una cartelera, sus peleas bajan una tras otra como las líneas del
+// resultado oficial y los sellos se estampan al final de cada fila.
+function abrirResultado(el) {
+  if (reducir() || porTeclado) return;
+  el.querySelectorAll('.res-pelea').forEach((fila, i) => {
+    const delay = 60 + Math.min(i, 12) * 40;
+    fila.animate([{ opacity: 0, transform: 'translateY(-6px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 280, delay, easing: EASE_OUT, fill: 'backwards' });
+    fila.querySelectorAll('.res-sello').forEach((s, k) => s.animate(
+      [{ opacity: 0, transform: 'scale(1.35)' }, { opacity: 1, transform: 'none' }],
+      { duration: 200, delay: delay + 160 + k * 70, easing: EASE_OUT, fill: 'backwards' }));
+  });
+  el.querySelector('.res-pie')?.animate([{ opacity: 0 }, { opacity: 1 }],
+    { duration: 300, delay: 220, easing: EASE_OUT, fill: 'backwards' });
+}
+
+// La primera vez: cada cartelera entra desde abajo, su tira se completa pelea
+// por pelea y los marcadores corren hasta su valor.
+function entradaResultados() {
+  if (reducir()) return;
+  $$('#resultados-lista .res-ev').forEach((ev, i) => {
+    ev.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 380, delay: 80 + i * 90, easing: EASE_OUT, fill: 'backwards' });
+    animarTira(ev, 220 + i * 90);
+  });
+}
+function animarTira(ev, delay) {
+  ev.querySelectorAll('.res-tira li').forEach((c, k) => c.animate(
+    [{ opacity: 0, transform: 'scaleY(0)' }, { opacity: 1, transform: 'none' }],
+    { duration: 220, delay: delay + Math.min(k, 14) * 28, easing: EASE_OUT, fill: 'backwards' }));
+  ev.querySelectorAll('.res-marca [data-num]').forEach(cifra => contar(cifra, delay, 520));
+}
+// La cartelera que terminó de calcularse se descubre de izquierda a derecha.
+function revelarResultadoListo(ev) {
+  if (reducir()) return;
+  ev.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
+    { duration: 460, easing: EASE_OUT });
+  animarTira(ev, 160);
 }
 
 // La portada entra una vez por visita: la nota de portada se descubre como el
