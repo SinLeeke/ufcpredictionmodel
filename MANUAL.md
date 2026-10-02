@@ -441,6 +441,12 @@ La lista llega hasta la última pelea de `data\processed\ufcstats_fights.csv`. P
 una cartelera más nueva, corre **Actualizar todo** o usa **Repetir** sobre el CSV de
 Betano: se predice igual y avisa que el resultado todavía no está en la base.
 
+Después del pronóstico, cada pelea dice cómo terminó con dos veredictos separados:
+**Acertó / Falló** (el ganador) y **Acertó el método / Falló el método** (si terminó
+como el modelo veía más probable: KO/TKO, sumisión o decisión). Los dos aparecen en el
+encabezado del combate, en el zócalo del resultado y en el marcador de la noche. Un
+empate o un "sin resultado" no cuentan para ninguno de los dos.
+
 Desde la consola, `card.predict_card(ruta, corte="AAAA-MM-DD")` hace lo mismo.
 
 ## 7. Comprobar que el modelo sigue funcionando
@@ -572,6 +578,7 @@ Nada de esto se versiona: todo se regenera con los comandos de arriba.
 | `defense_stats.csv` | defensa de golpeo y de derribo (dataset de Rajeev Warrier) |
 | `walkforward_valor.csv` | caché del backtest de moneyline |
 | `walkforward_metodo.csv` | caché del backtest de método |
+| `resultados_recientes.json` | caché de la sección **Resultados de las últimas 3 carteleras** de Inicio. Se rehace sola si cambia la base o el modelo; borrarla solo obliga a recalcularla |
 
 ### `models\`
 
@@ -583,6 +590,7 @@ Nada de esto se versiona: todo se regenera con los comandos de arriba.
 | `metodo6_xgb.pkl` | `modelado/backtest_metodo.py` |
 | `calibrador_mercado.pkl` | `modelado/backtest_valor.py` |
 | `calibrador_metodo.pkl` | `modelado/backtest_metodo.py` |
+| `corte\AAAA-MM-DD.pkl` | la repetición, cuando el modelo de producción ya había visto esa fecha (uno por fecha; se invalida al cambiar `features.csv`) |
 
 ### `outputs\<nombre_del_csv>\`
 
@@ -721,18 +729,42 @@ carteleras ya predichas de `webui/demo/` (`--demo gamrot`, `--demo manual`, `--d
 para elegir). Sirve para ver o modificar la interfaz en un clon recién bajado, sin
 construir la base. Son fotos de corridas reales, no se pueden refrescar ni repredecir.
 
-### Las cinco pestañas
+### Las seis pestañas
 
 | Pestaña | Qué hay |
 |---|---|
+| **Inicio** | Los resultados de las últimas 3 carteleras de tu base, las noticias de UFC, las próximas peleas con cuenta regresiva y los eventos (Predecir / Repetir) |
 | **Cartelera** | Resumen de qué apostar + una tarjeta por pelea (o vista de tabla) |
 | **Combinada** | El constructor de parlays (sección 18) |
-| **Cargar** | Bajar de Betano, subir un CSV, o repredecir uno de `cards\` |
+| **Cargar** | Bajar de Betano, elegir una pelea anterior para repetirla, subir un CSV, o repredecir uno de `cards\` |
 | **Mantenimiento** | Actualizar BD / reentrenar / backtests, con el registro en vivo |
 | **Guía** | Glosario en lenguaje llano: qué es cada etiqueta, cada número y qué NO hace |
 
-El botón **◐** de la cabecera alterna entre tema claro y oscuro (por defecto sigue
-al de tu sistema operativo y recuerda tu elección).
+El botón de **opciones** (arriba a la derecha) elige el **estilo** —*Transmisión*, la
+gráfica de la tele con el octágono, o *Tarjeta del juez*, el acta de la pelea— y el
+**tema** claro, oscuro o automático (sigue al sistema). Las dos cosas se recuerdan en
+ese navegador.
+
+### Resultados de las últimas 3 carteleras
+
+Arriba de todo en **Inicio**. Toma las tres carteleras más nuevas de tu base local, las
+predice **como repeticiones** (solo con lo que se sabía ese día, igual que **Repetir**) y
+las compara con cómo terminaron:
+
+- Cada cartelera es una fila plegable. Cerrada muestra una tira de cuadros —verde si
+  acertó al ganador, rojo si no, uno por pelea— y dos marcadores: **ganador** y
+  **método**. Abierta muestra cada pelea con el pronóstico, el resultado y los dos sellos.
+- La primera vez aparecen todas cerradas; después se recuerda cuál dejaste abierta.
+- La primera vez tarda: se calculan en segundo plano (la fila dice *Prediciendo con los
+  datos de ese día…*) y quedan guardadas en `data\processed\resultados_recientes.json`.
+  Si la fecha es anterior al modelo de producción hay que entrenar uno para esa fecha
+  (~30 s cada una). Se recalculan solas al actualizar la base o reentrenar.
+- Son las tres últimas **de tu base**, no necesariamente las tres últimas de UFC: para
+  ver las más nuevas, corre **Actualizar todo** en Mantenimiento.
+- **Ver la repetición completa** carga esa cartelera en la pestaña Cartelera.
+
+Una noche no mide un modelo: con 12-14 peleas el margen es de ±13-15 puntos, y la
+misma fila lo dice.
 
 ### Cada etiqueta se explica sola
 
@@ -755,8 +787,11 @@ Arriba a la derecha hay una cuenta regresiva. **Cada 10 minutos vuelve a bajar
 las cuotas de la cartelera activa** y repredice, marcando con ▲▼ las que se
 movieron (pasa el mouse por encima para ver el valor anterior).
 
-- **"Refrescar ahora"** lo hace en el momento.
-- El interruptor **auto 10 min** lo apaga si prefieres controlarlo tú.
+- **Refrescar** lo hace en el momento.
+- **EN VIVO** (aparece con una cartelera de Betano) refresca solo la línea de
+  ganador **cada 10 s** con una sola petición, para seguir el evento mientras pasa.
+  No repredice: la probabilidad del modelo no cambia porque se mueva la cuota, solo
+  la mezcla y el valor. Apágalo cuando dejes de mirar.
 - Solo refresca la cartelera **que tienes abierta**, no todo Betano: son ~22
   peticiones con 1,5 s de pausa entre medio. Cada 10 min eso es scraping
   educado; barrer el sitio entero no lo sería.

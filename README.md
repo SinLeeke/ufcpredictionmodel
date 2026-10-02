@@ -9,8 +9,17 @@
 [![Sin navegador](https://img.shields.io/badge/scraping-sin%20Selenium-1b5e20?style=flat-square)](#-qué-scrapea-y-cómo)
 [![Acierto](https://img.shields.io/badge/acierto-66--69%25-0d0d0d?style=flat-square)](#-qué-tan-bien-funciona-y-qué-no)
 [![UI web](https://img.shields.io/badge/UI-local%20incluida-e53935?style=flat-square)](#-interfaz-web)
+[![Pruebas](https://github.com/SinLeeke/ufcpredictionmodel/actions/workflows/pruebas.yml/badge.svg)](https://github.com/SinLeeke/ufcpredictionmodel/actions/workflows/pruebas.yml)
 
-**[Los números](#-los-números-primero)** · **[Empezar](#-empezar)** · **[Los datos](#-qué-scrapea-y-cómo)** · **[Cómo predice](#-cómo-predice)** · **[Qué se descartó](#-qué-se-descartó-y-por-qué)** · **[UI web](#-interfaz-web)** · **[Los límites](#-qué-tan-bien-funciona-y-qué-no)** · **[Estructura](#-estructura)** · **[Créditos](#-créditos)**
+<br>
+
+<img src="docs/capturas/repeticion-octagono.jpg" alt="La pelea estelar de UFC Fight Night Medic vs Rodriguez en el octágono: el pronóstico de ese día, el resultado real y el veredicto del ganador y del método" width="860">
+
+<sub>Una repetición real: el modelo predice la estelar del 1 de agosto de 2026 solo con lo que se sabía antes de ese día, y después muestra cómo terminó.</sub>
+
+<br><br>
+
+**[La interfaz](#-la-interfaz-en-capturas)** · **[Los números](#-los-números-primero)** · **[Empezar](#-empezar)** · **[Los datos](#-qué-scrapea-y-cómo)** · **[Cómo predice](#-cómo-predice)** · **[Qué se descartó](#-qué-se-descartó-y-por-qué)** · **[UI web](#-interfaz-web)** · **[Los límites](#-qué-tan-bien-funciona-y-qué-no)** · **[Estructura](#-estructura)** · **[Créditos](#-créditos)**
 
 </div>
 
@@ -21,6 +30,74 @@
 > Lo que entrega son **estimaciones estadísticas con margen de error**, no certezas — este
 > mismo README explica por qué el sistema **no le gana al mercado**. Apostar queda bajo
 > responsabilidad de quien lo haga, y nada acá es consejo financiero.
+
+---
+
+## 🖼 La interfaz en capturas
+
+Todo corre en tu PC, en `http://127.0.0.1:8000`, sin cuentas ni servidores externos.
+Las capturas son de la aplicación real, con la base local y con la cartelera de demo
+que trae el repositorio.
+
+**Inicio: cómo le fue al modelo en las últimas 3 carteleras.** Cada una se abre como un
+combate y muestra, pelea por pelea, el pronóstico de ese día contra el resultado, con un
+sello para el ganador y otro para el método. Arrancan cerradas; la tira de colores y los
+dos marcadores se leen sin abrirlas.
+
+<img src="docs/capturas/inicio-resultados.jpg" alt="Sección Resultados de las últimas 3 carteleras con la primera abierta: pronóstico, resultado y sellos de ganador y método por pelea" width="860">
+
+<sub>31 de 38 ganadores en estas tres carteleras es una buena racha, no el acierto del modelo: sobre
+miles de peleas fuera de muestra acierta 66-69 %. Con 12-14 peleas por noche el margen es de
+±13-15 puntos, y la propia fila lo dice.</sub>
+
+<details>
+<summary><b>Más capturas: repetición, cartelera, análisis, tarjeta del juez, combinada, carga y teléfono</b></summary>
+
+<br>
+
+**El marcador de una repetición.** Cuántas acertó, con su margen de error, y una casilla
+por pelea que lleva a cada combate.
+
+<img src="docs/capturas/repeticion-marcador.jpg" alt="Marcador de la repetición: 11 de 14 peleas acertadas, con la tira pelea por pelea" width="860">
+
+**Una cartelera con cuotas.** Lo primero es *Qué apostar*, ordenado por cuánta evidencia
+respalda cada mercado y no por cuánto promete pagar.
+
+<img src="docs/capturas/cartelera.jpg" alt="Cartelera de demo con la barra de información y la sección Qué apostar" width="860">
+
+**Una pelea abierta, con el análisis desplegado.** Cuotas contra modelo en espejo, cómo
+puede terminar, el resultado real con los dos veredictos y los gráficos de victoria,
+historial por método y los seis resultados posibles.
+
+<img src="docs/capturas/tarjeta-analisis.jpg" alt="Tarjeta de Rakic vs Tybura con el resultado, el veredicto del método y el análisis desplegado" width="860">
+
+**Estilo «Tarjeta del juez».** La misma información como el acta que llena un juez:
+casillas, cifras a máquina, el pronóstico encerrado con lápiz y la confianza como timbre.
+Se elige en el botón de opciones, junto con el tema claro u oscuro.
+
+<img src="docs/capturas/estilo-juez.jpg" alt="Acta de la pelea en el estilo Tarjeta del juez" width="460">
+
+**La estelar en el octágono** (cartelera de demo, antes de pelear).
+
+<img src="docs/capturas/cartelera-octagono.jpg" alt="Octágono de la pelea estelar de la demo con cuotas, modelo y métodos" width="860">
+
+**El simulador de combinadas.** Cada selección dice si conviene y por qué, bloquea las
+incompatibles y mide cuánto error aguanta el boleto completo.
+
+<img src="docs/capturas/combinada.jpg" alt="Simulador de combinadas con selecciones, bloqueos y el boleto lateral" width="860">
+
+**La carga, etapa por etapa**, con lo que está haciendo y cuánto falta.
+
+<img src="docs/capturas/carga.jpg" alt="Panel de carga con las etapas Cuotas, Modelo, Peleas e Informe y el progreso" width="860">
+
+**En el teléfono y en tema oscuro.**
+
+<img src="docs/capturas/movil-oscuro.jpg" alt="Inicio en un teléfono con tema oscuro y una cartelera abierta" width="320">
+
+</details>
+
+Sin foto verificada del peleador aparece una silueta: en estas capturas no había
+conexión para bajar retratos.
 
 ---
 
@@ -181,7 +258,9 @@ Más detalles de datos y mantenimiento en [MANUAL.md](MANUAL.md).
 .\scripts\lanzar_ui.bat
 ```
 
-En **Cargar**, elige una cartelera de Betano y pulsa **Predecir**, o sube tu CSV.
+Al abrir, **Inicio** muestra cómo le fue al modelo en las últimas 3 carteleras de tu
+base (la primera vez tarda unos segundos por cartelera: las predice como repeticiones y
+las guarda). En **Cargar**, elige una cartelera de Betano y pulsa **Predecir**, o sube tu CSV.
 Para ver qué habría dicho el modelo en una pelea que **ya pasó**, elígela en **Peleas
 anteriores** (o pulsa **Repetir** en una cartelera guardada con fecha pasada): se predice
 con lo que se sabía antes de ese día y, después, se muestra cómo terminó.
@@ -672,6 +751,7 @@ devuelve sus estructuras en vez de imprimirlas y descartarlas.
 
 | | |
 |---|---|
+| **Resultados recientes** | arriba de Inicio, las 3 últimas carteleras de la base predichas como repetición (solo con lo anterior a cada fecha) y comparadas con cómo terminaron. Cada una es un plegable: cerrada, una tira de colores pelea por pelea y los marcadores de ganador y método; abierta, el pronóstico y el resultado de cada pelea con dos sellos. Se calculan en segundo plano la primera vez, quedan en `data/processed/resultados_recientes.json` y se rehacen solas al cambiar la base o el modelo. Arrancan cerradas y se recuerda cuál dejaste abierta |
 | **Inicio** | la portada, con la estructura de un sitio de liga: noticias de UFC Español al centro (nota de portada, destacadas y titulares por día), las próximas peleas confirmadas por UFC con su cuenta regresiva a la cartelera estelar o a las preliminares, y los eventos: próximos (con **Predecir**, sin cuotas), terminados y los últimos de tu base (con **Repetir**). Sale de una caché en disco (`ufc_oficial.py`): abre sin internet con lo último que se bajó |
 | **Carteleras solas** | las de **UFC** en Betano, con fecha, número de peleas y estelar. Un clic y predice. Las de otras ligas (Betano mete RIZIN o PFL en "Encuentros") se ocultan y se dice cuántas, salvo que sus peleas estén en una cartelera confirmada por UFC. Avisa cuando Betano todavía tiene pocas peleas montadas |
 | **Carga visible** | muestra etapa, detalle, unidades terminadas y tiempo transcurrido. El porcentaje y el tiempo restante corresponden a la etapa actual; la estimación aparece cuando hay avances medidos, y 100 % llega cuando los resultados están listos |
@@ -682,8 +762,9 @@ devuelve sus estructuras en vez de imprimirlas y descartarlas.
 | **Últimas cinco peleas** | tiras de casillas rectas bajo los nombres, antes del porcentaje: verde para victoria y rojo para derrota, con letra y método. Dentro de la lona, tocar la tira abre los detalles de los cinco combates; en las tarjetas normales cada casilla abre su pelea. Se muestran solo los resultados disponibles |
 | **Colores de las esquinas** | dentro de combates sin título, el peleador izquierdo tiene nombre, porcentaje y barra en rojo; el derecho, en azul, aunque cambie el favorito. El encabezado conserva el color de texto del tema. La confianza aparece una sola vez junto a los nombres del encabezado |
 | **Lectura y movimiento** | índice para saltar a cada combate, tarjetas compactas con letras secundarias más grandes, datos finales en columnas estables, entradas al desplazarse y animaciones que respetan movimiento reducido |
-| **Repetición** | **Peleas anteriores** lista las peleas de la base local (hasta donde llegue) con buscador por peleador o evento; elegir una predice su cartelera con **solo lo anterior a esa fecha**: stats y récord recalculados pelea a pelea, ELO pre-evento, rivales y un modelo reentrenado sin esas peleas si el de producción ya las vio. Después del pronóstico aparece el resultado real (Acertó / Falló), un marcador de la noche con su margen de error y si las apuestas sugeridas habrían salido. Las cuotas son las de cierre de Kaggle o BestFightOdds. La lista nunca pone al ganador primero |
+| **Repetición** | **Peleas anteriores** lista las peleas de la base local (hasta donde llegue) con buscador por peleador o evento; elegir una predice su cartelera con **solo lo anterior a esa fecha**: stats y récord recalculados pelea a pelea, ELO pre-evento, rivales y un modelo reentrenado sin esas peleas si el de producción ya las vio. Después del pronóstico aparece el resultado real con **dos veredictos**: si acertó al ganador (Acertó / Falló) y si acertó el **método** (KO/TKO, sumisión o decisión), en el encabezado, en el zócalo y en el marcador de la noche, con su margen de error y si las apuestas sugeridas habrían salido. Las cuotas son las de cierre de Kaggle o BestFightOdds. La lista nunca pone al ganador primero |
 | **Modo EN VIVO** | refresca la línea de ganador **cada 10 s** con *una sola* petición: la página del evento ya trae el mercado de toda la cartelera. No re-predice — la probabilidad del modelo no cambia porque se mueva la cuota, solo la mezcla y el EV |
+| **Dos estilos y dos temas** | *Transmisión* (la gráfica de la tele, con el octágono) o *Tarjeta del juez* (el acta de la pelea), en claro, oscuro o siguiendo al sistema. Se eligen en el botón de opciones y se recuerdan |
 | **Todo explicado** | ninguna etiqueta aparece muda. "NO FIABLE" dice el motivo con nombre y apellido; cada selección dice *conviene / se puede / no conviene* y por qué; hay una pestaña **Guía** con el glosario completo |
 | **Mantenimiento** | actualizar la base, reentrenar y correr los backtests con el registro en vivo, una tarea a la vez |
 | **Simulador de combinada** | hasta 13 patas, agrupadas por mercado y con bloqueo de las incompatibles. La lista crece con la página, sin scroll vertical dentro de las selecciones; el boleto queda a la vista al lado en escritorio |
@@ -702,15 +783,7 @@ se destaca sobre la pelea y en la cabecera de la cartelera, tanto si debuta uno 
 si debutan ambos. Si falta historial o hay pocas
 peleas para evaluar, se mantiene **NO FIABLE** con la causa explicada.
 
-Capturas de la interfaz local:
-
-![Cartelera local con retratos y probabilidades](docs/capturas/cartelera-octagonos.jpg)
-
-![Ficha de Bobby Green con identidad e historial resueltos](docs/capturas/bobby-green-historial.jpg)
-
-![Simulador de combinadas con selecciones desplegadas y boleto lateral](docs/capturas/combinada.jpg)
-
-![Carga de cartelera con avance por etapa y tiempo estimado](docs/capturas/carga.jpg)
+Las capturas de cada pantalla están en [La interfaz en capturas](#-la-interfaz-en-capturas).
 
 <details>
 <summary><b>🎲 Lo que aporta el simulador no es el EV, es la fragilidad</b></summary>
@@ -815,19 +888,27 @@ Que una cartelera no genere ninguna apuesta es el resultado normal y esperado.
 
 ```
 ufc_predictor/
-├── scripts/        instalar, lanzar la UI y tareas por .bat
-├── src/            scrapers, features y predicción
-├── modelado/       entrenar, medir y validar el modelo (se corren con -m)
-├── webui/          la UI local: server, engine, parlay, jobs, static/
-├── tests/          unittest y fixtures, sin consultas de red
-├── docs/capturas/  imágenes versionadas de la interfaz
-├── config.py       rutas, umbrales y constantes
-└── data/ models/ outputs/ backups/            generados, no versionados
+├── .github/workflows/  pruebas automáticas en cada push (Python y la interfaz)
+├── scripts/            instalar, lanzar la UI y tareas por .bat
+├── src/                scrapers, features y predicción
+├── modelado/           entrenar, medir y validar el modelo (se corren con -m)
+├── webui/              la UI local: server, engine, parlay, jobs, static/, demo/
+├── tests/              unittest y pruebas de la interfaz, sin consultas de red
+├── docs/               auditoría de identidades, capturas y notas de desarrollo
+├── cards/              el CSV de ejemplo (las carteleras descargadas son locales)
+├── README.md           qué es, cómo se instala, cómo predice y qué se midió
+├── MANUAL.md           el uso diario, comando por comando
+├── DESIGN.md           el sistema visual de la interfaz
+├── PRODUCT.md          para quién es la interfaz y qué tiene que lograr
+├── config.py           rutas, umbrales y constantes
+└── data/ models/ outputs/ backups/   generados, no versionados
 ```
 
-`cards/` contiene el CSV de ejemplo versionado; las carteleras descargadas son locales.
 Tras instalar las dependencias, ejecuta las pruebas con
-`.\.venv\Scripts\python.exe -m unittest discover -s tests -t .`.
+`.\.venv\Scripts\python.exe -m unittest discover -s tests -t .` (las que necesitan la
+base se saltan solas si no la tienes). Las de la interfaz piden Node:
+`node --test tests/ui_cards.test.cjs` y `node tests/test_analisis.js`. GitHub corre las
+dos en cada push.
 
 <details>
 <summary><b>📄 Qué hace cada archivo</b></summary>
@@ -914,8 +995,9 @@ Este proyecto no habría sido posible sin estas fuentes y trabajos previos.
 - **Scraping educado**: delays entre peticiones, caché en disco, User-Agent identificable y
   descarga incremental para no re-pedir lo que ya se tiene. La variable de entorno
   `WIKI_CONTACT` permite declarar un contacto propio al scrapear Wikipedia en volumen.
-- `CLAUDE.md` documenta la regla del proyecto —*nada entra sin medirse*— y la lista de ideas
-  ya descartadas con su número, para no reproponerlas.
+- La regla del proyecto es *nada entra sin medirse*: las ideas descartadas, con su número,
+  están en [Qué se descartó](#-qué-se-descartó-y-por-qué) para no reproponerlas.
+- El índice de la documentación está en [docs/](docs/README.md).
 
 <div align="center">
 <br>

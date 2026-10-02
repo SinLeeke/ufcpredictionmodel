@@ -71,15 +71,17 @@ copiar eso sin dejar de vender seguridad.
   - Veredicto de una selección: **sí / quizás / no** ("Conviene", "Se puede", "No
     conviene").
   - Precio/evidencia: **Probado**, **Sin ventaja clara**, **Ruido**, **Sin validar**.
-- Funciones que se mantienen: 5 pestañas, EN VIVO, reloj, tema claro/oscuro, modal,
+- Funciones que se mantienen: las pestañas (Inicio, Cartelera, Combinada, Cargar,
+  Mantenimiento y Guía), EN VIVO, reloj, tema claro/oscuro, modal,
   constructor de combinada con bloqueos, KPIs, tarjetas de pelea, tabla, log de tareas,
-  guía, barra superior que se esconde al bajar.
-- **Fotos de peleadores**: Wikipedia/Commons primero (API `prop=pageimages`, con el
-  User-Agent de `src/reemplazos.py`), Sherdog de respaldo y, si no hay, una **silueta
-  genérica de peleador** (como la foto por defecto de un perfil sin foto, pero de un
-  peleador de UFC), nunca una imagen rota. Cruce por **nombre exacto con desempate**:
-  mejor sin foto que con la foto de otro. Las fotos de UFC.com no se usan: responden 403
-  a los bots y tienen derechos de autor.
+  guía, barra superior que se esconde al bajar, la repetición con sus dos veredictos
+  (ganador y método) y los resultados de las últimas carteleras en Inicio.
+- **Fotos de peleadores**: ficha verificada de UFC para resolver homónimos, retrato PNG
+  de ESPN, el de la ficha oficial de UFC si ESPN no tiene, el directorio de Sherdog y,
+  si no hay, una **silueta genérica de peleador**, nunca una imagen rota (el orden y los
+  motivos están en `webui/fotos.py`). Cruce por **nombre exacto con desempate**: mejor
+  sin foto que con la foto de otro. Las imágenes editoriales de Wikipedia no se usan:
+  pueden ser fotos de prensa o de eventos y no del rostro.
 - Cifras con **coma decimal** (`es-CL`) en toda la interfaz.
 - El dueño quiere que la interfaz pase a ser **más llamativa y limpia, con movimiento**:
   hasta septiembre de 2026 no tenía ninguna animación.

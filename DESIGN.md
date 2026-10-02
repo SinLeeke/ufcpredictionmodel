@@ -456,6 +456,20 @@ con su regla de tinta:
   (la cartelera de UFC, sin cuotas), terminados con **Repetir** si la base ya los tiene, y
   los últimos de la base. La acción entra de costado al pasar el mouse o con el foco.
 - Arriba, si hay una cartelera cargada, un rótulo invertido para volver a ella.
+- **Resultados de las últimas 3 carteleras**, a todo el ancho sobre las columnas: una
+  fila plegable por cartelera, con su regla de tinta. Cerrada: el sello del evento, el
+  nombre y la fecha, una tira de barras verticales (verde acertó, rojo falló, gris sin
+  resultado) y dos marcadores grandes, *ganador* y *método*, en cifras tabulares. Abierta:
+  una línea por pelea con el pronóstico de ese día y el resultado lado a lado, el borde
+  izquierdo del color del veredicto y dos sellos chicos al final (Ganador, Método) con
+  ícono y palabra. El sello del evento se enciende en rojo al abrirla o al pasar el mouse.
+  Mientras el servidor calcula, la fila es un esqueleto con brillo y un reloj que late;
+  si falla, la regla se vuelve roja y dice por qué. La primera vez están todas cerradas y
+  se recuerda cuál dejó abierta cada quien. En el teléfono, la tira baja a una franja
+  bajo el nombre y cada pelea se apila en cuatro renglones.
+- Las tres cabeceras de columna miden lo mismo (44 px) y el primer rótulo de cada
+  columna también: los títulos y las reglas de tinta quedan alineados aunque Próximas
+  lleve el botón Estelar/Todas.
 
 ### Repetición
 La cartelera de una noche que ya pasó, predicha con lo que se sabía antes de ese día.
@@ -469,10 +483,13 @@ Habla como la repetición de la tele:
   un modelo (margen ±50/√N puntos) y una tira de casillas pelea por pelea (verde con
   visto, rojo con cruz, gris si la base no tiene el resultado) que lleva a cada combate.
 - **Zócalo del resultado** bajo el cara a cara: el sello Acertó / Falló a la izquierda,
-  con ícono y palabra, y "Ganó X · cómo · asalto" al lado. En el octágono es una placa
+  con ícono y palabra, y "Ganó X · cómo · asalto" al lado. Debajo, el veredicto del
+  método en verde o rojo con su ícono ("Acertó el método" / "Falló el método: veía
+  decisión"): el sello grande habla solo del ganador. En el octágono es una placa
   angosta en la lona libre bajo la barra; en el acta del juez, un timbre más.
 - En el encabezado plegable, el resultado va en tinta sólida con el ícono en verde o
-  rojo (`--res-si` / `--res-no`), para no confundirse con los sellos de confianza.
+  rojo (`--res-si` / `--res-no`), para no confundirse con los sellos de confianza. Al
+  lado, una segunda píldora igual para el método.
 
 ### Peleas anteriores (Cargar)
 La lista para elegir una repetición, debajo de Betano: fecha y evento arriba; abajo el
@@ -520,12 +537,21 @@ combates animan su altura al abrir y cerrar.
   caen los ocho postes (28 ms de desfase), la línea de la lona se pinta alrededor
   (720 ms), cada retrato entra desde su esquina con un barrido, los porcentajes corren
   de 0 a su valor (560 ms, cifras tabulares) y la barra se llena desde los dos lados.
-  Solo con transform, opacity, clip-path y el trazo del SVG; ~1,1 s en total.
+  Solo con transform, opacity, clip-path y el trazo del SVG; ~1,1 s en total. La marca
+  impresa del centro se funde **hasta su opacidad tenue** (7 %, 4,5 % con la placa del
+  resultado), leída del CSS, y la escala va en el dibujo: si se animaba a 1 se veía a
+  todo color y al terminar desaparecía de golpe.
 - Barras de probabilidad y de método: se llenan desde su esquina al **abrir** cada
   combate (420 ms). Antes se llenaban al pintar la cartelera, con los combates
   plegados, y nadie lo veía.
-- Repetición: el zócalo del resultado se descubre de izquierda a derecha (380 ms) y el
-  sello cae al final; la tira del marcador se completa casilla por casilla (35 ms).
+- Repetición: el zócalo del resultado se descubre de izquierda a derecha (380 ms), el
+  sello cae al final y después entra el veredicto del método; la tira del marcador se
+  completa casilla por casilla (35 ms).
+- **Resultados de las últimas carteleras**: la primera vez cada fila sube 10 px (90 ms de
+  desfase), su tira crece barra por barra desde abajo (28 ms) y los marcadores corren
+  hasta su valor. Al abrir una, la altura se anima como un combate, las peleas bajan una
+  tras otra (40 ms) y los sellos se estampan al final de cada línea. La que termina de
+  calcularse se descubre de izquierda a derecha.
 - Peleas anteriores: las filas nuevas entran como lista (30 ms de desfase); el "vs"
   cede su lugar a "Repetir" (160 ms). La lista tiene scroll propio y se completa sola al
   llegar al final.
