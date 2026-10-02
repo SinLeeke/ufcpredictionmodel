@@ -1,5 +1,10 @@
 # Traspaso: continuar el proyecto desde una sesión en la nube
 
+> **Nota histórica (octubre 2026).** Este es el encargo con que se hizo el rediseño de
+> la interfaz (Fase 3), que ya está terminado. Se conserva como registro de las reglas y
+> los criterios que se pidieron; el estado actual está en el README y en el historial
+> de git.
+
 Para la IA (Claude Code en la nube u otra) que retoma este trabajo. Léelo entero antes
 de tocar nada. El dueño del proyecto revisa cada paso; habla con él en español.
 

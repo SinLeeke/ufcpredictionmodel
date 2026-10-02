@@ -1,0 +1,36 @@
+# Corre las pruebas en cada push y pull request. No necesita la base ni los
+# modelos (data/ y models/ no se versionan): las pruebas que dependen de ellos se
+# saltan solas, y ninguna consulta la red.
+name: Pruebas
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Dependencias
+        run: python -m pip install -r requirements.txt
+
+      - name: Python (unittest)
+        run: python -m unittest discover -s tests -t .
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Interfaz (sintaxis y contratos de datos)
+        run: |
+          node --check webui/static/app.js
+          node --check webui/static/analisis.js
+          node tests/test_analisis.js
+          node --test tests/ui_cards.test.cjs

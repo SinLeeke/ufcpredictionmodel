@@ -30,6 +30,13 @@ cards/*
 # Backups locales de modelos/datasets viejos (una subcarpeta por fecha)
 backups/
 
+# Copias comprimidas de la base o del proyecto: son datos derivados (ver arriba) y
+# pesan megas en cada clon. Para pasarle la base a otro equipo, mejor un adjunto de
+# un Release de GitHub o una carpeta compartida.
+*.rar
+*.zip
+*.7z
+
 # PDF del manual: se regenera, no es fuente
 MANUAL.pdf
 MINIMANUAL.pdf
