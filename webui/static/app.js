@@ -375,7 +375,9 @@ function pintarCarga(e) {
   const progreso = $('#carga-barra');
   if (c.porcentaje == null) progreso.removeAttribute('value');
   else progreso.value = c.porcentaje;
-  $('#carga-porcentaje').textContent = c.porcentaje == null ? 'En curso' : `${c.porcentaje} %`;
+  // Entero y con el espacio fino de todas las cifras: el servidor manda 33.3 y
+  // salía "33.3 %", con punto, en una interfaz que escribe con coma.
+  $('#carga-porcentaje').textContent = c.porcentaje == null ? 'En curso' : `${fmt(c.porcentaje, 0)}${NBSP_FINO}%`;
   $('#carga-pista').classList.toggle('oculto', c.estado === 'error');
   $('.carga-medida').classList.toggle('oculto', c.estado === 'error');
   pintarTiempoCarga();
@@ -404,7 +406,7 @@ function despedirCarga(panel, c) {
   $('#carga-titulo').textContent = 'Cartelera lista';
   $('#carga-detalle').textContent = c.detalle || '';
   $('#carga-barra').value = 100;
-  $('#carga-porcentaje').textContent = '100 %';
+  $('#carga-porcentaje').textContent = `100${NBSP_FINO}%`;
   $$('#carga-etapas li').forEach(li => {
     li.classList.remove('actual');
     li.classList.toggle('hecha', S.cargaPasos?.has(Number(li.dataset.paso)) || Number(li.dataset.paso) > 0);

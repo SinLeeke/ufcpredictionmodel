@@ -1128,7 +1128,9 @@ tbody tr:last-child td{border-bottom:none}
 .pie-firma a{color:var(--cab-txt);text-decoration:none;border-bottom:2px solid var(--cab-regla)}
 
 /* ------------------------------ responsive ---------------------------- */
-@media (max-width:1180px){
+/* Bajo 1360 px las pestañas pasan a su propia fila: con una cartelera o una
+   repetición cargadas, la cabecera ya no cabe en una sola sin esconder pestañas. */
+@media (max-width:1360px){
   .cab{flex-wrap:wrap;row-gap:0;padding:0 20px}
   .tabs{order:3;flex-basis:100%;min-height:44px;margin:0 -20px;padding:0 12px;border-top:1px solid var(--cab-linea)}
   .cartelera-caja{margin-left:auto}
@@ -1831,6 +1833,9 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 
 /* Cómo termina: tres casillas; la más probable, tachada con lápiz. */
 .ac-metodo{display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;border-bottom:1px solid var(--forma);padding:4px 0}
+/* En una repetición, el veredicto del método va debajo, a todo el ancho: en la
+   columna del rótulo quedaba una palabra por línea. */
+.ac-metodo>.metodo-veredicto{grid-column:1/-1;padding-inline:0}
 .acta .metodo{border-top:0;background:none}
 .acta .metodo>div{display:grid;grid-template-columns:18px auto minmax(0,1fr);grid-template-areas:"caja mk mv" ". barra barra";
   align-items:center;gap:4px 8px;padding:8px 10px;border-left:1px solid var(--linea)}
@@ -2137,4 +2142,11 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   .res-ev.pendiente::after,.res-ev.pendiente .res-espera .ico,.res-repetir.cargando::after{animation:none}
   .res-ev.pendiente::after{display:none}
   .res-flecha,.res-repetir .ico{transition:none}
+}
+/* En una fila (escritorio ancho), las pestañas no se encogen: lo que cede es el
+   nombre de la cartelera, que ya se corta con puntos suspensivos. Antes cedían
+   las pestañas y, con una repetición cargada, "Guía" quedaba fuera de la vista. */
+@media (min-width:1361px){
+  .tabs{flex:none}
+  .cartelera-caja{flex:1 1 0}
 }
