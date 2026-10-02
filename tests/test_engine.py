@@ -60,6 +60,7 @@ class RefrescoEnVivo(unittest.TestCase):
         self.assertAlmostEqual(pl["p_a"] + pl["p_b"], 1.0, places=6)
         self.assertEqual(pl["ganador"], A if pl["p_a"] >= 0.5 else B)
         self.assertEqual(pl["confianza"], E._confianza(max(pl["p_a"], pl["p_b"]), []))
+        self.assertEqual(pl["ci_b"], [round(1 - pl["ci_a"][1], 4), round(1 - pl["ci_a"][0], 4)])
 
         patas = {p.id: p for p in self.estado.patas}
         pa, pb = patas["0:ML:A"], patas["0:ML:B"]
@@ -82,6 +83,66 @@ class RefrescoEnVivo(unittest.TestCase):
         mov = self.estado.movimiento
         self.assertEqual(mov["0:ML:A"], {"antes": 1.26, "ahora": 2.05})
         self.assertEqual(mov["0:ML:B"], {"antes": 3.80, "ahora": 1.80})
+
+
+class AvisosYGraficos(unittest.TestCase):
+    def _serializar(self, info_a=None, info_b=None, **extra):
+        metodo = {"KO/TKO": 0.35, "Submission": 0.10, "Decision": 0.55}
+        sim = monte_carlo(0.62, metodo, A, B)
+        consenso = {"a": A, "b": B, "sim": sim, "method": metodo, "pocos": [],
+                    "info_a": info_a or {}, "info_b": info_b or {}, **extra}
+        datos, _ = E._serializar({"rows": [{"A": A, "B": B}], "consenso": [consenso]}, Path("test.csv"))
+        return datos["peleas"][0]
+
+    def test_uno_o_dos_debutantes_se_identifican_con_nombre_completo(self):
+        debut = {"debut_ufc_confirmado": True, "n_peleas_ufc": 0, "historial_ufc_confirmado": True}
+        veterano = {"n_peleas_ufc": 8, "historial_ufc_confirmado": True}
+        for info_a, info_b, nombres in ((debut, veterano, [A]), (veterano, debut, [B]),
+                                        (debut, debut, [A, B]), (veterano, veterano, [])):
+            with self.subTest(nombres=nombres):
+                pelea = self._serializar(info_a, info_b)
+                self.assertEqual(pelea["debutantes"], nombres)
+                self.assertEqual(pelea["debut_cantidad"], len(nombres))
+
+    def test_cero_local_o_historial_ausente_no_disparan_el_aviso_de_debut(self):
+        pelea = self._serializar({"n_peleas_hist": 0}, {"n_peleas_hist": None, "historial_disponible": False})
+        self.assertEqual(pelea["debutantes"], [])
+        self.assertEqual(pelea["debut_cantidad"], 0)
+        self.assertIsNone(pelea["metodo_hist_a"])
+        self.assertIsNone(pelea["probabilidades_metodo"])
+
+    def test_donut_intervalos_y_metodos_historicos_conservan_los_datos_originales(self):
+        historial = {"KO/TKO": 0.2, "Submission": 0.3, "Decision": 0.5}
+        pelea = self._serializar({"metodo_victorias": historial,
+                                  "metodo_victorias_fuente": "carrera profesional (Sherdog)"})
+        self.assertEqual(pelea["metodo_hist_a"], historial)
+        self.assertEqual(pelea["metodo_hist_fuente_a"], "carrera profesional (Sherdog)")
+        self.assertIsNone(pelea["metodo_hist_b"])
+        self.assertEqual(pelea["p_decision"], 0.55)
+        self.assertEqual(pelea["ci_b"], [round(1 - pelea["ci_a"][1], 4), round(1 - pelea["ci_a"][0], 4)])
+
+    def test_probabilidades_de_cada_peleador_estan_disponibles_sin_cuotas_de_metodo(self):
+        p6 = {"A_KO": 0.31, "A_SUB": 0.07, "A_DEC": 0.22,
+              "B_KO": 0.15, "B_SUB": 0.05, "B_DEC": 0.20}
+        pelea = self._serializar(probabilidades_metodo=p6)
+        self.assertEqual(pelea["probabilidades_metodo"], p6)
+        self.assertNotIn("metodo6", pelea)
+
+    def test_demo_anterior_recupera_modelo_de_metodo_y_no_confunde_probabilidad_calibrada(self):
+        p6 = {"A_KO": 0.31, "A_SUB": 0.07, "A_DEC": 0.22,
+              "B_KO": 0.15, "B_SUB": 0.05, "B_DEC": 0.20}
+        pelea = self._serializar(metodo6=[{"clase": clase, "p_modelo": p, "p_final": 1 / 6,
+                                          "cuota_decimal": 5.0}
+                                         for clase, p in p6.items()])
+        self.assertEqual(pelea["probabilidades_metodo"], p6)
+
+    def test_tasas_invalidas_o_incompletas_se_mantienen_desconocidas(self):
+        for tasas in ({"KO/TKO": float("nan"), "Submission": 0.2, "Decision": 0.4},
+                      {"KO/TKO": 0.7, "Submission": 0.4, "Decision": 0.4},
+                      {"KO/TKO": 0.7}):
+            with self.subTest(tasas=tasas):
+                pelea = self._serializar({"metodo_victorias": tasas})
+                self.assertIsNone(pelea["metodo_hist_a"])
 
 
 if __name__ == "__main__":

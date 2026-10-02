@@ -1,0 +1,79 @@
+/* Gráficos locales, con las mismas fuentes y superficies que la cartelera. */
+.analisis-pelea{--analisis-a:#b8102a;--analisis-b:#27639a;--analisis-ko:#8b642d;--analisis-sub:#78516c;--analisis-dec:#566273;border-top:1px solid var(--linea);background:var(--sup);min-width:0;container:analisis/inline-size}
+.analisis-pelea summary{display:flex;align-items:center;gap:12px;min-height:48px;padding:13px 20px;cursor:pointer;list-style:none;color:var(--txt2);user-select:none}
+.analisis-pelea summary::-webkit-details-marker{display:none}
+.analisis-pelea summary:hover{background:var(--sup2);color:var(--txt)}
+.analisis-pelea summary:focus-visible{outline-offset:-3px}
+.analisis-summary-titulo{display:flex;align-items:center;gap:9px;font:700 18px/1.1 var(--display);text-transform:uppercase;letter-spacing:.04em}
+.analisis-summary-titulo svg,.analisis-flecha{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:square;stroke-linejoin:miter}
+.analisis-summary-datos{margin-left:auto;font-size:13px;color:var(--tenue)}
+.analisis-flecha{transition:transform 180ms var(--ease-out)}
+.analisis-pelea[open] .analisis-flecha{transform:rotate(180deg)}
+.analisis-contenido{padding:0 20px 18px;min-width:0}
+.analisis-esquinas{display:flex;flex-wrap:wrap;gap:8px 24px;padding:3px 0 14px;font-size:13px;font-weight:600}
+.analisis-esquina{display:flex;align-items:center;gap:7px;min-width:0;overflow-wrap:anywhere}
+.analisis-esquina i,.analisis-metodos-nombre i{width:9px;height:9px;display:inline-block;background:var(--esquina);flex:none}
+.esquina-a{--esquina:var(--analisis-a)}
+.esquina-b{--esquina:var(--analisis-b)}
+.analisis-graficos{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:22px}
+.analisis-panel{min-width:0;border-top:2px solid var(--txt);padding-top:12px}
+.analisis-panel h4{font:800 19px/1.1 var(--display);letter-spacing:.01em;margin:0 0 10px;color:var(--txt)}
+.analisis-panel p{margin:0}
+.analisis-ayuda{font-size:12px;line-height:1.4;color:var(--tenue)}
+.analisis-victoria-cuerpo{display:grid;grid-template-columns:155px minmax(0,1fr);align-items:center;gap:16px;min-height:175px}
+.analisis-donut-wrap{position:relative;width:155px;aspect-ratio:1}
+.analisis-donut{width:100%;height:100%;overflow:visible;transform:rotate(-90deg)}
+.analisis-donut circle{fill:none;stroke-width:16}
+.analisis-donut-base{stroke:var(--sup2)}
+.analisis-donut-a{stroke:var(--analisis-a)}
+.analisis-donut-b{stroke:var(--analisis-b)}
+.analisis-donut-centro{position:absolute;inset:35px 26px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:3px;pointer-events:none}
+.analisis-donut-centro>span:first-child{font:700 11px/1 var(--display);text-transform:uppercase;letter-spacing:.09em;color:var(--tenue)}
+.analisis-donut-centro strong{font:800 32px/1 var(--display);white-space:nowrap}
+.analisis-donut-centro>span:last-child{font-size:11px;font-weight:600;line-height:1.15;overflow-wrap:anywhere}
+.analisis-rangos{display:grid;gap:16px}
+.analisis-rango-cab{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12px;line-height:1.15}
+.analisis-rango-cab>span{overflow-wrap:anywhere}
+.analisis-rango-cab strong{font:800 22px/1 var(--display);white-space:nowrap}
+.analisis-rango-pista{height:5px;background:var(--sup2);position:relative;margin:10px 3px 6px}
+.analisis-intervalo{position:absolute;height:5px;background:var(--esquina);opacity:.5}
+.analisis-punto{position:absolute;width:5px;height:11px;top:-3px;transform:translateX(-50%);background:var(--esquina)}
+.analisis-rango-pie{display:flex;align-items:baseline;justify-content:space-between;gap:5px;font-size:10px;color:var(--tenue)}
+.analisis-rango-pie>span{white-space:nowrap}
+.analisis-victoria>.analisis-ayuda{margin-top:8px}
+.analisis-hist-fila{margin-top:13px}
+.analisis-hist-cab{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12px;line-height:1.2;margin-bottom:6px}
+.analisis-hist-cab>strong{overflow-wrap:anywhere}
+.analisis-hist-cab>span{font-size:10px;color:var(--tenue);text-align:right}
+.analisis-apilada{height:22px;display:flex;background:var(--sup2);overflow:hidden}
+.analisis-segmento{display:flex;align-items:center;justify-content:center;min-width:0;color:#fff;font:700 12px/1 var(--display);white-space:nowrap;border-right:1px solid var(--sup)}
+.analisis-segmento:last-child{border-right:0}
+.metodo-ko{background:var(--analisis-ko)}
+.metodo-sub{background:var(--analisis-sub)}
+.metodo-dec{background:var(--analisis-dec)}
+.analisis-hist-valores{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:4px;font-size:10px;color:var(--tenue)}
+.analisis-hist-valores>span{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.analisis-hist-valores i{width:6px;height:6px;display:inline-block}
+.analisis-hist-valores b{font-weight:600;color:var(--txt2)}
+.analisis-sin-dato{padding:8px 0;color:var(--tenue);font-size:12px;line-height:1.4}
+.analisis-resultados{margin-top:20px}
+.analisis-metodos-peleadores{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;margin-top:12px}
+.analisis-metodos-nombre{display:flex;align-items:baseline;gap:7px;font-size:13px;line-height:1.2;overflow-wrap:anywhere}
+.analisis-metodo-principal{font-size:11px;color:var(--tenue);padding:4px 0 7px}
+.analisis-metodo-principal b{color:var(--txt2)}
+.analisis-metodo-fila{display:grid;grid-template-columns:58px minmax(0,1fr) 52px;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--linea);font-size:12px}
+.analisis-metodo-fila:last-child{border-bottom:0}
+.analisis-metodo-fila>strong{font:700 18px/1 var(--display);text-align:right;white-space:nowrap}
+.analisis-barra{height:7px;background:var(--sup2);overflow:hidden}
+.analisis-barra>span{height:100%;display:block;background:var(--esquina);transform-origin:left}
+.analisis-fuente{font-size:11px;line-height:1.4;color:var(--tenue);padding-top:12px;max-width:95ch}
+[data-estilo="juez"] .analisis-panel h4,[data-estilo="juez"] .analisis-donut-centro strong,[data-estilo="juez"] .analisis-rango-cab strong,[data-estilo="juez"] .analisis-metodo-fila>strong{font-family:"Courier Prime",var(--display);letter-spacing:-.05em}
+[data-estilo="juez"] .analisis-donut-centro strong{font-size:20px}
+@media(prefers-color-scheme:dark){:root:not([data-tema="claro"]) .analisis-pelea{--analisis-a:#f2434f;--analisis-b:#72ade0}}
+[data-tema="oscuro"] .analisis-pelea{--analisis-a:#f2434f;--analisis-b:#72ade0}
+@container analisis (max-width:720px){.analisis-graficos{grid-template-columns:minmax(0,1fr)}}
+@container analisis (max-width:470px){.analisis-victoria-cuerpo{grid-template-columns:120px minmax(0,1fr);gap:12px;min-height:145px}.analisis-donut-wrap{width:120px}.analisis-donut-centro{inset:27px 21px}.analisis-donut-centro strong{font-size:26px}.analisis-rango-cab{font-size:11px}.analisis-rango-cab strong{font-size:19px}.analisis-rango-pie{flex-wrap:wrap;gap:1px}.analisis-metodos-peleadores{grid-template-columns:minmax(0,1fr);gap:16px}}
+@media(max-width:1080px){.analisis-victoria-cuerpo{grid-template-columns:135px minmax(0,1fr);gap:12px}.analisis-donut-wrap{width:135px}.analisis-donut-centro{inset:30px 24px}.analisis-donut-centro strong{font-size:29px}}
+@media(max-width:900px){.analisis-graficos{grid-template-columns:minmax(0,1fr)}.analisis-victoria-cuerpo{grid-template-columns:155px minmax(0,1fr)}.analisis-donut-wrap{width:155px}.analisis-donut-centro{inset:35px 26px}.analisis-donut-centro strong{font-size:32px}}
+@media(max-width:560px){.analisis-pelea summary{padding:12px 14px;gap:8px}.analisis-summary-datos{display:none}.analisis-flecha{margin-left:auto}.analisis-contenido{padding:0 14px 16px}.analisis-victoria-cuerpo{grid-template-columns:120px minmax(0,1fr);gap:12px;min-height:145px}.analisis-donut-wrap{width:120px}.analisis-donut-centro{inset:27px 21px}.analisis-donut-centro strong{font-size:26px}.analisis-donut-centro>span:last-child{font-size:10px}.analisis-rango-cab{font-size:11px}.analisis-rango-cab strong{font-size:19px}.analisis-rango-pie{flex-wrap:wrap;gap:1px;font-size:10px}.analisis-metodos-peleadores{grid-template-columns:minmax(0,1fr);gap:16px}.analisis-hist-cab{flex-wrap:wrap;gap:2px}.analisis-hist-cab>span{text-align:left}.analisis-panel h4{font-size:18px}}
+@media(prefers-reduced-motion:reduce){.analisis-flecha{transition:none}}

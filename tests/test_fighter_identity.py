@@ -73,6 +73,20 @@ class IdentidadesVerificadas(unittest.TestCase):
         with mock.patch.object(U, "_get", return_value=html):
             self.assertEqual(U.find_fighter_url("Ian Garry"), "/ian")
 
+    def test_orden_cong_wang_se_unifica_sin_confundir_otros_wang(self):
+        self.assertTrue(N.same_fighter("Cong Wang", "Wang Cong"))
+        self.assertEqual(N.preferred_name("Cong Wang"), "Wang Cong")
+        self.assertFalse(N.same_fighter("Cong Wang", "Anying Wang"))
+        self.assertFalse(N.same_fighter("Cong Wang", "Wang"))
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "cache.json"
+            cache.write_text(json.dumps({"cong wang": {"name": "Wang Cong",
+                               "slpm": 6.82, "_parser": U.VERSION_PARSER}}), encoding="utf-8")
+            with mock.patch.object(U, "CACHE_PATH", cache), \
+                    mock.patch.object(U, "find_fighter_url", side_effect=AssertionError("no red")):
+                self.assertEqual(U.get_fighter("Wang Cong")["slpm"], 6.82)
+                self.assertEqual(U.get_fighter("Cong Wang")["slpm"], 6.82)
+
     def test_homonimos_siguen_desempatandose_por_ficha_completa(self):
         html = _lista(("Mike Davis", "/viejo", 2), ("Mike Davis", "/activo", 16))
         with mock.patch.object(U, "_get", return_value=html), mock.patch("builtins.print"):
@@ -160,6 +174,59 @@ class ConteoDeFicha(unittest.TestCase):
             cache.write_text(json.dumps({"debutante": vieja}), encoding="utf-8")
             with mock.patch.object(U, "CACHE_PATH", cache), mock.patch.object(U, "_get", return_value=None):
                 self.assertFalse(confirmed_ufc_debut(U.get_fighter("Debutante")))
+
+    def test_cache_con_record_de_otras_ligas_clasifica_debut_una_vez_y_conserva_estadisticas(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "cache.json"
+            vieja = {"name": "Debutante", "wins": 10, "losses": 2, "slpm": 4.72,
+                     "win_ko_rate": 0.8, "win_sub_rate": 0.1, "win_dec_rate": 0.1,
+                     "reach_cm": 193.0, "n_peleas_hist": 12,
+                     "ufcstats_url": "http://fixture/fighter", "_parser": U.VERSION_PARSER}
+            cache.write_text(json.dumps({"debutante": vieja}), encoding="utf-8")
+            html = _soup(_fila("next", "A A", "UFC 330", "", "", "Jan. 01, 2030"),
+                         _fila("win", "B B", "WEC 53", "KO/TKO", "Punch", "Jan. 01, 2024"),
+                         _fila("loss", "C C", "Strikeforce: Finale", "SUB", "Choke", "Jan. 01, 2023"))
+            with mock.patch.object(U, "CACHE_PATH", cache), mock.patch.object(U, "_get", return_value=html) as get, \
+                    mock.patch.object(U, "find_fighter_url", side_effect=AssertionError("no buscar")):
+                ficha = U.get_fighter("Debutante")
+                self.assertTrue(confirmed_ufc_debut(ficha))
+                self.assertEqual(ficha["n_peleas_ufc"], 0)
+                self.assertEqual({campo: ficha[campo] for campo in vieja}, vieja)
+                self.assertEqual(U.get_fighter("Debutante"), ficha)
+                get.assert_called_once_with("http://fixture/fighter")
+
+    def test_cache_con_record_clasifica_veterano_o_historial_ambiguo_sin_repetir_migracion(self):
+        for evento, n_ufc in (("UFC 330", 1), ("Liga desconocida", None)):
+            with self.subTest(evento=evento), tempfile.TemporaryDirectory() as tmp:
+                cache = Path(tmp) / "cache.json"
+                vieja = {"name": "Veterano", "wins": 10, "losses": 2, "slpm": 4.72,
+                         "ufcstats_url": "http://fixture/fighter", "_parser": U.VERSION_PARSER}
+                cache.write_text(json.dumps({"veterano": vieja}), encoding="utf-8")
+                html = _soup(_fila("win", "B B", evento, "U-DEC", "", "Jan. 01, 2024"))
+                with mock.patch.object(U, "CACHE_PATH", cache), mock.patch.object(U, "_get", return_value=html) as get:
+                    ficha = U.get_fighter("Veterano")
+                    self.assertFalse(confirmed_ufc_debut(ficha))
+                    self.assertEqual(ficha["n_peleas_ufc"], n_ufc)
+                    self.assertEqual({campo: ficha[campo] for campo in vieja}, vieja)
+                    self.assertEqual(U.get_fighter("Veterano"), ficha)
+                    get.assert_called_once_with("http://fixture/fighter")
+
+    def test_cache_con_record_sin_red_o_url_conserva_ficha_y_debut_desconocido(self):
+        for url in ("http://fixture/fighter", None):
+            with self.subTest(url=url), tempfile.TemporaryDirectory() as tmp:
+                cache = Path(tmp) / "cache.json"
+                vieja = {"name": "Veterano", "wins": 10, "losses": 2,
+                         "ufcstats_url": url, "_parser": U.VERSION_PARSER}
+                cache.write_text(json.dumps({"veterano": vieja}), encoding="utf-8")
+                with mock.patch.object(U, "CACHE_PATH", cache), mock.patch.object(U, "_get", return_value=None) as get, \
+                        mock.patch.object(U, "find_fighter_url", side_effect=AssertionError("no buscar")):
+                    ficha = U.get_fighter("Veterano")
+                    self.assertEqual(ficha, vieja)
+                    self.assertFalse(confirmed_ufc_debut(ficha))
+                    if url:
+                        get.assert_called_once_with(url)
+                    else:
+                        get.assert_not_called()
 
 
 class LimiteAntiBot(unittest.TestCase):
@@ -262,6 +329,49 @@ class HistorialDeControl(unittest.TestCase):
             with mock.patch.object(R, "CACHE", cache), mock.patch.object(R, "_IDX", None):
                 self.assertEqual(R.es_reemplazo("King Green", "UFC 1"), 1)
                 self.assertEqual(R.es_reemplazo("Gabe Green", "UFC 1"), 0)
+
+
+class UltimosResultadosVisibles(unittest.TestCase):
+    def test_alias_corte_y_cinco_resultados_con_metodos_y_neutros_reales(self):
+        peleas = [
+            ("2023-01-01", "Bobby Green", "Rival Uno", "Bobby Green", "KO/TKO", "KO/TKO", "1"),
+            ("2023-06-01", "Bobby Green", "Rival Dos", "Rival Dos", "Submission", "SUB", "2"),
+            ("2024-01-01", "King Green", "Rival Tres", "", "Decision", "M-DEC", "3"),
+            ("2024-04-01", "King Green", "Rival Cuatro", "", "Other", "CNC", "4"),
+            ("2024-06-01", "Bobby Green", "Rival Cinco", "King Green", "Other", "DQ", "5"),
+            ("2024-09-01", "King Green", "Rival Seis", "King Green", "Decision", "S-DEC", "6"),
+            # Misma pelea descargada también bajo su alias: un solo cuadro.
+            ("2024-09-01", "Bobby Green", "Rival Seis", "Bobby Green", "Decision", "S-DEC", "6"),
+            # Fila ambigua: no convertirla en una derrota ni un empate.
+            ("2024-11-01", "King Green", "Rival Desconocido", "", "Other", "", "7"),
+            # El mismo día del corte y el futuro no entran.
+            ("2025-01-01", "King Green", "Rival Siete", "King Green", "Decision", "U-DEC", "8"),
+            ("2026-01-01", "King Green", "Rival Ocho", "King Green", "Decision", "U-DEC", "9"),
+        ]
+        filas = [{"date": fecha, "fighter_a": a, "fighter_b": b, "winner": winner,
+                  "method": metodo, "method_detail": detalle, "fight_url": url}
+                 for fecha, a, b, winner, metodo, detalle, url in peleas]
+        with tempfile.TemporaryDirectory() as tmp:
+            csv = Path(tmp) / "fights.csv"
+            pd.DataFrame(filas).to_csv(csv, index=False)
+            with mock.patch.object(O, "FIGHTS_CSV", csv), mock.patch.object(O, "_IDX", None), \
+                    mock.patch("builtins.print"):
+                bobby = O.ultimas_peleas("Bobby Green", "2025-01-01")
+                self.assertEqual(bobby, O.ultimas_peleas("King Green", "2025-01-01"))
+                self.assertEqual(len(bobby), 5)
+                self.assertEqual([p["resultado"] for p in bobby], ["W", "W", "NC", "D", "L"])
+                self.assertEqual([p["metodo"] for p in bobby], ["S-DEC", "DQ", "CNC", "M-DEC", "SUB"])
+                self.assertEqual([p["rival"] for p in bobby], ["Rival Seis", "Rival Cinco", "Rival Cuatro",
+                                                             "Rival Tres", "Rival Dos"])
+                self.assertEqual([p["fecha"] for p in bobby], ["2024-09-01", "2024-06-01", "2024-04-01",
+                                                             "2024-01-01", "2023-06-01"])
+                self.assertEqual(O.ultimas_peleas("Bobby Green", "2023-01-01"), [])
+                self.assertEqual(O.ultimas_peleas("Rival Dos", "2025-01-01"),
+                                 [{"fecha": "2023-06-01", "rival": "Bobby Green", "resultado": "W", "metodo": "SUB"}])
+
+    def test_historial_ausente_no_inventa_cuadros(self):
+        with mock.patch.object(O, "_IDX", {}):
+            self.assertEqual(O.ultimas_peleas("Desconocido", "2025-01-01"), [])
 
 
 if __name__ == "__main__":

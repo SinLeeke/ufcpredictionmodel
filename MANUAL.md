@@ -423,6 +423,26 @@ y las barras de método. Doble clic para abrirlos.
 
 ---
 
+### Repetir una pelea que ya pasó
+
+En la interfaz, pestaña **Cargar → Peleas anteriores**: busca por peleador o por evento
+y elige la pelea. Se carga su cartelera completa con los datos que había **antes** de esa
+fecha y la pelea elegida se abre sola. Lo mismo hace **Repetir** en una cartelera
+guardada de Betano cuya fecha ya pasó.
+
+Qué se recorta a la fecha: estadísticas, récord y racha (recalculados pelea a pelea),
+edad, ELO, rivales recientes, corto aviso y el modelo, que se reentrena solo con las
+peleas anteriores si el de producción ya las había visto (tarda ~30 s la primera vez por
+fecha y queda en `models\corte\`). Lo que no: los dos calibradores (dos números cada
+uno) y los hiperparámetros. El resultado real se lee **después** de predecir y solo se
+muestra.
+
+La lista llega hasta la última pelea de `data\processed\ufcstats_fights.csv`. Para
+una cartelera más nueva, corre **Actualizar todo** o usa **Repetir** sobre el CSV de
+Betano: se predice igual y avisa que el resultado todavía no está en la base.
+
+Desde la consola, `card.predict_card(ruta, corte="AAAA-MM-DD")` hace lo mismo.
+
 ## 7. Comprobar que el modelo sigue funcionando
 
 ```bash

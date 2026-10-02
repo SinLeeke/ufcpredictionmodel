@@ -149,7 +149,40 @@ function repintarEstilo() {
 
 /* =============================== TABS ================================= */
 const irA = (t) => $(`.tab[data-tab="${t}"]`).click();
+// La etiqueta de la pestaña activa viaja de la vieja a la nueva, como el
+// rótulo que se desliza en la gráfica de la tele. Con teclado o con menos
+// movimiento, cambia en el lugar.
+function viajarPestana(desde, hasta) {
+  if (!desde || desde === hasta || porTeclado || reducir()) return;
+  const tabs = $('.tabs');
+  const r0 = desde.getBoundingClientRect(), r1 = hasta.getBoundingClientRect(), rt = tabs.getBoundingClientRect();
+  if (!r0.width || !r1.width) return;
+  const incl = getComputedStyle(raizDoc).getPropertyValue('--incl').trim() || '0deg';
+  const fantasma = document.createElement('span');
+  fantasma.className = 'tab-viaje';
+  fantasma.style.left = (r1.left - rt.left + tabs.scrollLeft + 4) + 'px';
+  fantasma.style.width = (r1.width - 8) + 'px';
+  tabs.append(fantasma);
+  tabs.classList.add('viajando');
+  const viaje = fantasma.animate([
+    { transform: `translateX(${r0.left - r1.left}px) skewX(-${incl}) scaleX(${(r0.width - 8) / (r1.width - 8)})` },
+    { transform: `translateX(0) skewX(-${incl}) scaleX(1)` }],
+    { duration: 300, easing: EASE_IN_OUT });
+  // Al llegar, la etiqueta propia aparece de golpe bajo el fantasma y recién
+  // ahí se quita: si apareciera con su transición, parpadearía.
+  const fin = () => {
+    if (!fantasma.isConnected) return;
+    tabs.classList.add('llegando'); tabs.classList.remove('viajando');
+    void tabs.offsetWidth;
+    fantasma.remove(); tabs.classList.remove('llegando');
+  };
+  viaje.onfinish = fin; viaje.oncancel = fin;
+  // Si la ventana queda en segundo plano a medio viaje, la animación se
+  // congela: la pestaña nueva no puede quedarse sin su etiqueta.
+  setTimeout(() => { viaje.cancel(); fin(); }, 450);
+}
 $$('.tab').forEach(t => t.onclick = () => {
+  viajarPestana($('.tab.activa'), t);
   $$('.tab').forEach(x => { x.classList.remove('activa'); x.removeAttribute('aria-current'); });
   $$('.panel').forEach(x => x.classList.remove('activa'));
   t.classList.add('activa');
@@ -160,12 +193,13 @@ $$('.tab').forEach(t => t.onclick = () => {
     e.getAnimations({ subtree: true }).forEach(a => a.finish()));
   window.scrollTo({ top: 0 });
   if (t.dataset.tab === 'mantenimiento') cargarTareas();
-  if (t.dataset.tab === 'datos') { cargarCSVs(); listarCarteleras(); }
+  if (t.dataset.tab === 'datos') { cargarCSVs(); listarCarteleras(); listarAnteriores(); }
+  if (t.dataset.tab === 'inicio') cargarInicio();
 });
 $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
 
-$$('.seg').forEach(b => b.onclick = () => {
-  $$('.seg').forEach(x => x.classList.remove('activa'));
+$$('.seg[data-vista]').forEach(b => b.onclick = () => {
+  $$('.seg[data-vista]').forEach(x => x.classList.remove('activa'));
   b.classList.add('activa');
   S.vista = b.dataset.vista;
   $('#peleas').classList.toggle('oculto', S.vista !== 'tarjetas');
@@ -281,6 +315,13 @@ function duracionCarga(segundos) {
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), resto = s % 60;
   return h ? `${h} h ${m} min` : m ? `${m} min ${resto} s` : `${resto} s`;
 }
+// Cada etapa del servidor cae en uno de los cuatro pasos de la tira.
+const PASO_CARGA = { buscando:0, cuotas:0, guardando:0, preparando:1, prediccion:2,
+  informes:3, serializando:3, lista:4 };
+// El panel entra bajando, cada etapa nueva se enciende de izquierda a derecha y,
+// al terminar, se queda un momento diciendo "Cartelera lista" con todo en visto
+// antes de recogerse: sin eso, desaparecía de golpe y no se sabía si había
+// terminado bien. Las cifras que cambian suben como las de EN VIVO.
 function pintarCarga(e) {
   const anterior = S.carga?.estado;
   S.carga = e.carga || (e.cargando ? {
@@ -294,16 +335,43 @@ function pintarCarga(e) {
     $('#carga-final').textContent = `Cartelera lista. ${c.detalle || ''}`;
   else if (c?.estado !== 'completada') $('#carga-final').textContent = '';
   const visible = c && (e.cargando || c.estado === 'error');
+  const estabaVisible = !panel.classList.contains('oculto');
+  // Terminó bien mientras se veía: despedida corta en vez de desaparecer.
+  if (!visible && estabaVisible && c?.estado === 'completada' && !S.cargaSaliendo) {
+    despedirCarga(panel, c);
+    return;
+  }
+  if (S.cargaSaliendo) return;
   panel.classList.toggle('oculto', !visible);
   if (!visible) return;
+  if (!estabaVisible) {
+    S.cargaPasos = new Set(); S.cargaPaso = null;
+    panel.classList.remove('lista');
+    if (!reducir()) panel.animate([{ opacity: 0, transform: 'translateY(-12px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 320, easing: EASE_OUT });
+  }
   panel.dataset.estado = c.estado;
-  $('#carga-titulo').textContent = c.estado === 'error'
+  const titulo = c.estado === 'error'
     ? 'No se pudo cargar la cartelera' : ETAPAS_CARGA[c.etapa] || 'Cargando la cartelera';
+  if ($('#carga-titulo').textContent !== titulo) {
+    $('#carga-titulo').textContent = titulo;
+    if (estabaVisible && !reducir()) $('#carga-titulo').animate(
+      [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 360, easing: EASE_OUT });
+  }
+  pintarPasosCarga(c);
   const detalle = c.detalle || e.progreso || '';
-  if ($('#carga-detalle').textContent !== detalle) $('#carga-detalle').textContent = detalle;
+  if ($('#carga-detalle').textContent !== detalle) {
+    $('#carga-detalle').textContent = detalle;
+    if (estabaVisible && !reducir()) $('#carga-detalle').animate(
+      [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE_OUT });
+  }
   const unidades = c.total != null && c.total > 0
     ? ` · ${c.completadas} de ${c.total} peleas` : '';
-  $('#carga-unidades').textContent = unidades;
+  if ($('#carga-unidades').textContent !== unidades) {
+    $('#carga-unidades').textContent = unidades;
+    if (estabaVisible && unidades && !reducir()) $('#carga-unidades').animate(
+      [{ opacity: 0, transform: 'translateY(35%)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE_OUT });
+  }
   const progreso = $('#carga-barra');
   if (c.porcentaje == null) progreso.removeAttribute('value');
   else progreso.value = c.porcentaje;
@@ -311,6 +379,47 @@ function pintarCarga(e) {
   $('#carga-pista').classList.toggle('oculto', c.estado === 'error');
   $('.carga-medida').classList.toggle('oculto', c.estado === 'error');
   pintarTiempoCarga();
+}
+function pintarPasosCarga(c) {
+  const paso = PASO_CARGA[c.etapa] ?? 1;
+  S.cargaPasos ??= new Set();
+  S.cargaPasos.add(paso);
+  $$('#carga-etapas li').forEach(li => {
+    const n = Number(li.dataset.paso);
+    li.classList.toggle('hecha', n < paso && S.cargaPasos.has(n));
+    // Un CSV no baja cuotas: ese paso se salta, no se "hace".
+    li.classList.toggle('salteada', n < paso && !S.cargaPasos.has(n));
+    li.classList.toggle('actual', n === paso && c.estado !== 'error');
+  });
+  if (S.cargaPaso !== paso) {
+    const actual = $('#carga-etapas li.actual');
+    if (S.cargaPaso != null && actual && !reducir()) actual.animate(
+      [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 320, easing: EASE_OUT });
+    S.cargaPaso = paso;
+  }
+}
+function despedirCarga(panel, c) {
+  S.cargaSaliendo = true;
+  panel.classList.add('lista');
+  $('#carga-titulo').textContent = 'Cartelera lista';
+  $('#carga-detalle').textContent = c.detalle || '';
+  $('#carga-barra').value = 100;
+  $('#carga-porcentaje').textContent = '100 %';
+  $$('#carga-etapas li').forEach(li => {
+    li.classList.remove('actual');
+    li.classList.toggle('hecha', S.cargaPasos?.has(Number(li.dataset.paso)) || Number(li.dataset.paso) > 0);
+  });
+  const cerrar = () => { panel.classList.add('oculto'); panel.classList.remove('lista'); S.cargaSaliendo = false; };
+  if (reducir()) { setTimeout(cerrar, 700); return; }
+  $('#carga-titulo').animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 320, easing: EASE_OUT });
+  setTimeout(() => {
+    const alto = panel.offsetHeight;
+    const salida = panel.animate([{ opacity: 1, height: alto + 'px', marginBottom: '26px' },
+                                  { opacity: 0, height: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px' }],
+      { duration: 360, easing: EASE_IN_OUT });
+    salida.onfinish = cerrar; salida.oncancel = cerrar;
+    setTimeout(cerrar, 600);       // por si la ventana está en segundo plano
+  }, 900);
 }
 function pintarTiempoCarga() {
   const c = S.carga;
@@ -336,7 +445,7 @@ function pintarTiempoCarga() {
 async function tick() {
   try {
     const e = await api('/api/estado');
-    S.proximoAuto = e.proximo_auto; S.origen = e.origen; S.vivo = e.vivo;
+    S.proximoAuto = e.proximo_auto; S.origen = e.origen; S.vivo = e.vivo; S.corte = e.corte || null;
     const hayCartelera = !!(e.titulo || e.csv);
     const ev = evento(e);
     S.evento = ev;
@@ -407,7 +516,21 @@ $('#chk-vivo').onchange = async (e) => {
 function reloj() {
   pintarTiempoCarga();
   const r = $('#reloj');
-  if (!S.origen) { $('#reloj-caja').classList.add('oculto'); $('#vivo-caja').classList.add('oculto'); return; }
+  // Repetición: en vez de la cuenta regresiva de cuotas, el rótulo de la tele.
+  // No hay cuotas que refrescar: son las de cierre de ese día.
+  const repe = $('#repe-caja');
+  repe.classList.toggle('oculto', !S.corte);
+  if (S.corte && repe.dataset.corte !== S.corte) {
+    repe.dataset.corte = S.corte;
+    repe.innerHTML = `${ico('repetir')}<span>Repetición</span><b>${esc(fechaCorta(S.corte))}</b>`;
+    repe.title = `Predicción con los datos que había antes del ${fechaLarga(S.corte)}`;
+    // Entra como el rótulo de la repetición en la tele: se descubre de lado.
+    if (!reducir()) repe.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
+      { duration: 360, easing: EASE_OUT });
+  }
+  if (!S.origen || S.corte) {
+    $('#reloj-caja').classList.add('oculto'); $('#vivo-caja').classList.add('oculto'); return;
+  }
   $('#reloj-caja').classList.remove('oculto');
   // El interruptor solo aparece con origen Betano: un CSV en disco no cambia.
   $('#vivo-caja').classList.toggle('oculto', S.origen !== 'betano');
@@ -440,23 +563,31 @@ const SILUETA = `<svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid slice"
 // nombre -> URL de la foto, o null mientras se pide / si no hay. Así un
 // repintado (EN VIVO) no vuelve a pedirla ni la hace parpadear.
 const FOTOS = new Map();
-const retrato = (nombre) => {
+// Cambiar la versión evita reutilizar retratos antiguos del navegador después
+// de corregir una identificación en las fuentes del servidor.
+const FOTO_VERSION = '3';
+const retrato = (nombre, lado = '') => {
   const url = FOTOS.get(nombre);
-  return `<figure class="retrato" data-foto="${esc(nombre)}">${
-    url ? `<img src="${url}" alt="">` : SILUETA}</figure>`;
+  return `<figure class="retrato"${lado ? ` data-lado="${esc(lado)}"` : ''} data-foto="${esc(nombre)}">${
+    url ? `<img src="${url}" alt="${esc(nombre)}" decoding="async">` : SILUETA}</figure>`;
 };
 function cargarFotos(raiz) {
   raiz.querySelectorAll('[data-foto]').forEach(f => {
     const n = f.dataset.foto;
     if (FOTOS.has(n)) return;
     FOTOS.set(n, null);
-    const url = '/api/foto/' + encodeURIComponent(n);
+    const url = '/api/foto/' + encodeURIComponent(n) + '?v=' + FOTO_VERSION;
     // 204 = no hay foto: queda la silueta, que ya está puesta.
     fetch(url).then(r => {
       if (r.status !== 200) return;
       FOTOS.set(n, url);
       document.querySelectorAll(`[data-foto="${CSS.escape(n)}"]`)
-        .forEach(x => { x.innerHTML = `<img src="${url}" alt="">`; });
+        .forEach(x => {
+          x.innerHTML = `<img src="${url}" alt="${esc(n)}" decoding="async">`;
+          const img = x.querySelector('img');
+          img.onerror = () => { FOTOS.set(n, null); x.innerHTML = SILUETA; };
+          if (!reducir()) img.animate([{opacity:0}, {opacity:1}], {duration:320});
+        });
     }).catch(() => {});
   });
 }
@@ -467,9 +598,64 @@ const TXT_TIER = {
   B: ['Sin ventaja clara', 'Ojo: el mercado de ganador quedó en empate técnico con la casa en las pruebas, así que esto es un complemento, no una base.'],
 };
 
+/* ============================ REPETICIÓN ============================== */
+// Una cartelera que ya pasó, predicha con lo que se sabía antes de ese día
+// (src/corte.py). El resultado real llega aparte, leído DESPUÉS de predecir:
+// acá solo se muestra, nunca se mezcla con el pronóstico.
+// ¿La apuesta sugerida habría salido? Ganador, o ganador por decisión.
+function resultadoApuesta(a) {
+  const r = a.resultado;
+  if (!S.repeticion || !r?.lado) return '';
+  const gano = r.lado === a.lado.toLowerCase() && (!a.decision || r.metodo === 'Decision');
+  return ` · <span class="z-res ${gano ? 'si' : 'no'}">${gano ? 'salió' : 'no salió'}</span>`;
+}
+// El marcador de la noche, con el margen de error al lado: una cartelera no
+// mide un modelo (50/√n puntos, la misma cuenta del backtest de carteleras).
+function pintarMarcador(d, peleas) {
+  const m = $('#marcador');
+  if (!d.repeticion) { m.classList.add('oculto'); m.innerHTML = ''; return; }
+  m.classList.remove('oculto');
+  const resueltas = peleas.filter(p => p.resultado && p.resultado.acierto != null);
+  const ok = resueltas.filter(p => p.resultado.acierto).length;
+  const n = resueltas.length;
+  if (!n) {
+    m.classList.add('sin-datos');
+    m.innerHTML = `<div class="marcador-txt"><b>Todavía no hay resultados de esta cartelera en la base.</b>
+      <p>La base local llega hasta el ${esc(fechaLarga(d.repeticion.base_hasta))}. El pronóstico se lee igual; para ver cómo
+      terminó cada pelea, corre "Actualizar todo" en Mantenimiento y vuelve a repetirla.</p></div>`;
+    return;
+  }
+  m.classList.remove('sin-datos');
+  const solidas = resueltas.filter(p => ['fuerte', 'buena'].includes(p.confianza));
+  const metodos = peleas.map(aciertoMetodo).filter(Boolean);
+  const okMetodo = metodos.filter(m => m.acierto).length;
+  const okSolidas = solidas.filter(p => p.resultado.acierto).length;
+  const margen = Math.round(50 / Math.sqrt(n));
+  m.innerHTML = `
+    <div class="marcador-cifra" aria-hidden="true"><b data-num="marcador:ok">${ok}</b><span>de ${n}</span></div>
+    <div class="marcador-txt"><b>El modelo acertó ${ok} de ${n} peleas (${fmt(ok / n * 100, 0)}${NBSP_FINO}%)</b>
+      <p>${solidas.length ? `En los pronósticos de 65${NBSP_FINO}% o más: ${okSolidas} de ${solidas.length}. ` : ''}${
+        metodos.length ? `Cómo terminaba (el método más probable): ${okMetodo} de ${metodos.length}. ` : ''}Una noche no
+      mide un modelo: con ${n} peleas el margen es de ±${margen} puntos. Sobre miles de peleas acierta 66-69${NBSP_FINO}% solo y ~70${NBSP_FINO}% con la cuota.</p></div>
+    <ol class="marcador-tira" aria-label="Pelea por pelea">${peleas.map((p, i) => {
+      const e = estadoResultado(p);
+      const txt = `${p.a} vs ${p.b}: ${e.texto.toLowerCase()}`;
+      return `<li><a class="mt-${e.clave}" href="#pelea-${esc(p.id)}" title="${esc(txt)}" aria-label="${esc(txt)}"><small>${String(i + 1).padStart(2, '0')}</small>${ico(e.clave === 'si' ? 'ok' : e.clave === 'no' ? 'no' : 'duda')}</a></li>`;
+    }).join('')}</ol>`;
+  m.querySelectorAll('.marcador-tira a').forEach(a => a.onclick = () => {
+    const combate = document.getElementById(a.hash.slice(1))?.querySelector('[data-combate]');
+    if (combate) alternarCombate(combate, true);
+  });
+}
+
 function pintarCartelera(d, mov) {
   const raiz = $('#cartelera-contenido');
+  S.repeticion = d.repeticion || null;
   const antes = S.otraCartelera ? new Map() : capturarCifras(raiz);
+  const analisisAbiertos = S.otraCartelera ? null : new Set(
+    $$('#peleas [data-analisis][open]').map(e => e.dataset.analisis));
+  const combatesAbiertos = new Set(S.otraCartelera ? [] :
+    $$('#peleas [data-combate][open]').filter(e => !e.hasAttribute('data-cerrando')).map(e => e.dataset.combate));
   $('#bienvenida').classList.add('oculto');
   $('#cartelera-contenido').classList.remove('oculto');
   const hayPatas = d.patas.length > 0;
@@ -481,6 +667,7 @@ function pintarCartelera(d, mov) {
   const ev = S.evento || { nombre: d.titulo, fecha: '' };
   const origen = { betano: 'Cuotas de Betano', csv: 'Desde un archivo', demo: 'Cartelera de ejemplo' }[S.origen] || '';
   $('#evento-origen').innerHTML = (ev.demo ? '<span class="demo">Demo</span>' : '') +
+    (S.repeticion ? '<span class="repe">Repetición</span>' : '') +
     esc([ev.fecha, ev.liga || origen].filter(Boolean).join(' · '));
   $('#evento-titulo').textContent = ev.nombre;
 
@@ -488,6 +675,18 @@ function pintarCartelera(d, mov) {
   // Gravedad: err (bloquea o invalida), warn (cuidado), info (dato). La marca
   // de la izquierda la dice sin depender del color.
   const av = [];
+  if (S.repeticion) {
+    const r = S.repeticion;
+    const modelo = r.modelo === 'reentrenado'
+      ? `un modelo reentrenado solo con las ${miles(r.modelo_peleas)} peleas anteriores (la última, del ${esc(fechaLarga(r.modelo_hasta))})`
+      : `el modelo de siempre, que entrenó hasta el ${esc(fechaLarga(r.modelo_hasta))}: ya era anterior al corte`;
+    av.push(['info', 'repetir', `<b>Repetición con los datos que había antes del ${esc(fechaLarga(r.fecha))}.</b>
+      Estadísticas, récord, ELO y rivales se recalcularon solo con las peleas anteriores, y predice ${modelo}.
+      Lo único que no se recorta son los dos calibradores que mezclan modelo y cuota: dos números ajustados con todo el historial, que no pueden aprender una pelea puntual.${
+      r.ajustada ? ` El corte se adelantó del ${esc(fechaCorta(r.pedida))} al ${esc(fechaCorta(r.fecha))} porque UFCStats fecha el evento ese día.` : ''}`]);
+    if (r.base_hasta && r.fecha > r.base_hasta) av.push(['warn', 'alerta',
+      `La base local llega hasta el <b>${esc(fechaLarga(r.base_hasta))}</b>: lo que pasó entre esa fecha y el corte no está en los datos, y tampoco el resultado de esta cartelera. Para completarla, corre "Actualizar todo" en Mantenimiento.`]);
+  }
   if (!d.modelo_real) av.push(['err','alerta',
     'No hay un modelo entrenado, así que estas probabilidades son una aproximación gruesa. Ve a Mantenimiento y ejecuta "Solo reentrenar el modelo".']);
   if (d.con_cuotas && !d.calibrador) av.push(['err','alerta',
@@ -495,17 +694,24 @@ function pintarCartelera(d, mov) {
   const sosp = d.peleas.filter(p => (p.metodo6 || []).some(o => o.sospechoso));
   if (sosp.length) av.push(['err','prohibido',
     `Las cuotas de método de ${sosp.length} pelea(s) son <b>demasiado generosas para ser reales</b>. Suelen indicar números escritos a mano en vez de bajados de la casa. Como el valor se calcula con el precio, esas peleas mostrarían valor falso, así que quedan bloqueadas.`]);
-  if (!d.con_cuotas) av.push(['warn','info',
-    'Esta cartelera no trae cuotas, así que se predice pero no se puede decir dónde hay valor ni armar combinadas. Bajarla desde Betano suma cuotas y ~3 puntos de acierto.']);
+  if (!d.con_cuotas) av.push(['warn','info', S.repeticion
+    ? 'No hay cuotas guardadas de esta cartelera, así que la repetición usa solo el modelo: sin la casa acierta ~3 puntos menos y no se puede calcular valor.'
+    : 'Esta cartelera no trae cuotas, así que se predice pero no se puede decir dónde hay valor ni armar combinadas. Bajarla desde Betano suma cuotas y ~3 puntos de acierto.']);
   // Caso muy frecuente y que sin explicación se lee como si el sistema fallara:
   // hay cuotas de ganador pero Betano todavía no abrió el mercado de método, que
   // es justo el único con ventaja demostrada. Sin este aviso el usuario ve una
   // pantalla entera de "sin ventaja clara" y no sabe si es culpa del modelo.
   const hayMetodo = d.patas.some(p => p.mercado !== 'ganador');
-  if (d.con_cuotas && !hayMetodo) av.push(['warn','info',
+  if (d.con_cuotas && !hayMetodo && !S.repeticion) av.push(['warn','info',
     '<b>Betano todavía no abre el mercado de método para esta cartelera.</b> Por ahora solo publica "Ganador", que es precisamente el mercado donde las pruebas <b>no</b> encontraron ventaja; por eso todas las selecciones salen como <i>sin ventaja clara</i>. No es un fallo del modelo ni falta de datos. Los mercados de método (KO / sumisión / decisión) suelen abrirse en los días previos al evento: vuelve a refrescar más cerca de la fecha y aparecerán las selecciones <i>probadas</i>.']);
   if (d.missing.length) av.push(['warn','duda',
     `No encontré datos de estos peleadores en las fuentes consultadas: <b>${d.missing.map(esc).join(', ')}</b>. Sus peleas se omiten en vez de inventar datos.`]);
+  const conDebut = d.peleas.filter(p => debutantesPelea(p).length);
+  if (conDebut.length) {
+    const nombres = [...new Set(conDebut.flatMap(debutantesPelea))];
+    av.push(['warn','alerta', `<b>Debut en UFC: ${nombres.map(esc).join(', ')}.</b> ${conDebut.length === 1
+      ? 'Una pelea incluye' : `${conDebut.length} peleas incluyen`} debutantes. Revisa el aviso sobre cada combate: el pronóstico tiene menos antecedentes en UFC.`]);
+  }
   const nMov = Object.keys(mov).length;
   if (nMov) av.push(['info','mov',
     `<b>${nMov} cuota(s) se movieron</b> desde el refresco anterior. En las tarjetas y en la tabla salen con ▲ o ▼; pasa el mouse por encima para ver el valor de antes.`]);
@@ -544,7 +750,7 @@ function pintarCartelera(d, mov) {
       html += `<div class="grupo-apuestas">${del.map(a => `
         <div class="zocalo t${tier}">
           <span class="z-sello">${nombre}</span>
-          <div class="z-que"><b>${esc(a.que)}</b><span>${esc(a.pelea)}</span></div>
+          <div class="z-que"><b>${esc(a.que)}</b><span>${esc(a.pelea)}${resultadoApuesta(a)}</span></div>
           <div class="z-dato"><small>apostar</small><b>${pct(a.kelly)}</b><small>de tu bankroll</small></div>
           <div class="z-dato"><small>paga</small><b>${cuota(a.cuota)}</b></div>
           <div class="z-dato z-valor"><small>valor</small><b class="${cls(a.ev)}">${sgn(a.ev)}</b></div>
@@ -565,68 +771,240 @@ function pintarCartelera(d, mov) {
 
   /* ---- peleas ---- */
   $('#nota-base').innerHTML = d.con_cuotas
-    ? 'Las probabilidades combinan el modelo con las cuotas de la casa, que es la versión más certera (~70% de acierto).'
+    ? (S.repeticion ? 'Las probabilidades combinan el modelo con las cuotas de cierre de ese día, que es la versión más certera (~70% de acierto).'
+      : 'Las probabilidades combinan el modelo con las cuotas de la casa, que es la versión más certera (~70% de acierto).')
     : 'Probabilidades del modelo solo, sin cuotas. Con cuotas acertaría ~3 puntos más.';
 
   const textos = S.textosEvento || [d.titulo];
   const desdeBetano = S.origen === 'betano' || textos.some(t => /^betano_/i.test(String(t || '')));
   const { peleas, idEstelar, idCo } = ordenarCartelera(d.peleas, textos, desdeBetano);
-  // Las dos principales conservan el octágono en ambos estilos. El número
-  // y la tabla usan el mismo orden de lectura: estelar, coestelar y preliminares.
+  pintarMarcador(d, peleas);
+  // La estelar y los combates confirmados por el título usan el octágono.
+  // La tabla sigue el mismo orden: estelar, coestelar y preliminares.
   const pelea = (p, i) => {
     const tipo = p.id === idEstelar ? 'estelar' : p.id === idCo ? 'coestelar' : '';
-    return tipo ? jaula(p, mov, tipo)
-      : esJuez() ? actaPelea(p, mov, '', i + 1, peleas.length) : tarjetaPelea(p, mov);
+    const abierta = analisisAbiertos?.has(p.id) === true;
+    return vistaPelea(p, mov, tipo, esJuez(), i + 1, peleas.length)
+      + analisisPelea(p, abierta);
   };
-  $('#peleas').innerHTML = `<div class="peleas-lista">${peleas.map(pelea).join('')}</div>`;
+  $('#peleas').innerHTML = `<nav class="pelea-indice" aria-label="Ir a una pelea">${peleas.map((p,i) =>
+    `<a href="#pelea-${esc(p.id)}"><span>${String(i + 1).padStart(2,'0')}</span>${esc(p.a.split(' ').pop())} <small>vs</small> ${esc(p.b.split(' ').pop())}</a>`).join('')}</nav>
+    <div class="peleas-lista">${peleas.map((p,i) => {
+      const tipo = p.id === idEstelar ? 'estelar' : p.id === idCo ? 'coestelar' : '';
+      const cinturon = p.es_titulo === true;
+      return `<section class="combate ${usaOctagono(p, tipo) ? 'combate-principal' : ''} ${cinturon ? 'combate-cinturon' : ''}" id="pelea-${esc(p.id)}" aria-label="${esc(p.a)} vs ${esc(p.b)}">${avisoDebut(p)}${combatePlegable(p, pelea(p,i), tipo, combatesAbiertos.has(p.id))}</section>`;
+    }).join('')}</div>`;
   cargarFotos($('#peleas'));
+  $$('#peleas .pelea-indice a').forEach(a => a.onclick = () => {
+    const combate = document.getElementById(a.hash.slice(1))?.querySelector('[data-combate]');
+    if (combate) alternarCombate(combate, true);
+  });
+  $$('#peleas [data-combate]').forEach(detalle => detalle.querySelector(':scope > summary').addEventListener('click', evento => {
+    evento.preventDefault();
+    alternarCombate(detalle, !(transicionesCombate.get(detalle)?.abierto ?? detalle.open));
+  }));
+  $$('#peleas [data-analisis]').forEach(detalle => detalle.addEventListener('toggle', () => {
+    if (!detalle.open || reducir() || porTeclado) return;
+    detalle.querySelector('.analisis-contenido')?.animate(
+      [{opacity:0, transform:'translateY(6px)'},{opacity:1, transform:'none'}], {duration:240, easing:EASE_OUT});
+    // Sus barras se llenan al abrirlo, que es cuando se ven.
+    detalle.querySelectorAll('.analisis-barra span').forEach((b, i) => llenarDesde(b, 'left', 120 + Math.min(i, 8) * 30));
+  }));
   $$('#peleas [data-explica]').forEach(b => b.onclick = () => {
     const p = d.peleas.find(x => x.id === b.dataset.explica);
     modal(`<h2>${esc(p.a)} vs ${esc(p.b)}</h2>
       <p><span class="pill ${claseConf(p.confianza)}">${p.confianza}</span></p>
       <p>${p.por_que_confianza}</p>`);
   });
+  $$('#peleas [data-historial-id]').forEach(b => b.onclick = () => {
+    const p = d.peleas.find(x => x.id === b.dataset.historialId);
+    const lado = b.dataset.historialLado;
+    if (b.dataset.historialTodo === 'true') {
+      const ultimas = p?.['info_' + lado]?.ultimas_peleas?.slice(0, 5);
+      if (!ultimas?.length) return;
+      modal(`<h2>${esc(p[lado])} · Últimas cinco</h2><p>De la más reciente a la anterior.</p><ol class="historial-detalle">${ultimas.map(anterior =>
+        `<li class="${resultadoHistorial(anterior.resultado).clase}"><b>${resultadoHistorial(anterior.resultado).texto}</b>${anterior.rival ? ` frente a ${esc(anterior.rival)}` : ''}<span>${esc(anterior.metodo || 'Método no registrado')}${anterior.fecha ? ` · ${esc(anterior.fecha)}` : ''}</span></li>`).join('')}</ol>`);
+      return;
+    }
+    const anterior = p?.['info_' + lado]?.ultimas_peleas?.[Number(b.dataset.historialIndice)];
+    if (!anterior) return;
+    modal(`<h2>${esc(p[lado])}</h2><p><b>${resultadoHistorial(anterior.resultado).texto}</b>${anterior.rival ? ` frente a ${esc(anterior.rival)}` : ''}</p>
+      <p>Método: <b>${esc(anterior.metodo || 'No registrado')}</b></p>${anterior.fecha ? `<p>Fecha: ${esc(anterior.fecha)}</p>` : ''}`);
+  });
 
   tabla('#tabla-principal',
-    ['Pelea','Ganador','Probabilidad','Cuotas','Confianza','Termina por','No llega a tarjetas','Comparado con lo normal'],
+    ['Pelea','Ganador','Probabilidad','Cuotas','Confianza','Termina por','No llega a tarjetas','Comparado con lo normal',
+      ...(S.repeticion ? ['Resultado real'] : [])],
     peleas.map(p => {
       const pg = Math.max(p.p_a, p.p_b);
       const m = p.mercado;
-      return [esc(`${p.a} vs ${p.b}`) + etiquetaDebut(p), esc(p.ganador), td(`<span data-num="t:${p.id}:p">${pct(pg)}</span>`),
+      const r = p.resultado;
+      return [`<span class="tabla-peleador" data-lado="a">${esc(p.a)}</span> <small>vs</small> <span class="tabla-peleador" data-lado="b">${esc(p.b)}</span>` + etiquetaTitulo(p) + etiquetaDebut(p), esc(p.ganador), td(`<span data-num="t:${p.id}:p">${pct(pg)}</span>`),
         td(m ? `<span data-num="t:${p.id}:cA">${cuota(m.cuota_a)}${flecha(mov, p.id, 'A')}</span> / <span data-num="t:${p.id}:cB">${cuota(m.cuota_b)}${flecha(mov, p.id, 'B')}</span>` : 'sin cuotas'),
         `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>`,
-        mejorMetodo(p.metodo), td(pct(p.p_finish,0)), esc(p.tendencia)];
-    }));
+        mejorMetodo(p.metodo), td(pct(p.p_finish,0)), esc(p.tendencia),
+        ...(S.repeticion ? [`${pillResultado(p)}${r ? ` <small>${esc(textoResultado(r, true).titulo)}${r.como ? ' · ' + esc(r.como) : ''}</small>` : ''}`] : [])];
+    }), peleas.map(p => p.es_titulo === true ? 'fila-titulo' : ''));
 
-  if (S.otraCartelera) llenarBarras();
+  if (S.otraCartelera) { revelarCombates(); entradaCartelera(); entradaMarcador(); abrirPeleaElegida(peleas); }
   else { resaltarCambios(raiz, antes); moverBarras(S.previo); }
 }
 
-// Primer pintado de una cartelera: cada barra se llena desde su esquina (la de
-// A desde la izquierda, la de B desde la derecha), con un desfase corto entre
-// tarjetas. Una vez por cartelera: los repintados de EN VIVO no la repiten.
-function llenarBarras() {
+// Abrir un combate es el momento de mostrarlo: ahí cada barra se llena desde
+// su esquina (la de A desde la izquierda, la de B desde la derecha). Antes se
+// llenaban al pintar la cartelera, pero los combates empiezan plegados y la
+// animación corría sin que nadie la viera. Con teclado o con movimiento
+// reducido, el combate se abre quieto.
+const llenarDesde = (el, origen, delay, duration = 420) => {
+  if (!el) return;
+  el.style.transformOrigin = origen;
+  el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
+    { duration, delay, easing: EASE_OUT, fill: 'backwards' });
+};
+// Lo que hace el usuario al abrir o cerrar un combate. Solo al abrir uno que
+// estaba cerrado se arma su entrada: invertir un cierre a medio camino no
+// vuelve a armar la jaula.
+function alternarCombate(detalle, abierto) {
+  const venia = transicionesCombate.get(detalle);
+  const cerrado = !venia && !detalle.open;
+  desplegarCombate(detalle, abierto);
+  if (abierto && cerrado) animarApertura(detalle);
+}
+function animarApertura(detalle) {
+  if (reducir() || porTeclado) return;
+  const art = detalle.querySelector('[data-pelea]');
+  if (!art) return;
+  if (art.querySelector('.jaula')) { entradaJaula(art); return; }
+  const [a, b] = art.querySelectorAll('.duelo-barra i');
+  llenarDesde(a, 'left', 120); llenarDesde(b, 'right', 120);
+  art.querySelectorAll('.metodo .mbar i').forEach((m, i) => llenarDesde(m, 'left', 180 + i * 50));
+  // Tarjeta del juez: el timbre cae sobre el papel y después el lápiz
+  // encierra al ganador.
+  const timbre = art.querySelector('.ac-timbre .pill');
+  if (timbre) timbre.animate(
+    [{ opacity: 0, transform: 'rotate(-4deg) scale(1.35)' }, { opacity: 1, transform: 'rotate(-4deg) scale(1)' }],
+    { duration: 220, delay: 160, easing: EASE_OUT, fill: 'backwards' });
+  const trazo = art.querySelector('.ac-lapiz path');
+  if (trazo) trazo.animate([{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }],
+    { duration: 450, delay: 300, easing: EASE_OUT, fill: 'backwards' });
+  revelarResultado(art, 420);
+}
+
+// EL momento de la cartelera: abrir la estelar es entrar a la jaula. Se arma
+// de afuera hacia adentro como en la transmisión: la reja y la baranda se
+// asientan, caen los ocho postes, la línea de la lona se pinta alrededor, cada
+// peleador entra desde su esquina, los porcentajes corren hasta su valor y la
+// barra se llena desde los dos lados. En una repetición, al final se estampa
+// cómo terminó. Todo con transform, opacity y clip-path: nada mueve el layout.
+function entradaJaula(art) {
+  const j = art.querySelector('.jaula');
+  const anim = (el, frames, opciones) => el?.animate(frames, { easing: EASE_OUT, fill: 'backwards', ...opciones });
+  anim(j.querySelector('.reja'), [{ opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1 }], { duration: 380 });
+  anim(j.querySelector('.baranda'), [{ opacity: 0, scale: 1.03 }, { opacity: 1, scale: 1 }], { duration: 380, delay: 40 });
+  j.querySelectorAll('.poste').forEach((poste, i) =>
+    anim(poste, [{ opacity: 0, scale: .3 }, { opacity: 1, scale: 1 }], { duration: 260, delay: 90 + i * 28 }));
+  anim(j.querySelector('.lona-linea polygon'), [{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }],
+    { duration: 720, delay: 120, easing: EASE_IN_OUT });
+  // El dibujo y no su caja: la caja lleva la opacidad tenue de la marca impresa,
+  // y animarla a 1 dejaba la "I" a todo color y después la hacía desaparecer.
+  anim(j.querySelector('.lona-marca'), [{ opacity: 0, scale: .85 }, { opacity: 1, scale: 1 }], { duration: 600, delay: 260 });
+  anim(j.querySelector('.retrato.a'), [{ opacity: 0, translate: '-14% 0', clipPath: 'inset(0 100% 0 0)' },
+    { opacity: 1, translate: '0 0', clipPath: 'inset(0 0 0 0)' }], { duration: 460, delay: 140 });
+  anim(j.querySelector('.retrato.b'), [{ opacity: 0, translate: '14% 0', clipPath: 'inset(0 0 0 100%)' },
+    { opacity: 1, translate: '0 0', clipPath: 'inset(0 0 0 0)' }], { duration: 460, delay: 140 });
+  j.querySelectorAll('.j-nombre, .j-vs').forEach((n, i) =>
+    anim(n, [{ opacity: 0, translate: '0 6px' }, { opacity: 1, translate: '0 0' }], { duration: 300, delay: 240 + i * 30 }));
+  j.querySelectorAll('.historial-lona .historial-cuadro').forEach((c, i) =>
+    anim(c, [{ opacity: 0, scale: .6 }, { opacity: 1, scale: 1 }], { duration: 200, delay: 300 + (i % 5) * 35 }));
+  j.querySelectorAll('.j-pct [data-num]').forEach(cifra => contar(cifra, 280, 560));
+  const [a, b] = j.querySelectorAll('.duelo-barra i');
+  llenarDesde(a, 'left', 380, 480); llenarDesde(b, 'right', 380, 480);
+  art.querySelectorAll('.estelar-datos .mbar i').forEach((m, i) => llenarDesde(m, 'left', 420 + i * 50));
+  revelarResultado(art, 760);
+}
+
+// Una cifra corre de 0 a su valor, con las mismas comas y decimales que va a
+// tener. Las cifras son tabulares: los dígitos no bailan mientras corren.
+function contar(el, delay, duracion) {
+  const final = el.textContent;
+  const valor = parseFloat(final.replace(/[^\d,]/g, '').replace(',', '.'));
+  if (!Number.isFinite(valor)) return;
+  const decimales = (final.split(',')[1] || '').replace(/\D/g, '').length;
+  const sufijo = final.includes('%') ? NBSP_FINO + '%' : '';
+  const inicio = performance.now() + delay;
+  el.textContent = fmt(0, decimales) + sufijo;
+  const paso = (t) => {
+    if (!el.isConnected) return;
+    const x = Math.min(1, Math.max(0, (t - inicio) / duracion));
+    el.textContent = x >= 1 ? final : fmt(valor * (1 - Math.pow(1 - x, 4)), decimales) + sufijo;
+    if (x < 1) requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
+}
+
+// El resultado entra como el zócalo de la tele después de la pelea: se
+// descubre de izquierda a derecha y el sello cae al final.
+function revelarResultado(art, delay) {
+  const r = art.querySelector('.resultado-real');
+  if (!r) return;
+  r.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
+    { duration: 380, delay, easing: EASE_OUT, fill: 'backwards' });
+  r.querySelector('.rr-sello')?.animate([{ opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1 }],
+    { duration: 220, delay: delay + 240, easing: EASE_OUT, fill: 'backwards' });
+}
+
+// Una cartelera nueva entra como la presentación de la noche: las cifras de la
+// barra de información corren hasta su valor y los zócalos de "Qué apostar"
+// se descubren de izquierda a derecha, uno tras otro. Una vez por cartelera:
+// los refrescos de EN VIVO no la repiten.
+function entradaCartelera() {
   if (reducir()) return;
-  $$('#peleas [data-pelea]').forEach((art, i) => {
-    const delay = Math.min(i, 6) * 40;
-    const llenar = (el, origen, extra = 0) => {
-      el.style.transformOrigin = origen;
-      el.animate([{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
-        { duration: 300, delay: delay + extra, easing: EASE_OUT, fill: 'backwards' });
-    };
-    const [a, b] = art.querySelectorAll('.duelo-barra i');
-    if (a) llenar(a, 'left'); if (b) llenar(b, 'right');
-    art.querySelectorAll('.metodo .mbar i').forEach(m => llenar(m, 'left', 60));
-    // Tarjeta del juez: el timbre cae sobre el papel y después el lápiz
-    // encierra al ganador. Solo aquí, en la primera vista de la cartelera.
-    const timbre = art.querySelector('.ac-timbre .pill');
-    if (timbre) timbre.animate(
-      [{ opacity: 0, transform: 'rotate(-4deg) scale(1.35)' }, { opacity: 1, transform: 'rotate(-4deg) scale(1)' }],
-      { duration: 220, delay: delay + 120, easing: EASE_OUT, fill: 'backwards' });
-    const trazo = art.querySelector('.ac-lapiz path');
-    if (trazo) trazo.animate([{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }],
-      { duration: 450, delay: delay + 300, easing: EASE_OUT, fill: 'backwards' });
-  });
+  $$('#tarjetas-kpi [data-num]').forEach(cifra => contar(cifra, 60, 520));
+  $$('#resumen .zocalo, #resumen .sin-apuestas').forEach((z, i) =>
+    z.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
+      { duration: 420, delay: 140 + Math.min(i, 6) * 70, easing: EASE_OUT, fill: 'backwards' }));
+}
+
+// El marcador de una repetición: la tira se completa pelea por pelea, como
+// las tarjetas que se van anotando. Una sola vez, al llegar la cartelera.
+function entradaMarcador() {
+  const m = $('#marcador');
+  if (reducir() || m.classList.contains('oculto')) return;
+  const cifra = m.querySelector('.marcador-cifra b');
+  if (cifra) contar(cifra, 120, 600);
+  m.querySelectorAll('.marcador-tira a').forEach((a, i) =>
+    a.animate([{ opacity: 0, scale: .7 }, { opacity: 1, scale: 1 }],
+      { duration: 220, delay: 160 + Math.min(i, 14) * 35, easing: EASE_OUT, fill: 'backwards' }));
+}
+
+// Al elegir una pelea anterior se carga toda su cartelera; la elegida se abre
+// sola para no tener que buscarla.
+function abrirPeleaElegida(peleas) {
+  if (!S.abrirPelea) return;
+  const elegida = new Set(S.abrirPelea.map(plano));
+  S.abrirPelea = null;
+  const p = peleas.find(x => elegida.has(plano(x.a)) && elegida.has(plano(x.b)));
+  const detalle = p && document.getElementById('pelea-' + p.id)?.querySelector('[data-combate]');
+  if (!detalle) return;
+  // Directo y no en requestAnimationFrame: el DOM ya está pintado, y rAF no
+  // corre si la pestaña está en segundo plano mientras termina la carga.
+  detalle.closest('.combate').scrollIntoView({ block: 'start', behavior: reducir() ? 'auto' : 'smooth' });
+  alternarCombate(detalle, true);
+}
+
+// Los combates entran cuando llegan a la pantalla. No se oculta contenido:
+// incluso sin IntersectionObserver o con movimiento reducido sigue visible.
+let observadorCombates;
+function revelarCombates() {
+  observadorCombates?.disconnect();
+  if (reducir() || !('IntersectionObserver' in window)) return;
+  observadorCombates = new IntersectionObserver(entradas => entradas.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.animate([{opacity:.25, transform:'translateY(18px)'}, {opacity:1, transform:'none'}],
+      {duration:450, easing:EASE_OUT});
+    observadorCombates.unobserve(e.target);
+  }), {threshold:.08});
+  $$('#peleas .combate').forEach(e => observadorCombates.observe(e));
 }
 
 // EN VIVO: si cambió la probabilidad de una pelea, la barra viaja del reparto
@@ -656,12 +1034,12 @@ function recolectarApuestas(d) {
     [...(p.metodo6 || []), ...(p.metodo5 || [])]
       .filter(o => o.apostar && o.clase.endsWith('DEC')).forEach(o =>
       out.push({ orden:0, tier:'A', pelea:`${p.a} vs ${p.b}`,
-        que:`${o.clase[0]==='A'?p.a:p.b} gana por decisión`,
+        que:`${o.clase[0]==='A'?p.a:p.b} gana por decisión`, lado:o.clase[0], decision:true, resultado:p.resultado,
         cuota:o.cuota_decimal, ev:o.ev, kelly:o.kelly, pocos:p.pocos }));
     const m = p.mercado;
     if (m && m.lado && m.ev > 0)
       out.push({ orden:1, tier:'B', pelea:`${p.a} vs ${p.b}`,
-        que:`Gana ${m.lado==='A'?p.a:p.b}`,
+        que:`Gana ${m.lado==='A'?p.a:p.b}`, lado:m.lado, decision:false, resultado:p.resultado,
         cuota:m.cuota, ev:m.ev, kelly:m.kelly, pocos:p.pocos });
   });
   return out.sort((x,y) => x.orden - y.orden || y.ev - x.ev);
@@ -715,6 +1093,64 @@ function ordenarCartelera(fuente, textos, desdeBetano = false) {
 }
 
 const claseConf = (c) => c.toLowerCase().replace(/\s+/g,'');
+// "2026-08-08" -> "sáb 8 ago", como el título del evento.
+const fechaCorta = (iso) => {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso || '';
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-CL',
+    { weekday:'short', day:'numeric', month:'short' }).replace(',', '');
+};
+
+// "2025-11-15" -> "sáb 15 nov 2025": las repeticiones necesitan el año.
+const fechaLarga = (iso) => {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso || '';
+  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-CL',
+    { weekday:'short', day:'numeric', month:'short', year:'numeric' }).replace(',', '');
+};
+const hoyISO = () => new Date().toLocaleDateString('sv-SE');
+
+// Las vistas de la repetición dependen del dato y no de un estado global: en
+// una repetición cada pelea trae la clave `resultado` (null si la base todavía
+// no la tiene). Una cartelera normal no la trae.
+const enRepeticion = (p) => Object.prototype.hasOwnProperty.call(p, 'resultado');
+const apellidoDe = (n) => String(n || '').trim().split(/\s+/).pop();
+function estadoResultado(p) {
+  const r = p.resultado;
+  if (!r) return { clave: 'nd', texto: 'Sin resultado' };
+  if (r.acierto === true) return { clave: 'si', texto: 'Acertó' };
+  if (r.acierto === false) return { clave: 'no', texto: 'Falló' };
+  return { clave: 'nd', texto: r.ganador ? 'Sin resultado' : r.como === 'sin resultado' ? 'Sin resultado' : 'Empate' };
+}
+// corto = la placa de la lona, que tiene que caber entre las dos diagonales.
+function textoResultado(r, corto = false) {
+  const asalto = !r.asalto ? '' : corto ? `R${r.asalto}${r.tiempo ? ' ' + r.tiempo : ''}`
+    : `asalto ${r.asalto}${r.tiempo ? ' · ' + r.tiempo : ''}`;
+  const como = corto ? String(r.como || '').replace(/^decisión/, 'dec.') : r.como;
+  const detalle = [como, asalto].filter(Boolean).join(' · ');
+  if (!r.ganador) return { titulo: r.como === 'sin resultado' ? (corto ? 'Sin resultado' : 'Sin resultado (no contest)') : 'Empate', detalle };
+  return { titulo: `Ganó ${corto ? apellidoDe(r.ganador) : r.ganador}`, detalle };
+}
+// El zócalo del resultado, en la tarjeta y como placa en la lona del octágono.
+function resultadoReal(p, enLona = false) {
+  if (!enRepeticion(p)) return '';
+  const est = estadoResultado(p);
+  const r = p.resultado;
+  const t = r ? textoResultado(r, enLona)
+    : { titulo: 'Todavía no está en la base', detalle: 'Se agrega al actualizar la base en Mantenimiento.' };
+  const icono = est.clave === 'si' ? 'ok' : est.clave === 'no' ? 'no' : 'duda';
+  return `<div class="resultado-real${enLona ? ' j-todo j-resultado' : ''}" data-acierto="${est.clave}">
+    <span class="rr-sello">${ico(icono)}${esc(est.texto)}</span>
+    <span class="rr-que"><small>Resultado real${r && !enLona ? ' · ' + esc(fechaCorta(r.fecha)) : ''}</small><b${r?.lado ? ` data-lado="${r.lado}"` : ''}>${esc(t.titulo)}</b>${t.detalle ? `<span>${esc(t.detalle)}</span>` : ''}</span>
+  </div>`;
+}
+// En el encabezado plegable: se sabe cómo terminó sin abrir el combate.
+function pillResultado(p) {
+  if (!enRepeticion(p)) return '';
+  const e = estadoResultado(p);
+  if (e.clave === 'nd') return `<span class="pill res res-nd">${esc(e.texto.toLowerCase())}</span>`;
+  return `<span class="pill res res-${e.clave}">${ico(e.clave === 'si' ? 'ok' : 'no')}${esc(e.texto.toLowerCase())}</span>`;
+}
 const td = (t) => `<td class="num">${t}</td>`;
 function flecha(mov, id, lado) {
   const m = mov[`${id}:ML:${lado}`];
@@ -737,7 +1173,7 @@ const peleasUFC = (info) => {
 function espejo(p, mov) {
   const m = p.mercado;
   if (!m) return '';
-  const fila = (k, a, lbl, b) => `<div><b data-num="${p.id}:${k}:A">${a}</b><span>${lbl}</span><b class="r" data-num="${p.id}:${k}:B">${b}</b></div>`;
+  const fila = (k, a, lbl, b) => `<div><b data-lado="a" data-num="${p.id}:${k}:A">${a}</b><span>${lbl}</span><b class="r" data-lado="b" data-num="${p.id}:${k}:B">${b}</b></div>`;
   return `<div class="espejo">
     ${fila('cuota', cuota(m.cuota_a) + flecha(mov, p.id, 'A'), 'cuota', cuota(m.cuota_b) + flecha(mov, p.id, 'B'))}
     ${fila('casa', pct(m.p_mercado_a), 'le da la casa', pct(1 - m.p_mercado_a))}
@@ -748,54 +1184,182 @@ function espejo(p, mov) {
 function barraDuelo(p) {
   const favA = p.p_a >= p.p_b;
   return `<div class="duelo-barra" role="img" aria-label="${esc(p.a)} ${pct(p.p_a)}, ${esc(p.b)} ${pct(p.p_b)}">
-    <i class="${favA ? 'fav' : ''}" style="width:${p.p_a * 100}%"></i><i class="${favA ? '' : 'fav'}" style="width:${p.p_b * 100}%"></i></div>`;
+    <i data-lado="a" class="${favA ? 'fav' : ''}" style="width:${p.p_a * 100}%"></i><i data-lado="b" class="${favA ? '' : 'fav'}" style="width:${p.p_b * 100}%"></i></div>`;
 }
 
+const METODOS = [['KO/TKO','KO/TKO'],['Submission','Sumisión'],['Decision','Decisión']];
+// En una repetición: ¿terminó como el modelo creía más probable? Solo si la base
+// tiene un método claro (un empate o un "sin resultado" no se cuenta).
+function aciertoMetodo(p) {
+  const real = p.resultado?.metodo;
+  if (!enRepeticion(p) || !p.resultado?.ganador || !METODOS.some(([k]) => k === real)) return null;
+  const top = METODOS.reduce((a, [k]) => (p.metodo[k] || 0) > (p.metodo[a] || 0) ? k : a, 'KO/TKO');
+  return { real, acierto: top === real, top };
+}
 function metodoFila(p) {
-  const met = [['KO/TKO','KO/TKO'],['Submission','Sumisión'],['Decision','Decisión']];
-  const maxMet = Math.max(...met.map(([k]) => p.metodo[k] || 0));
-  return `<div class="metodo">${met.map(([k, lbl]) => {
+  const maxMet = Math.max(...METODOS.map(([k]) => p.metodo[k] || 0));
+  const am = aciertoMetodo(p);
+  const nombre = (k) => METODOS.find(([m]) => m === k)[1].toLowerCase();
+  const veredicto = !am ? '' : `<p class="metodo-veredicto" data-acierto="${am.acierto ? 'si' : 'no'}">${ico(am.acierto ? 'ok' : 'no')}<span>${am.acierto
+    ? `<b>Acertó el método:</b> terminó por ${nombre(am.real)}, lo que veía más probable.`
+    : `<b>Falló el método:</b> terminó por ${nombre(am.real)} (le daba ${fmt((p.metodo[am.real] || 0) * 100, 0)}${NBSP_FINO}%); lo más probable era ${nombre(am.top)}.`}</span></p>`;
+  return `<div class="metodo${am ? ' con-real' : ''}">${METODOS.map(([k, lbl]) => {
     const v = p.metodo[k] || 0;
-    return `<div class="${v === maxMet ? 'top' : ''}"><span class="mv" data-num="${p.id}:met:${k}">${fmt(v * 100, 0)}${NBSP_FINO}%</span><span class="mk">${lbl}</span>
+    return `<div class="${v === maxMet ? 'top' : ''}${am?.real === k ? ' real' : ''}"><span class="mv" data-num="${p.id}:met:${k}">${fmt(v * 100, 0)}${NBSP_FINO}%</span><span class="mk">${lbl}</span>${
+      am?.real === k ? '<span class="metodo-real">Así terminó</span>' : ''}
       <span class="mbar"><i style="width:${v * 100}%"></i></span></div>`;
-  }).join('')}</div>`;
+  }).join('')}</div>${veredicto}`;
 }
 
-// En el octágono el "% de que no llegue a las tarjetas" ya va en la lona.
-function piePelea(p, enLona = false) {
+// Cada dato conserva su columna; la ayuda es una acción independiente.
+function piePelea(p) {
   const m = p.mercado;
-  return `<div class="pelea-pie">
-    <span class="${enLona ? 'fin-angosto' : ''}"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</span>
-    <span>${p.tendencia === 'pelea promedio'
+  return `<div class="pelea-pie${m ? '' : ' sin-cuotas'}">
+    <div class="pelea-fin"><span class="pelea-meta">No llega a tarjetas</span><b data-num="${esc(p.id)}:finish">${pct(p.p_finish,0)}</b></div>
+    <div class="pelea-tendencia"><span class="pelea-meta">Tendencia del combate</span><span>${p.tendencia === 'pelea promedio'
       ? 'Nada la distingue de una pelea promedio'
-      : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>`}</span>
-    ${m ? `<span>Comisión de la casa: <b>${pct(m.vig)}</b></span>` : ''}
+      : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>`}</span></div>
+    ${m ? `<div class="pelea-comision"><span class="pelea-meta">Comisión de la casa</span><b data-num="${esc(p.id)}:vig">${pct(m.vig)}</b></div>` : ''}
+    ${ayudaPelea(p)}
   </div>`;
 }
 
-const selloConf = (p) => `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>
-  <button class="btn-q" data-explica="${p.id}" title="¿Qué significa?" aria-label="¿Qué significa ${esc(p.confianza)}?">?</button>`;
+function ayudaPelea(p) {
+  return `<button class="enlace pelea-ayuda" data-explica="${esc(p.id)}" aria-label="Explicar el pronóstico de ${esc(p.a)} frente a ${esc(p.b)}">¿Cómo leer este pronóstico?</button>`;
+}
 const etiquetaDebut = (p) => {
-  const n = [p.info_a, p.info_b].filter(info => info?.debut_ufc_confirmado === true).length;
+  const n = debutantesPelea(p).length;
   return n ? `<span class="pelea-debut">${n === 1 ? 'Pelea de un debutante' : 'Pelea de debutantes'}</span>` : '';
 };
+const debutantesPelea = (p) => Array.isArray(p.debutantes) ? p.debutantes :
+  [[p.a,p.info_a],[p.b,p.info_b]].filter(([,info]) => info?.debut_ufc_confirmado === true).map(([n]) => n);
+function avisoDebut(p) {
+  const nombres = debutantesPelea(p);
+  if (!nombres.length) return '';
+  return `<header class="debut-cab">${ico('alerta')}<div><b>${nombres.length === 2 ? 'Ambos debutan en UFC' : 'Debut en UFC'} · ${nombres.map(esc).join(' y ')}</b>
+    <span>${nombres.length === 2 ? 'Ninguno tiene peleas previas registradas en UFC.' : 'Este peleador todavía no tiene peleas previas registradas en UFC.'} Interpreta la predicción con más cautela.</span></div></header>`;
+}
 
-function tarjetaPelea(p, mov) {
+function resultadoHistorial(resultado) {
+  return ({W: {clase: 'victoria', texto: 'Victoria', marca: 'V'},
+    L: {clase: 'derrota', texto: 'Derrota', marca: 'P'},
+    D: {clase: 'neutral', texto: 'Empate', marca: 'E'},
+    NC: {clase: 'neutral', texto: 'Sin resultado', marca: 'NC'}})[resultado]
+    || {clase: 'neutral', texto: 'Resultado no registrado', marca: '—'};
+}
+// corto: las casillas de la lona miden ~27 px y "KO/TKO" no entraba (se
+// cortaba en "KO/TK"). El detalle completo sigue en el título y en el modal.
+function metodoHistorial(metodo, corto = false) {
+  const texto = String(metodo || '').trim();
+  if (/KO\s*\/\s*TKO/i.test(texto)) return corto ? 'KO' : 'KO/TKO';
+  if (/TKO/i.test(texto)) return 'TKO';
+  if (/KO/i.test(texto)) return 'KO';
+  if (/sub|sumisi/i.test(texto)) return 'SUB';
+  if (/dec|decision|decisión/i.test(texto)) return 'DEC';
+  if (/DQ|disqual/i.test(texto)) return 'DQ';
+  if (/no contest|\bC?NC\b/i.test(texto)) return 'NC';
+  return texto ? 'OTRO' : '—';
+}
+function historialReciente(p, enLona = false) {
+  const lado = (clave) => {
+    const peleas = p['info_' + clave]?.ultimas_peleas;
+    const ultimas = Array.isArray(peleas) ? peleas.slice(0, 5) : [];
+    if (enLona) {
+      const resumen = ultimas.map(pelea => {
+        const resultado = resultadoHistorial(pelea.resultado);
+        return `<span class="historial-cuadro ${resultado.clase}"><small>${resultado.marca}</small><span>${metodoHistorial(pelea.metodo, true)}</span></span>`;
+      }).join('');
+      return `<div class="historial-lado">${ultimas.length
+        ? `<button class="historial-resumen" type="button" data-historial-id="${esc(p.id)}" data-historial-lado="${clave}" data-historial-todo="true" title="Ver las últimas ${ultimas.length} peleas de ${esc(p[clave])}" aria-label="Ver las últimas ${ultimas.length} peleas de ${esc(p[clave])}"><span class="historial-cuadros" aria-hidden="true">${resumen}</span></button>`
+        : `<span class="historial-ausente" aria-label="${esc(p[clave])}: historial reciente no disponible">Sin historial reciente</span>`}</div>`;
+    }
+    return `<div class="historial-lado">${ultimas.length
+      ? `<ol class="historial-cuadros" aria-label="Últimas ${ultimas.length} peleas de ${esc(p[clave])}, más reciente primero">${ultimas.map((pelea, i) => {
+        const resultado = resultadoHistorial(pelea.resultado);
+        const detalle = `${resultado.texto}${pelea.rival ? ' frente a ' + pelea.rival : ''} · ${pelea.metodo || 'Método no registrado'}${pelea.fecha ? ' · ' + pelea.fecha : ''}`;
+        return `<li><button class="historial-cuadro ${resultado.clase}" type="button" data-historial-id="${esc(p.id)}" data-historial-lado="${clave}" data-historial-indice="${i}" title="${esc(detalle)}" aria-label="${esc(detalle)}"><small>${resultado.marca}</small><span>${metodoHistorial(pelea.metodo)}</span></button></li>`;
+      }).join('')}</ol>`
+      : `<span class="historial-ausente" aria-label="${esc(p[clave])}: historial reciente no disponible">Historial reciente no disponible</span>`}</div>`;
+  };
+  return `<section class="historial-reciente ${enLona ? 'historial-lona j-todo' : ''}" aria-label="Resultados recientes"><div class="historial-cab"><span>Últimas cinco${enLona ? ' · reciente → anterior' : ''}</span>${enLona ? '' : '<small>Más reciente → anterior</small>'}</div><div class="historial-duelo">${lado('a')}${lado('b')}</div></section>`;
+}
+
+function etiquetaTitulo(p) {
+  return p.es_titulo === true ? '<span class="pelea-cinturon">Por el título</span>' : '';
+}
+
+function combatePlegable(p, contenido, tipo = '', abierto = false) {
+  const titulo = p.es_titulo === true;
+  const etiqueta = tipo === 'estelar' ? 'Pelea estelar' : tipo === 'coestelar' ? 'Co-estelar' : p.segmento;
+  return `<details class="combate-desplegable ${titulo ? 'combate-titulo' : ''}" data-combate="${esc(p.id)}"${abierto ? ' open' : ''}>
+    <summary class="combate-cab"><span class="combate-rotulo"><span class="combate-nombres"><b data-lado="a">${esc(p.a)}</b><small>vs</small><b data-lado="b">${esc(p.b)}</b></span>
+      ${etiqueta || p.es_titulo === true ? `<span class="combate-etiquetas">${esc(etiqueta || '')}${p.es_titulo === true ? `${etiqueta ? ' · ' : ''}Por el título` : ''}</span>` : ''}</span>
+      <span class="pill ${claseConf(p.confianza)}">${esc(p.confianza)}</span>${pillResultado(p)}<svg class="combate-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
+    </summary><div class="combate-contenido">${contenido}</div></details>`;
+}
+
+// La altura se anima en ambos sentidos. Al cerrar, details permanece abierto
+// hasta terminar; al cambiar de dirección se parte de la altura que se ve.
+const transicionesCombate = new WeakMap();
+function desplegarCombate(detalle, abierto) {
+  const anterior = transicionesCombate.get(detalle);
+  if (!anterior && detalle.open === abierto) return;
+  if (abierto) detalle.querySelectorAll('[data-analisis]').forEach(analisis => { analisis.open = false; });
+  const desde = detalle.getBoundingClientRect().height;
+  anterior?.animacion.cancel();
+  transicionesCombate.delete(detalle);
+  detalle.style.height = '';
+  detalle.style.overflow = '';
+  detalle.removeAttribute('data-cerrando');
+  if (reducir() || typeof detalle.animate !== 'function') {
+    detalle.open = abierto;
+    return;
+  }
+  detalle.open = true;
+  const hasta = abierto ? detalle.getBoundingClientRect().height
+    : detalle.querySelector(':scope > summary').getBoundingClientRect().height - 1;
+  if (!abierto) detalle.setAttribute('data-cerrando', '');
+  detalle.style.height = desde + 'px';
+  detalle.style.overflow = 'hidden';
+  const animacion = detalle.animate([{height:desde + 'px'}, {height:hasta + 'px'}],
+    {duration:340, easing:EASE_OUT, fill:'forwards'});
+  transicionesCombate.set(detalle, {animacion, abierto});
+  animacion.onfinish = () => {
+    detalle.open = abierto;
+    detalle.style.height = '';
+    detalle.style.overflow = '';
+    detalle.removeAttribute('data-cerrando');
+    transicionesCombate.delete(detalle);
+    animacion.cancel();
+  };
+}
+
+function usaOctagono(p, tipo = '') {
+  return tipo === 'estelar' || p.es_titulo === true;
+}
+
+function vistaPelea(p, mov, tipo, juez = false, n = 1, total = 1) {
+  return usaOctagono(p, tipo) ? jaula(p, mov, tipo)
+    : juez ? actaPelea(p, mov, tipo, n, total) : tarjetaPelea(p, mov, tipo);
+}
+
+function tarjetaPelea(p, mov, tipo = '') {
   const favA = p.p_a >= p.p_b;
   return `
   <article class="pelea" data-pelea="${p.id}">
-    <div class="cara-top">${p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : ''}${etiquetaDebut(p)}${selloConf(p)}</div>
     <div class="cara">
-      ${retrato(p.a)}
+      ${retrato(p.a, 'a')}
       <div class="centro">
-        <div class="vs-nombres"><span class="n">${esc(p.a)}</span><span class="x">vs</span><span class="n b">${esc(p.b)}</span></div>
+        <div class="vs-nombres"><span class="n" data-lado="a">${esc(p.a)}</span><span class="x">vs</span><span class="n b" data-lado="b">${esc(p.b)}</span></div>
         <div class="vs-sub"><span>${peleasUFC(p.info_a)}</span><span>${peleasUFC(p.info_b)}</span></div>
-        <div class="pcts"><span class="${favA ? '' : 'menos'}" data-num="${p.id}:pA">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}" data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
+        ${historialReciente(p)}
+        <div class="pcts"><span class="${favA ? '' : 'menos'}" data-lado="a" data-num="${p.id}:pA">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}" data-lado="b" data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
         ${barraDuelo(p)}
         ${espejo(p, mov)}
       </div>
-      ${retrato(p.b)}
+      ${retrato(p.b, 'b')}
     </div>
+    ${resultadoReal(p)}
     ${metodoFila(p)}
     ${piePelea(p)}
     ${p.confianza === 'NO FIABLE' ? `<div class="explica alerta">${ico('alerta')}<div>${p.por_que_confianza}</div></div>` : ''}
@@ -805,61 +1369,59 @@ function tarjetaPelea(p, mov) {
 // La línea pintada a un paso de la reja, paralela a ella: es un octágono
 // regular, con el corte un poco menor porque la línea va metida hacia adentro
 // (misma cuenta que los recortes de las capas en el CSS).
-function lineaLona() {
+function lineaLona(p) {
   const k = ((29.29 - 1.16 - 0.414 * 2) / (100 - 5.6 - 4) * 100).toFixed(2);
   const pts = `${k},0.5 ${100 - k},0.5 99.5,${k} 99.5,${100 - k} ${100 - k},99.5 ${k},99.5 0.5,${100 - k} 0.5,${k}`;
+  const metal = p?.es_titulo === true;
+  const id = 'oro-lona-' + Array.from(String(p?.id || '')).map(c => c.codePointAt(0).toString(16)).join('-');
   return `<svg class="lona-linea" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-    <polygon points="${pts}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+    ${metal ? `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4df9b"/><stop offset=".28" stop-color="#bd9138"/><stop offset=".53" stop-color="#f3dfa4"/><stop offset=".78" stop-color="#9b7126"/><stop offset="1" stop-color="#dfbd68"/></linearGradient></defs>` : ''}
+    <polygon points="${pts}" pathLength="1" fill="none" stroke="${metal ? `url(#${id})` : 'currentColor'}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
 // Las cifras de la jaula, en espejo: el valor de cada peleador bajo su
 // columna y el rótulo en el lomo del medio.
 function datosJaula(p, mov) {
-  const m = p.mercado;
-  if (!m) return '';
-  const fila = (n, a, lbl, b) => `<div class="j-a j-dato j-f${n}"><span data-num="${p.id}:j${n}:A">${a}</span></div>
-    <div class="j-lomo j-rot j-f${n}">${lbl}</div><div class="j-b j-dato j-f${n}"><span data-num="${p.id}:j${n}:B">${b}</span></div>`;
-  return fila(1, cuota(m.cuota_a) + flecha(mov, p.id, 'A'), 'cuota', cuota(m.cuota_b) + flecha(mov, p.id, 'B')) +
-         fila(2, pct(m.p_mercado_a), 'le da la casa', pct(1 - m.p_mercado_a)) +
-         fila(3, pct(m.p_modelo_a), 'el modelo solo', pct(1 - m.p_modelo_a));
+  return p.mercado ? `<section class="estelar-comparativa" aria-label="Comparación del modelo y las cuotas"><h3>Cuotas y modelo</h3><div class="estelar-datos-nombres"><span data-lado="a">${esc(p.a)}</span><span data-lado="b">${esc(p.b)}</span></div>${espejo(p, mov)}</section>` : '';
 }
 
-// Las dos peleas principales van DENTRO del octágono: la reja, la baranda con
-// sus ocho postes, la lona con su luz y, sobre ella, los dos retratos y los
-// números. Es un octágono regular y todo escala con su ancho.
+// Solo el glifo: el texto "UFC PREDICTOR" quedaba justo detrás de las casillas
+// del historial y se leía a pedazos entre ellas ("PREDI").
+function marcaLona() {
+  return `<svg class="lona-marca" viewBox="56 6 128 128" aria-hidden="true">
+    <path d="M96 12h48l34 34v48l-34 34H96L62 94V46z" fill="none" stroke="currentColor" stroke-width="5"/>
+    <path d="M111 36h20l-10 68h-20z" fill="currentColor"/></svg>`;
+}
+
+// Los retratos y el historial comparten la lona. La zona superior tiene
+// margen suficiente para que las cabezas no alcancen los bordes diagonales.
 function jaula(p, mov, tipo) {
   const favA = p.p_a >= p.p_b;
-  const titulo = tipo === 'estelar' ? 'Pelea estelar' : 'Co-estelar';
   const postes = [1,2,3,4,5,6,7,8].map(n => `<i class="poste p${n}"></i>`).join('');
   return `
-  <article class="estelar ${tipo}" data-pelea="${p.id}">
-    <header class="estelar-cab">
-      ${titulo ? `<span class="estelar-kicker">${titulo}${p.segmento ? ` <small>${esc(p.segmento)}</small>` : ''}</span>`
-               : (p.segmento ? `<span class="cara-seg">${esc(p.segmento)}</span>` : '')}
-      ${etiquetaDebut(p)}
-      <span class="sellos">${selloConf(p)}</span>
-    </header>
-    <div class="jaula-escena"><div class="jaula">
+  <article class="estelar ${p.es_titulo === true ? 'estelar-titulo' : ''}" data-pelea="${p.id}">
+    <div class="estelar-distribucion"><div class="jaula-escena"><div class="jaula">
       <div class="reja"></div><div class="baranda"></div>${postes}
       <div class="lona">
-        ${lineaLona()}
-        <svg class="lona-marca" viewBox="0 0 32 32" aria-hidden="true">
-          <path d="M9 2h14l7 7v14l-7 7H9l-7-7V9z" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <path d="M14.6 9.5h4.6l-1.8 13h-4.6z" fill="currentColor"/></svg>
-        ${retrato(p.a).replace('class="retrato"', 'class="retrato a"')}
-        ${retrato(p.b).replace('class="retrato"', 'class="retrato b"')}
-        <div class="j-a j-nombre">${esc(p.a)}<small>${peleasUFC(p.info_a)}</small></div>
+        ${lineaLona(p)}
+        <div class="lona-impresion" aria-hidden="true">${marcaLona()}</div>
+        ${retrato(p.a, 'a').replace('class="retrato"', 'class="retrato a"')}
+        ${retrato(p.b, 'b').replace('class="retrato"', 'class="retrato b"')}
+        <div class="j-a j-nombre" data-lado="a">${esc(p.a)}<small>${peleasUFC(p.info_a)}</small></div>
         <div class="j-lomo j-vs">vs</div>
-        <div class="j-b j-nombre">${esc(p.b)}<small>${peleasUFC(p.info_b)}</small></div>
-        <div class="j-a j-pct ${favA ? '' : 'menos'}"><span data-num="${p.id}:pA">${pct(p.p_a)}</span></div>
-        <div class="j-b j-pct ${favA ? 'menos' : ''}"><span data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
+        <div class="j-b j-nombre" data-lado="b">${esc(p.b)}<small>${peleasUFC(p.info_b)}</small></div>
+        ${historialReciente(p, true)}
+        <div class="j-a j-pct ${favA ? '' : 'menos'}" data-lado="a"><span data-lado="a" data-num="${p.id}:pA">${pct(p.p_a)}</span></div>
+        <div class="j-b j-pct ${favA ? 'menos' : ''}" data-lado="b"><span data-lado="b" data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
         <div class="j-todo j-barra">${barraDuelo(p)}</div>
-        ${datosJaula(p, mov)}
-        <p class="j-todo j-pie"><b>${pct(p.p_finish,0)}</b> de que no llegue a las tarjetas</p>
+        ${resultadoReal(p, true)}
       </div>
     </div></div>
-    ${metodoFila(p)}
-    ${piePelea(p, true)}
+    <aside class="estelar-datos" aria-label="Estadísticas del combate">
+      ${datosJaula(p, mov)}
+      <section class="estelar-metodos" aria-label="Métodos de finalización"><h3>Cómo puede terminar</h3>${metodoFila(p)}</section>
+      ${piePelea(p)}
+    </aside></div>
     ${p.confianza === 'NO FIABLE' ? `<div class="explica alerta">${ico('alerta')}<div>${p.por_que_confianza}</div></div>` : ''}
   </article>`;
 }
@@ -882,30 +1444,30 @@ const SIN_LAPIZ = ['moneda', 'NO FIABLE'];
 function actaPelea(p, mov, tipo, n, total) {
   const favA = p.p_a >= p.p_b;
   const m = p.mercado;
-  const titulo = tipo === 'estelar' ? 'Pelea estelar' : (tipo === 'coestelar' && esCoSegmento(p) ? 'Co-estelar' : '');
+  const titulo = tipo === 'estelar' ? 'Pelea estelar' : (tipo === 'coestelar' ? 'Co-estelar' : '');
   const segmento = [titulo, p.segmento && p.segmento !== titulo ? p.segmento : ''].filter(Boolean).join(' · ');
   // menos: el lado que la fila no favorece (en la probabilidad, el no favorito).
   const fila = (k, lbl, a, b, clase = '', menos = '') => `<div class="ac-fila ${clase}">
-      <span class="ac-v a ${menos === 'a' ? 'menos' : ''}" data-num="${p.id}:${k}:A">${a}</span><span class="ac-rot">${lbl}</span><span class="ac-v b ${menos === 'b' ? 'menos' : ''}" data-num="${p.id}:${k}:B">${b}</span></div>`;
+      <span class="ac-v a ${menos === 'a' ? 'menos' : ''}" data-lado="a" data-num="${p.id}:${k}:A">${a}</span><span class="ac-rot">${lbl}</span><span class="ac-v b ${menos === 'b' ? 'menos' : ''}" data-lado="b" data-num="${p.id}:${k}:B">${b}</span></div>`;
   const peleador = (lado, nombre, info, fav) => `
-      <div class="ac-peleador ${lado} ${fav ? 'fav' : ''}">
-        <div class="ac-foto">${retrato(nombre)}${tipo === 'estelar' ? `<span class="ac-clip">${ico('clip')}</span>` : ''}</div>
-        <div class="ac-id"><small>Peleador</small><b>${esc(nombre)}</b><span>${peleasUFC(info) || '&nbsp;'}</span></div>
+      <div class="ac-peleador ${lado} ${fav ? 'fav' : ''}" data-lado="${lado}">
+        <div class="ac-foto">${retrato(nombre, lado)}${tipo === 'estelar' ? `<span class="ac-clip">${ico('clip')}</span>` : ''}</div>
+        <div class="ac-id"><small>Peleador</small><b data-lado="${lado}">${esc(nombre)}</b><span>${peleasUFC(info) || '&nbsp;'}</span></div>
       </div>`;
   const conLapiz = !SIN_LAPIZ.includes(p.confianza);
   const tendencia = p.tendencia === 'pelea promedio'
     ? 'Nada la distingue de una pelea promedio.'
     : `Más propensa a terminar así que lo normal: <b>${esc(p.tendencia)}</b>.`;
   return `
-  <article class="acta ${tipo || ''}" data-pelea="${p.id}">
-    ${etiquetaDebut(p)}
+  <article class="acta ${tipo === 'estelar' ? tipo : ''}" data-pelea="${p.id}">
     <header class="ac-cab">
       <div class="ac-campo ac-n"><small>Pelea</small><b>${n} de ${total}</b></div>
       <div class="ac-campo ac-seg"><small>Segmento</small><b>${esc(segmento)}</b></div>
-      <div class="ac-campo ac-conf"><small>Confianza</small><span class="ac-timbre">${selloConf(p)}</span></div>
     </header>
     <div class="ac-cuerpo">
       ${peleador('a', p.a, p.info_a, favA)}
+      ${peleador('b', p.b, p.info_b, !favA)}
+      ${historialReciente(p)}
       <div class="ac-filas">
         ${fila('p', 'probabilidad de ganar', pct(p.p_a), pct(p.p_b), 'ac-prob', favA ? 'b' : 'a')}
         <div class="ac-barra">${barraDuelo(p)}</div>
@@ -914,7 +1476,6 @@ function actaPelea(p, mov, tipo, n, total) {
             + fila('modelo', 'el modelo solo', pct(m.p_modelo_a), pct(1 - m.p_modelo_a))
             : '<p class="ac-sin">Sin cuotas: solo la probabilidad del modelo.</p>'}
       </div>
-      ${peleador('b', p.b, p.info_b, !favA)}
     </div>
     <div class="ac-metodo"><small class="ac-tit">Cómo termina</small>${metodoFila(p)}</div>
     <div class="ac-pronostico">
@@ -922,9 +1483,11 @@ function actaPelea(p, mov, tipo, n, total) {
         <span class="ac-gana ${conLapiz ? 'con-lapiz' : ''}">${esc(p.ganador)}${conLapiz ? LAPIZ : ''}</span></div>
       <div class="ac-campo"><small>No llega a las tarjetas</small><b data-num="${p.id}:fin">${pct(p.p_finish, 0)}</b></div>
     </div>
+    ${resultadoReal(p)}
     <div class="ac-obs"><small>Observaciones</small>
       <p>${tendencia}${m ? ` Comisión de la casa: <b>${pct(m.vig)}</b>.` : ''}</p>
       ${p.confianza === 'NO FIABLE' ? `<p class="ac-alerta">${ico('alerta')}<span>${p.por_que_confianza}</span></p>` : ''}
+      ${ayudaPelea(p)}
     </div>
     <footer class="ac-pie"><span>UFC Predictor · tarjeta de pronóstico</span><span>Estimación del modelo, no una tarjeta oficial</span></footer>
   </article>`;
@@ -935,10 +1498,10 @@ function mejorMetodo(m) {
   const n = {'KO/TKO':'KO/TKO','Submission':'sumisión','Decision':'decisión'}[k];
   return `${n} (${fmt(m[k]*100, 0)}${NBSP_FINO}%)`;
 }
-function tabla(sel, cab, filas) {
+function tabla(sel, cab, filas, clases = []) {
   $(sel).innerHTML =
     `<thead><tr>${cab.map(h=>`<th>${h}</th>`).join('')}</tr></thead>` +
-    `<tbody>${filas.map(f=>`<tr>${f.map(c =>
+    `<tbody>${filas.map((f,i)=>`<tr${clases[i] ? ` class="${esc(clases[i])}"` : ''}>${f.map(c =>
       String(c).startsWith('<td') ? c : `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>`;
 }
 
@@ -1231,6 +1794,237 @@ async function evaluarParlay() {
     <div>${esc(e.message)}</div></div>`; }
 }
 
+/* ============================== INICIO ================================ */
+// La portada: noticias de UFC al centro, las peleas que vienen y los eventos al
+// costado (/api/inicio). Responde desde la caché del servidor; si estaba
+// vencida, el servidor la refresca aparte y acá se vuelve a pedir una vez.
+const INI = { datos:null, modo:'estelar', pedido:null, mostrada:false, reintento:null };
+// 24 h: "21:00" y no "09:00 p. m.", que en una columna angosta se partía en dos.
+const horaLocal = (ts) => new Date(ts * 1000).toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+const diaLocal = (ts) => new Date(ts * 1000).toLocaleDateString('es-CL', { weekday:'short', day:'numeric', month:'short' }).replace(',', '');
+const isoLocal = (ts) => new Date(ts * 1000).toLocaleDateString('sv-SE');
+// "1d 4h", "3h 12m", "8m"; desde que empieza y por 6 h, EN VIVO.
+function cuentaRegresiva(ts) {
+  const s = ts - Date.now() / 1000;
+  if (s <= 0) return s > -6 * 3600 ? null : 'terminó';
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${Math.max(1, m)}m`;
+}
+const pintarCuenta = (ts) => {
+  const c = cuentaRegresiva(ts);
+  return c === null ? '<span class="vivo-bug">En vivo</span>' : esc(c);
+};
+const selloEvento = (e) => {
+  const n = String(e.nombre || '').match(/UFC (\d+)$/);
+  return n ? `<span class="ev-sello">${n[1]}</span>`
+    : `<span class="ev-sello fn">${/road to ufc/i.test(e.nombre) ? 'RTU' : 'FN'}</span>`;
+};
+const imagenNota = (n) => n.imagen ? `/api/inicio/imagen/${encodeURIComponent(n.id)}` : '';
+function haceCuanto(iso) {
+  const min = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (min < 60) return `hace ${Math.max(1, min)} min`;
+  if (min < 24 * 60) return `hace ${Math.round(min / 60)} h`;
+  return fechaCorta(new Date(iso).toLocaleDateString('sv-SE'));
+}
+
+async function cargarInicio({ forzar = false } = {}) {
+  if (INI.pedido && !forzar) return INI.pedido;
+  INI.pedido = (async () => {
+    try {
+      const d = await api('/api/inicio');
+      const primera = !INI.datos;
+      INI.datos = d;
+      pintarInicio(d, primera);
+      clearTimeout(INI.reintento);
+      if (d.actualizando) INI.reintento = setTimeout(() => cargarInicio({ forzar: true }), 12000);
+    } catch (e) {
+      if (!INI.datos) $('#noticias').innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span><div>${esc(e.message)}</div></div>`;
+    } finally { INI.pedido = null; }
+  })();
+  return INI.pedido;
+}
+
+function pintarInicio(d, primera) {
+  // La cartelera que ya está cargada, arriba, para volver a ella.
+  const actual = $('#inicio-actual');
+  actual.classList.toggle('oculto', !d.actual);
+  if (d.actual) {
+    const ev = S.evento || evento({ titulo: d.actual.titulo });
+    actual.innerHTML = `<small>${d.actual.corte ? 'Repetición cargada' : 'Cartelera cargada'}</small>
+      <b>${esc(ev.nombre)}</b><small>${d.actual.peleas} peleas</small>
+      <button class="secundario" data-ir="cartelera">Ver pronósticos${ico('ir')}</button>`;
+    actual.querySelector('[data-ir]').onclick = () => irA('cartelera');
+  }
+  pintarNoticias(d);
+  pintarProximas(d);
+  pintarEventos(d);
+  ['#noticias', '#proximas', '#eventos'].forEach(s => $(s).removeAttribute('aria-busy'));
+  if (primera && !INI.mostrada) { INI.mostrada = true; entradaInicio(); }
+}
+
+function pintarNoticias(d) {
+  const notas = d.noticias || [];
+  $('#noticias-estado').textContent = d.sin_conexion ? 'sin conexión'
+    : d.actualizando ? 'actualizando…' : d.consultado ? `al día · ${horaLocal(d.consultado)}` : '';
+  if (!notas.length) {
+    $('#noticias').innerHTML = `<p class="ev-vacio">${d.sin_conexion
+      ? 'No se pudo consultar UFC y todavía no hay noticias guardadas. Se completan solas cuando haya internet; el resto de la aplicación funciona igual.'
+      : 'Todavía no hay noticias.'}</p>`;
+    return;
+  }
+  const [portada, ...resto] = notas;
+  const destacadas = resto.filter(n => n.imagen).slice(0, 2);
+  const lista = notas.filter(n => n !== portada && !destacadas.includes(n));
+  const enlace = (n) => `href="${esc(n.url)}" target="_blank" rel="noopener noreferrer"`;
+  let html = `<a class="nota-portada" ${enlace(portada)}>
+      ${portada.imagen ? `<img src="${imagenNota(portada)}" alt="" decoding="async">` : ''}
+      <span class="np-texto"><span class="np-cuando">${esc(haceCuanto(portada.fecha))}</span>
+        <b>${esc(portada.titulo)}</b>${portada.autor ? `<span>${esc(portada.autor)}</span>` : ''}</span></a>`;
+  if (destacadas.length) html += `<div class="notas-destacadas">${destacadas.map(n => `
+    <a class="nota-destacada" ${enlace(n)}><span class="nd-imagen"><img src="${imagenNota(n)}" alt="" loading="lazy" decoding="async"></span>
+      <span class="nd-texto"><small>${esc(haceCuanto(n.fecha))}</small><b>${esc(n.titulo)}</b></span></a>`).join('')}</div>`;
+  // Por día, como en la portada de un sitio de liga: hoy y ayer con su rótulo.
+  const hoy = hoyISO(), ayer = new Date(Date.now() - 864e5).toLocaleDateString('sv-SE');
+  const dias = new Map();
+  lista.forEach(n => {
+    const dia = new Date(n.fecha).toLocaleDateString('sv-SE');
+    if (!dias.has(dia)) dias.set(dia, []);
+    dias.get(dia).push(n);
+  });
+  dias.forEach((ns, dia) => {
+    const tag = dia === hoy ? '<span class="dia-tag hoy">Hoy</span>' : dia === ayer ? '<span class="dia-tag">Ayer</span>' : '';
+    html += `<h3 class="dia">${esc(fechaLarga(dia))}${tag}</h3><ul class="titulares">${ns.map(n => `
+      <li><a class="titular" ${enlace(n)}><span class="titular-hora">${esc(horaLocal(new Date(n.fecha) / 1000))}</span>
+        <span class="titular-texto">${esc(n.titulo)}</span>${ico('ir')}</a></li>`).join('')}</ul>`;
+  });
+  $('#noticias').innerHTML = html;
+  $$('#noticias img').forEach(img => img.onerror = () => img.remove());
+}
+
+function pintarProximas(d) {
+  // Las próximas cuatro carteleras: más allá, la columna sería un listado eterno.
+  const eventos = (d.proximos || []).slice(0, 4);
+  if (!eventos.length) {
+    $('#proximas').innerHTML = `<p class="ev-vacio">${d.sin_conexion ? 'Sin conexión con UFC y sin carteleras guardadas.' : 'UFC no tiene carteleras anunciadas.'}</p>`;
+    return;
+  }
+  const todas = INI.modo === 'todas';
+  $('#proximas').innerHTML = eventos.map(e => {
+    const peleas = (e.peleas || []).filter(p => todas || p.seccion === 'estelar');
+    const fila = (p) => {
+      const ts = e.inicio[p.seccion] || e.inicio.estelar;
+      const peso = [p.peso, p.seccion !== 'estelar' ? (p.seccion === 'early' ? 'early' : 'prelim.') : ''].filter(Boolean).join(' · ');
+      return `<li class="pp${p.titulo ? ' titulo' : ''}">
+        <span class="pp-n" data-lado="a"><i aria-hidden="true"></i><span>${esc(p.a)}</span>${p.rango_a ? `<small>${esc(p.rango_a)}</small>` : ''}</span>
+        <span class="pp-n" data-lado="b"><i aria-hidden="true"></i><span>${esc(p.b)}</span>${p.rango_b ? `<small>${esc(p.rango_b)}</small>` : ''}</span>
+        <span class="pp-meta"><b class="pp-cuenta" data-ts="${ts}">${pintarCuenta(ts)}</b>${
+          p.titulo ? '<span class="pp-titulo">Por el título</span>' : ''}<small>${esc(peso)}</small></span></li>`;
+    };
+    // Las carteleras lejanas todavía no se bajan pelea por pelea: su estelar sale
+    // del titular del evento.
+    const cuerpo = peleas.length ? peleas.map(fila).join('')
+      : `<li class="pp-solo"><span>${esc(e.titular)}</span><b class="pp-cuenta" data-ts="${e.inicio.estelar}">${pintarCuenta(e.inicio.estelar)}</b></li>`;
+    return `<div class="prox-evento"><b>${esc(e.nombre)}</b><span>${esc(diaLocal(e.inicio.estelar))} · ${esc(horaLocal(e.inicio.estelar))}</span></div>
+      <ul class="prox-lista">${cuerpo}</ul>`;
+  }).join('');
+}
+
+function pintarEventos(d) {
+  const ahora = Date.now() / 1000;
+  const proximos = d.proximos || [];
+  const enVivo = proximos.filter(e => (e.inicio.early || e.inicio.preliminares || e.inicio.estelar) <= ahora);
+  const siguientes = proximos.filter(e => !enVivo.includes(e)).slice(0, 6);
+  // Sin peleas publicadas no hay nada que predecir: la fila informa y no es botón.
+  const filaProxima = (e) => !e.peleas?.length
+    ? `<div class="ev">${selloEvento(e)}<span class="ev-que">${esc(e.nombre)}<small>${esc(e.titular)}</small></span>
+        <span class="ev-datos"><span class="ev-chip">${esc(diaLocal(e.inicio.estelar))}</span><span class="ev-nota">cartelera sin publicar</span></span></div>`
+    : `<button type="button" class="ev" data-ufc="${esc(e.id)}" aria-label="Predecir ${esc(e.nombre)}, ${esc(e.titular)}">
+      ${selloEvento(e)}<span class="ev-que">${esc(e.nombre)}<small>${esc(e.titular)}</small></span>
+      <span class="ev-datos"><span class="ev-chip">${esc(diaLocal(e.inicio.estelar))}</span>${
+        e.ciudad || e.pais ? `<span class="ev-chip lugar">${esc(e.ciudad || e.pais)}</span>` : ''}</span>
+      <span class="ev-ir">${ico('ir')}<span>Predecir</span></span></button>`;
+  const filaReciente = (e) => e.en_base
+    ? `<button type="button" class="ev" data-evento="${esc(e.en_base.evento)}" data-fecha="${esc(e.en_base.fecha)}"
+        aria-label="Repetir ${esc(e.nombre)}, ${esc(e.titular)}">
+        ${selloEvento(e)}<span class="ev-que">${esc(e.nombre)}<small>${esc(e.titular)}</small></span>
+        <span class="ev-datos"><span class="ev-chip">${esc(diaLocal(e.inicio.estelar))}</span></span>
+        <span class="ev-ir">${ico('repetir')}<span>Repetir</span></span></button>`
+    : `<div class="ev apagado">${selloEvento(e)}<span class="ev-que">${esc(e.nombre)}<small>${esc(e.titular)}</small></span>
+        <span class="ev-datos"><span class="ev-chip">${esc(diaLocal(e.inicio.estelar))}</span><span class="ev-nota">aún no está en tu base</span></span></div>`;
+  // Lo que la base local sí tiene: siempre se puede repetir.
+  const yaListados = new Set((d.recientes || []).filter(e => e.en_base).map(e => e.en_base.evento));
+  const base = (d.en_base || []).filter(p => !yaListados.has(p.evento)).slice(0, 4);
+  const filaBase = (p) => {
+    const n = String(p.evento).match(/^UFC (\d+)/);
+    return `<button type="button" class="ev" data-evento="${esc(p.evento)}" data-fecha="${esc(p.fecha)}" data-a="${esc(p.a)}" data-b="${esc(p.b)}"
+      aria-label="Repetir ${esc(p.evento)}">
+      <span class="ev-sello ${n ? '' : 'fn'}">${n ? n[1] : 'FN'}</span><span class="ev-que">${esc(apellidoDe(p.a))} vs ${esc(apellidoDe(p.b))}<small>${esc(p.evento.replace(/:.*/, ''))}</small></span>
+      <span class="ev-datos"><span class="ev-chip">${esc(fechaCorta(p.fecha))}</span></span>
+      <span class="ev-ir">${ico('repetir')}<span>Repetir</span></span></button>`;
+  };
+  const grupo = (titulo, filas) => filas ? `<div class="ev-grupo"><h3>${titulo}</h3><div class="ev-lista">${filas}</div></div>` : '';
+  $('#eventos').innerHTML =
+    grupo('En vivo', enVivo.map(filaProxima).join(''))
+    + grupo('Próximos', siguientes.map(filaProxima).join(''))
+    + grupo('Terminados', (d.recientes || []).slice(0, 4).map(filaReciente).join(''))
+    + grupo('En tu base', base.map(filaBase).join(''))
+    || `<p class="ev-vacio">Sin eventos para mostrar.</p>`;
+  $$('#eventos button.ev[data-ufc]').forEach(b => b.onclick = () => accionEvento(b,
+    () => post('/api/cartelera/ufc', { id: b.dataset.ufc })));
+  $$('#eventos button.ev[data-evento]').forEach(b => b.onclick = () => accionEvento(b, async () => {
+    await post('/api/cartelera/anterior', { evento: b.dataset.evento, fecha: b.dataset.fecha });
+    if (b.dataset.a) S.abrirPelea = [b.dataset.a, b.dataset.b];
+  }));
+}
+async function accionEvento(b, accion) {
+  if (b.classList.contains('cargando')) return;
+  b.classList.add('cargando');
+  const txt = b.querySelector('.ev-ir span'), antes = txt.textContent;
+  txt.textContent = 'Preparando…';
+  try { await accion(); irA('cartelera'); await tick(); }
+  catch (e) { barra(e.message, 'error'); }
+  finally { b.classList.remove('cargando'); txt.textContent = antes; }
+}
+
+// La portada entra una vez por visita: la nota de portada se descubre como el
+// cartel de apertura (la foto se asienta y el titular se barre de izquierda a
+// derecha) y las columnas se completan fila por fila.
+function entradaInicio() {
+  if (reducir()) return;
+  const anim = (el, frames, op) => el?.animate(frames, { easing: EASE_OUT, fill: 'backwards', ...op });
+  anim($('.nota-portada img'), [{ scale: 1.1, opacity: .4 }, { scale: 1, opacity: 1 }], { duration: 900 });
+  anim($('.np-cuando'), [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 320, delay: 200 });
+  anim($('.np-texto b'), [{ clipPath: 'inset(0 100% 0 0)', translate: '-12px 0' }, { clipPath: 'inset(0 0 0 0)', translate: '0 0' }], { duration: 520, delay: 280 });
+  $$('.nota-destacada').forEach((n, i) => anim(n, [{ opacity: 0, translate: '0 10px' }, { opacity: 1, translate: '0 0' }], { duration: 360, delay: 380 + i * 80 }));
+  [...$$('#noticias .dia, #noticias .titulares li')].slice(0, 14).forEach((n, i) =>
+    anim(n, [{ opacity: 0, translate: '0 6px' }, { opacity: 1, translate: '0 0' }], { duration: 260, delay: 480 + i * 30 }));
+  [...$$('#proximas .prox-evento, #proximas .prox-lista li')].slice(0, 16).forEach((n, i) =>
+    anim(n, [{ opacity: 0, translate: '8px 0' }, { opacity: 1, translate: '0 0' }], { duration: 260, delay: 160 + i * 30 }));
+  $$('#eventos .ev').forEach((n, i) =>
+    anim(n, [{ opacity: 0, translate: '8px 0' }, { opacity: 1, translate: '0 0' }], { duration: 260, delay: 240 + Math.min(i, 10) * 35 }));
+}
+
+// Las cuentas regresivas avanzan solas; la que cambia sube como las cifras de EN VIVO.
+setInterval(() => {
+  if (!INI.datos || !$('#tab-inicio').classList.contains('activa')) return;
+  $$('#tab-inicio .pp-cuenta[data-ts]').forEach(el => {
+    const nuevo = pintarCuenta(Number(el.dataset.ts));
+    if (el.innerHTML === nuevo) return;
+    el.innerHTML = nuevo;
+    if (!reducir()) el.animate([{ opacity: 0, transform: 'translateY(35%)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE_OUT });
+  });
+}, 30000);
+
+$$('.seg[data-prox]').forEach(b => b.onclick = () => {
+  $$('.seg[data-prox]').forEach(x => x.classList.toggle('activa', x === b));
+  INI.modo = b.dataset.prox;
+  if (!INI.datos) return;
+  pintarProximas(INI.datos);
+  if (!reducir() && !porTeclado) [...$$('#proximas .prox-evento, #proximas .prox-lista li')].slice(0, 20).forEach((n, i) =>
+    n.animate([{ opacity: 0, translate: '6px 0' }, { opacity: 1, translate: '0 0' }],
+      { duration: 220, delay: i * 20, easing: EASE_OUT, fill: 'backwards' }));
+});
+
 /* ============================== CARGAR ================================ */
 $('#btn-refresh').onclick = async () => {
   try { await post('/api/refrescar'); await tick(); }
@@ -1243,26 +2037,182 @@ $('#btn-refresh').onclick = async () => {
 // Betano ya nos está diciendo.
 let carterasCargadas = false;
 
-// "2026-08-08" -> "sáb 8 ago", como el título del evento.
-const fechaCorta = (iso) => {
-  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return iso || '';
-  return new Date(+m[1], +m[2] - 1, +m[3]).toLocaleDateString('es-CL',
-    { weekday:'short', day:'numeric', month:'short' }).replace(',', '');
+// Una fila de lista entra desde abajo y, si tiene cara a cara, cada retrato
+// llega desde su esquina. Solo las filas nuevas; con menos movimiento, nada.
+function entrarFilas(filas, { paso = 35, max = 8, retratos = false } = {}) {
+  if (reducir()) return;
+  filas.forEach((fila, i) => {
+    const delay = Math.min(i, max) * paso;
+    fila.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 280, delay, easing: EASE_OUT, fill: 'backwards' });
+    if (!retratos) return;
+    fila.querySelectorAll('.ant-retrato').forEach(r => {
+      const desde = r.dataset.lado === 'a' ? '-40%' : '40%';
+      r.animate([{ opacity: 0, translate: `${desde} 0`, clipPath: `inset(0 ${r.dataset.lado === 'a' ? '100% 0 0' : '0 0 100%'})` },
+                 { opacity: 1, translate: '0 0', clipPath: 'inset(0 0 0 0)' }],
+        { duration: 420, delay: delay + 90, easing: EASE_OUT, fill: 'backwards' });
+    });
+    fila.querySelectorAll('.ant-n').forEach(n => n.animate([{ opacity: 0 }, { opacity: 1 }],
+      { duration: 260, delay: delay + 160, easing: EASE_OUT, fill: 'backwards' }));
+  });
+}
+// La fila elegida queda marcando que carga (una franja la recorre por abajo)
+// y su acción dice "Preparando…" hasta que la cartelera llega.
+async function conCarga(fila, etiqueta, accion) {
+  if (fila.classList.contains('cargando')) return;
+  fila.classList.add('cargando');
+  const antes = etiqueta?.textContent;
+  if (etiqueta) etiqueta.textContent = 'Preparando…';
+  try { await accion(); }
+  catch (e) { barra(e.message, 'error'); }
+  finally { fila.classList.remove('cargando'); if (etiqueta) etiqueta.textContent = antes; }
+}
+
+/* -------------------------- peleas anteriores -------------------------- */
+// La lista del boceto: cada pelea con su fecha, su evento y el cara a cara.
+// Elegirla carga su cartelera con los datos de ese día (/api/cartelera/anterior).
+const ANT = { q:'', limite:16, pedido:0, cargadas:false, hayMas:false };
+const retratoMini = (nombre, lado) => {
+  const url = FOTOS.get(nombre);
+  return `<span class="retrato ant-retrato" data-lado="${lado}" data-foto="${esc(nombre)}">${
+    url ? `<img src="${url}" alt="" decoding="async">` : SILUETA}</span>`;
 };
+const filaAnterior = (p) => `<button type="button" class="anterior${p.titulo ? ' titulo' : ''}" data-evento="${esc(p.evento)}" data-fecha="${esc(p.fecha)}"
+    data-a="${esc(p.a)}" data-b="${esc(p.b)}" data-clave="${esc(p.fecha + '|' + p.a + '|' + p.b)}"
+    aria-label="Repetir ${esc(p.a)} contra ${esc(p.b)}, ${esc(p.evento)}, ${esc(fechaLarga(p.fecha))}">
+  <span class="ant-cab"><span class="ant-fecha">${esc(fechaLarga(p.fecha))}</span><span class="ant-evento">${esc(p.evento)}</span>${
+    p.titulo ? '<span class="ant-titulo">Por el título</span>' : p.estelar ? '<span class="ant-estelar">Estelar</span>' : ''}</span>
+  <span class="ant-duelo">
+    ${retratoMini(p.a, 'a')}
+    <b class="ant-n" data-lado="a">${esc(p.a)}</b>
+    <span class="ant-vs" aria-hidden="true"><span class="ant-vs-txt">vs</span><span class="ant-ir">${ico('repetir')}<span class="ant-ir-txt">Repetir</span></span></span>
+    <b class="ant-n" data-lado="b">${esc(p.b)}</b>
+    ${retratoMini(p.b, 'b')}
+  </span>
+</button>`;
+// Las fotos se piden solo al acercarse a la pantalla: el servidor las baja de a
+// una, y una lista larga las pediría todas juntas.
+let observadorFotos;
+function fotosAlVerse(raiz) {
+  if (!('IntersectionObserver' in window)) { cargarFotos(raiz); return; }
+  observadorFotos ??= new IntersectionObserver(entradas => entradas.forEach(e => {
+    if (!e.isIntersecting) return;
+    observadorFotos.unobserve(e.target);
+    cargarFotos(e.target);
+  }), { rootMargin: '200px 0px' });
+  raiz.querySelectorAll('.anterior').forEach(fila => observadorFotos.observe(fila));
+}
+async function listarAnteriores({ forzar = false } = {}) {
+  const div = $('#lista-anteriores');
+  if (ANT.cargadas && !forzar) return;
+  ANT.cargadas = true;
+  const pedido = ++ANT.pedido;
+  if (!div.querySelector('.anterior:not(.esqueleto)'))
+    div.innerHTML = `<div class="anterior esqueleto" aria-hidden="true"><span class="ant-cab"></span><span class="ant-duelo"></span></div>`.repeat(2)
+      + '<p class="sr">buscando peleas en la base…</p>';
+  else div.setAttribute('aria-busy', 'true');
+  try {
+    const r = await api(`/api/anteriores?q=${encodeURIComponent(ANT.q)}&limite=${ANT.limite}`);
+    if (pedido !== ANT.pedido) return;          // ya hay una búsqueda más nueva
+    $('#anteriores-rango').textContent = r.hasta ? `base hasta el ${fechaLarga(r.hasta)}` : '';
+    ANT.hayMas = r.peleas.length < r.total && ANT.limite < 240;
+    if (!r.peleas.length) {
+      div.innerHTML = `<p class="lista-vacia">${ANT.q
+        ? `Ninguna pelea de la base coincide con «${esc(ANT.q)}». Prueba con el apellido, o con el número del evento.`
+        : 'La base local todavía no tiene peleas. Corre "Resultados de UFCStats" en Mantenimiento.'}</p>`;
+      return;
+    }
+    const antes = new Set($$('#lista-anteriores .anterior').map(b => b.dataset.clave));
+    div.innerHTML = r.peleas.map(filaAnterior).join('') + `<p class="anteriores-fin">${
+      ANT.hayMas ? 'Cargando más peleas…' : ANT.q ? `${r.total} pelea${r.total === 1 ? '' : 's'} en la base`
+      : `La base empieza en ${r.desde?.slice(0, 4) || '2013'}`}</p>`;
+    fotosAlVerse(div);
+    seguirFinAnteriores(div);
+    // Las filas nuevas entran como lista, con los retratos llegando desde su
+    // esquina; las que ya estaban, quietas.
+    entrarFilas($$('#lista-anteriores .anterior').filter(f => !antes.has(f.dataset.clave)),
+      { paso: 40, retratos: true });
+    div.querySelectorAll('.anterior').forEach(b => b.onclick = () => repetirAnterior(b));
+  } catch (e) {
+    if (pedido !== ANT.pedido) return;
+    div.innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span><div>${esc(e.message)}</div></div>`;
+    ANT.cargadas = false;                         // que se pueda reintentar
+  } finally {
+    if (pedido === ANT.pedido) div.removeAttribute('aria-busy');
+  }
+}
+// La lista se completa sola al llegar al final de su propio scroll, y el
+// difuminado de abajo solo está mientras queda lista por ver.
+let observadorFinAnteriores;
+function seguirFinAnteriores(div) {
+  observadorFinAnteriores?.disconnect();
+  const fin = div.querySelector('.anteriores-fin');
+  marcarHayMas();
+  if (!fin || !ANT.hayMas || !('IntersectionObserver' in window)) return;
+  observadorFinAnteriores = new IntersectionObserver(entradas => {
+    if (entradas.some(e => e.isIntersecting)) cargarMasAnteriores();
+  }, { root: div, rootMargin: '0px 0px 120px 0px' });
+  observadorFinAnteriores.observe(fin);
+}
+function cargarMasAnteriores() {
+  if (!ANT.hayMas || $('#lista-anteriores').hasAttribute('aria-busy')) return;
+  observadorFinAnteriores?.disconnect();
+  ANT.hayMas = false;                 // una sola petición por llegada al final
+  ANT.limite = Math.min(240, ANT.limite + 16);
+  listarAnteriores({ forzar: true });
+}
+// También por el scroll mismo: el observador no corre si la pestaña está en
+// segundo plano, y una lista que no crece parece rota.
+function marcarHayMas() {
+  const div = $('#lista-anteriores');
+  const falta = div.scrollHeight - div.scrollTop - div.clientHeight;
+  div.classList.toggle('hay-mas', falta > 8);
+  if (falta < 160) cargarMasAnteriores();
+}
+$('#lista-anteriores').addEventListener('scroll', marcarHayMas, { passive: true });
+
+async function repetirAnterior(b) {
+  if (b.classList.contains('cargando')) return;
+  b.classList.add('cargando');
+  b.querySelector('.ant-ir-txt').textContent = 'Preparando…';
+  try {
+    await post('/api/cartelera/anterior', { evento: b.dataset.evento, fecha: b.dataset.fecha });
+    S.abrirPelea = [b.dataset.a, b.dataset.b];
+    irA('cartelera'); await tick();
+  } catch (e) { barra(e.message, 'error'); }
+  finally {
+    b.classList.remove('cargando');
+    b.querySelector('.ant-ir-txt').textContent = 'Repetir';
+  }
+}
+let esperaBusqueda;
+$('#buscar-anterior').addEventListener('input', (e) => {
+  clearTimeout(esperaBusqueda);
+  esperaBusqueda = setTimeout(() => {
+    ANT.q = e.target.value.trim(); ANT.limite = 16;
+    $('#lista-anteriores').scrollTop = 0;
+    listarAnteriores({ forzar: true });
+  }, 260);
+});
 
 async function listarCarteleras(forzar) {
   const div = $('#lista-carteleras');
   if (carterasCargadas && !forzar) return;
   carterasCargadas = true;
+  $('#btn-listar').classList.add('girando');
+  $('.caja-betano').classList.add('consultando');
   // Mientras Betano responde, dos filas con la forma de las de verdad.
   div.innerHTML = `<div class="cart esqueleto" aria-hidden="true"><span></span><span></span></div>
     <div class="cart esqueleto" aria-hidden="true"><span></span><span></span></div>
     <p class="sr">consultando Betano…</p>`;
   try {
     const r = await api('/api/betano/carteleras');
+    // El modelo solo conoce UFC: las carteleras de otras ligas se dejan fuera,
+    // y se dice cuántas para que no parezca que Betano no las tiene.
+    const ocultas = r.ocultas ? `<p class="cart-ocultas">${ico('info')}Se ocultaron ${r.ocultas}
+      cartelera${r.ocultas === 1 ? '' : 's'} de otras ligas: el modelo solo conoce peleadores de UFC.</p>` : '';
     if (!r.carteleras.length) {
-      div.innerHTML = '<p class="lista-vacia">Betano no está listando carteleras de MMA ahora mismo.</p>';
+      div.innerHTML = '<p class="lista-vacia">Betano no está listando carteleras de UFC ahora mismo.</p>' + ocultas;
       return;
     }
     div.innerHTML = r.carteleras.map(c => {
@@ -1273,31 +2223,36 @@ async function listarCarteleras(forzar) {
       // Avisarlo evita la sorpresa de bajar una cartelera "vacía".
       const parcial = c.peleas && c.peleas <= 4
         ? `<span class="cart-parcial">${ico('alerta')}solo ${c.peleas} peleas montadas todavía</span>` : '';
-      return `<button class="cart ${d === 0 ? 'hoy' : ''}" data-q="${esc(c.query || c.name)}"
+      return `<button class="cart ${d === 0 ? 'hoy' : ''} ${c.titulo ? 'titulo' : ''}" data-q="${esc(c.query || c.name)}"
                       data-fecha="${esc(c.fecha || '')}">
         <span class="cart-cuando">${esc(cuando)}</span>
         <span class="cart-cuerpo">
           <b>${esc(c.estelar || c.name)}</b>
           <span class="cart-meta">${esc(c.name)}${c.peleas ? ` · ${c.peleas} peleas` : ''}${
             c.fecha ? ` · ${esc(fechaCorta(c.fecha))}` : ''}</span>
-          ${parcial}
+          ${c.titulo ? '<span class="cart-titulo">Por el título</span>' : ''}${parcial}
         </span>
-        <span class="cart-ir">Predecir${ico('ir')}</span>
+        <span class="cart-ir"><span class="cart-ir-txt">Predecir</span>${ico('ir')}</span>
       </button>`;
-    }).join('');
+    }).join('') + ocultas;
+    entrarFilas($$('#lista-carteleras .cart, #lista-carteleras .cart-ocultas'), { paso: 45 });
+    // El rótulo de cuándo se descubre de izquierda a derecha, como el zócalo.
+    if (!reducir()) $$('#lista-carteleras .cart-cuando').forEach((c, i) =>
+      c.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
+        { duration: 360, delay: 120 + Math.min(i, 8) * 45, easing: EASE_OUT, fill: 'backwards' }));
 
-    div.querySelectorAll('.cart').forEach(b => b.onclick = async () => {
-      try {
-        await post('/api/cartelera/betano',
-                   { query: b.dataset.q, fecha: b.dataset.fecha || null });
-        irA('cartelera');
-        await tick();
-      } catch (e) { barra(e.message, 'error'); }
-    });
+    div.querySelectorAll('.cart').forEach(b => b.onclick = () => conCarga(b, b.querySelector('.cart-ir-txt'), async () => {
+      await post('/api/cartelera/betano', { query: b.dataset.q, fecha: b.dataset.fecha || null });
+      irA('cartelera');
+      await tick();
+    }));
   } catch (e) {
     div.innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span>
       <div>${esc(e.message)}</div></div>`;
     carterasCargadas = false;   // que se pueda reintentar
+  } finally {
+    $('#btn-listar').classList.remove('girando');
+    $('.caja-betano').classList.remove('consultando');
   }
 }
 
@@ -1330,22 +2285,39 @@ $('#btn-subir').onclick = async () => {
   } catch (e) { barra(e.message,'error'); }
 };
 
+let CSVS_MOSTRADOS = false;
 async function cargarCSVs() {
   try {
     const r = await api('/api/cards');
+    // Una cartelera con fecha ya pasada se puede repetir con los datos de ese
+    // día. Las que arma "Peleas anteriores" solo se repiten: analizarlas con
+    // los datos de hoy sería mirar el resultado.
+    const hoy = hoyISO();
     $('#lista-csvs').innerHTML = r.cards.length
-      ? r.cards.slice(0,12).map(c => `<div class="guardado">
+      ? r.cards.slice(0,12).map(c => {
+          const dia = c.nombre.match(/(\d{4}-\d{2}-\d{2})/)?.[1];
+          const pasada = dia && dia < hoy;
+          const historica = /^historico_/i.test(c.nombre);
+          return `<div class="guardado">
           ${ico('csv')}
           <div class="guardado-que"><b>${esc(c.nombre)}</b>
             <span class="sub">${new Date(c.modificado*1000).toLocaleString('es-CL',
               { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span></div>
-          <button class="secundario" data-n="${esc(c.nombre)}">Analizar</button></div>`).join('')
+          <div class="guardado-acciones">
+            ${historica && pasada ? '' : `<button class="secundario" data-n="${esc(c.nombre)}">Analizar</button>`}
+            ${pasada ? `<button class="secundario repetir" data-n="${esc(c.nombre)}" data-corte="${dia}"
+              title="Predecirla con los datos que había antes del ${esc(fechaLarga(dia))}">${ico('repetir')}Repetir</button>` : ''}
+          </div></div>`;
+        }).join('')
       : '<p class="lista-vacia">Todavía no hay ninguna cartelera guardada.</p>';
-    $$('#lista-csvs button').forEach(b => b.onclick = async () => {
-      try { await post('/api/cartelera/csv', { nombre:b.dataset.n });
-            irA('cartelera'); await tick(); }
-      catch (e) { barra(e.message,'error'); }
-    });
+    // Entran como lista una sola vez; al volver a la pestaña ya están.
+    if (!CSVS_MOSTRADOS) { CSVS_MOSTRADOS = true; entrarFilas($$('#lista-csvs .guardado'), { paso: 30, max: 10 }); }
+    $$('#lista-csvs button').forEach(b => b.onclick = () => conCarga(b.closest('.guardado'), null, async () => {
+      b.textContent = 'Preparando…';
+      await post('/api/cartelera/csv', { nombre:b.dataset.n, corte:b.dataset.corte || null });
+      S.abrirPelea = null;
+      irA('cartelera'); await tick();
+    }).finally(() => cargarCSVs()));
   } catch (e) { $('#lista-csvs').innerHTML = `<div class="aviso err"><span class="ai">${ico('alerta')}</span>
     <div>${esc(e.message)}</div></div>`; }
 }
@@ -1522,3 +2494,4 @@ addEventListener('resize', medirCabecera);
 /* ============================== ARRANQUE ============================== */
 tick();
 reloj();
+cargarInicio();

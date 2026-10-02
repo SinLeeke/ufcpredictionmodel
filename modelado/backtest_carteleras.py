@@ -51,55 +51,17 @@ warnings.filterwarnings("ignore")
 import pickle
 
 import config as C
-from src.card import elo_de_tabla
-from src.control_stats import enriquecer, MIN_PELEAS_FIABLE
+from src import corte
+from src.control_stats import MIN_PELEAS_FIABLE
 from src.features import columnas_disponibles, probabilidad_ganador
-from src.kaggle_ingest import tabla_elo
 from src import oposicion
 from src import reemplazos
 from src.model import load_models
-from src.ufcstats_ingest import _acumulado, _emparejar, cargar, _cargar_bio, features_pelea
+from src.ufcstats_ingest import features_pelea
 
-_HIST = None
-_BIO = None
-
-
-def _historial():
-    global _HIST, _BIO
-    if _HIST is None:
-        _HIST = _emparejar(cargar()).sort_values("date")
-        _BIO = _cargar_bio()
-    return _HIST
-
-
-def stats_a_fecha(nombre: str, fecha: pd.Timestamp) -> dict | None:
-    """Stats del peleador usando SOLO sus peleas anteriores a 'fecha'."""
-    h = _historial()
-    sub = h[(h["fighter"] == nombre) & (h["date"] < fecha)]
-    if sub.empty:
-        return None
-    d = _acumulado(sub)
-    d["name"] = nombre
-    d["days_since_last_fight"] = float((fecha - sub["date"].max()).days)
-
-    bio = _BIO.get(nombre.lower())
-    if bio:
-        d["height_cm"], d["reach_cm"] = bio["height_cm"], bio["reach_cm"]
-        d["stance"] = bio["stance"]
-        if pd.notna(bio["dob"]):
-            d["age"] = round((fecha - bio["dob"]).days / 365.25, 1)
-
-    d = enriquecer(d, fecha)         # control también recortado a la fecha
-    # Con pocas peleas en UFC, completar con la carrera completa (Sherdog),
-    # recortada TAMBIÉN a la fecha del evento para no mirar el futuro.
-    n_ufc = d.get("n_peleas_hist")
-    if n_ufc is not None and int(n_ufc) < 3:
-        try:
-            from src import sherdog
-            d = sherdog.completar(d, hasta=fecha)
-        except Exception:
-            pass
-    return d
+# La reconstrucción a la fecha vive en src/corte.py: la usa también la
+# "repetición" de la UI, y dos copias terminan midiendo cosas distintas.
+stats_a_fecha = corte.stats_a_fecha
 
 
 def _cuotas_lookup() -> dict:
@@ -126,24 +88,7 @@ def _cuotas_lookup() -> dict:
     return out
 
 
-_ELO_POR_FECHA: dict = {}
-
-
-def _elo_a_fecha(nombre: str, fecha: pd.Timestamp) -> float:
-    """
-    ELO del peleador ANTES del evento: solo cuentan las peleas anteriores a
-    `fecha` (ver la fuga 2 en el docstring del módulo). Se elige la fila con la
-    misma regla que usa card.py al predecir.
-    """
-    if fecha not in _ELO_POR_FECHA:
-        if (C.DATA_RAW / "kaggle_ufc.csv").exists():
-            _ELO_POR_FECHA[fecha] = tabla_elo(hasta=fecha)
-        elif C.ELO_TABLE.exists():
-            _ELO_POR_FECHA[fecha] = pd.read_csv(C.ELO_TABLE)
-        else:
-            _ELO_POR_FECHA[fecha] = pd.DataFrame(columns=["weight_class", "fighter", "elo"])
-    elo = elo_de_tabla(_ELO_POR_FECHA[fecha], nombre, oposicion.ultima_division(nombre, fecha))
-    return elo if elo is not None else C.ELO_BASE
+_elo_a_fecha = corte.elo_a_fecha
 
 
 def _orientar(r, rojo: str | None) -> tuple[str, str]:

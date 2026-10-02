@@ -47,6 +47,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src.fighter_names import canonical_key
 
 _SESSION = requests.Session()
 _SESSION.headers.update({**C.HEADERS, "Accept-Language": "es-CL,es;q=0.9"})
@@ -55,7 +56,10 @@ COLUMNS = ["fighter_a", "fighter_b", "segment", "odds_a", "odds_b",
            "odds_a_ko", "odds_a_sub", "odds_a_dec",
            "odds_b_ko", "odds_b_sub", "odds_b_dec",
            # Solo del 5-way: "gana por finalización" (KO+TKO+DQ+sumisión juntos).
-           "odds_a_fin", "odds_b_fin"]
+           "odds_a_fin", "odds_b_fin",
+           # Metadata verificada aparte de las cuotas. Betano no informa el
+           # cinturón; se conserva solo para la misma pareja y fecha UTC.
+           "es_titulo", "titulo_fuente", "titulo_automatico", "fecha_evento_utc"]
 
 
 # --------------------------------------------------------------------------- #
@@ -320,6 +324,56 @@ def _por_fecha(fights: list[dict]) -> dict:
     return dict(sorted(out.items()))
 
 
+def _conservar_titulos(df: pd.DataFrame, destino: Path) -> None:
+    """Retiene metadata explícita del mismo evento al actualizar sus cuotas.
+
+    La fecha UTC evita perder el dato cuando UFC anuncia sábado por la noche y
+    Betano identifica el combate como domingo. Nunca se arrastra a una revancha
+    ni se busca otra pelea por apellido, fama o parecido.
+    """
+    if not destino.exists():
+        return
+    try:
+        anterior = pd.read_csv(destino)
+    except (OSError, ValueError):
+        return
+    if not {"fighter_a", "fighter_b", "fecha_evento_utc"}.issubset(anterior.columns):
+        return
+    from src.card import bandera_titulo
+    # Al construir filas sin estos datos pandas crea columnas float con NaN;
+    # declarar object permite guardar booleanos/URL sin coerciones a números.
+    for campo in ("es_titulo", "titulo_fuente", "titulo_automatico"):
+        df[campo] = df[campo].astype(object) if campo in df.columns else None
+
+    def clave(fila):
+        fecha = fila.get("fecha_evento_utc")
+        if not isinstance(fecha, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha):
+            return None
+        pareja = tuple(sorted((canonical_key(fila["fighter_a"]), canonical_key(fila["fighter_b"]))))
+        return fecha, pareja
+
+    previas = {}
+    for _, fila in anterior.iterrows():
+        llave = clave(fila)
+        if llave:
+            previas.setdefault(llave, []).append(fila)
+    for indice, fila in df.iterrows():
+        # Una bandera explícita de la entrada actual siempre manda.
+        if bandera_titulo(fila) is not None:
+            continue
+        candidatas = previas.get(clave(fila), [])
+        if len(candidatas) != 1:
+            continue
+        previa = candidatas[0]
+        titulo = bandera_titulo(previa)
+        if titulo is None:
+            continue
+        df.at[indice, "es_titulo"] = titulo
+        fuente = previa.get("titulo_fuente")
+        df.at[indice, "titulo_fuente"] = str(fuente).strip() if pd.notna(fuente) else "CSV"
+        df.at[indice, "titulo_automatico"] = bandera_titulo({"es_titulo": previa.get("titulo_automatico")}) is True
+
+
 def scrape_card(query: str, out_path: Optional[str] = None,
                 fecha: Optional[str] = None,
                 progreso: Callable[[dict], None] | None = None) -> Path:
@@ -370,7 +424,11 @@ def scrape_card(query: str, out_path: Optional[str] = None,
     for indice, fight in enumerate(fights):
         pelea = f"{fight['fighter_a']} vs {fight['fighter_b']}"
         avisar("cuotas", f"Cuotas {indice + 1}/{total}: {pelea}…", indice, total)
-        rows.append(get_fight_odds(fight))
+        fila = get_fight_odds(fight)
+        import datetime as _dt
+        fila["fecha_evento_utc"] = _dt.datetime.fromtimestamp(
+            fight["start_ms"] / 1000, tz=_dt.timezone.utc).date().isoformat()
+        rows.append(fila)
         avisar("cuotas", f"Cuotas {indice + 1}/{total} consultadas: {pelea}.", indice + 1, total)
     df = pd.DataFrame(rows, columns=COLUMNS)
 
@@ -388,6 +446,10 @@ def scrape_card(query: str, out_path: Optional[str] = None,
         if not out_path.is_absolute():
             out_path = C.ROOT / out_path
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    _conservar_titulos(df, out_path)
+    from src.card import completar_titulos
+    avisar("preparando", "Consultando la confirmación de títulos en UFC…")
+    completar_titulos(df, out_path)
     avisar("guardando", "Guardando el archivo de cuotas de Betano…")
     df.to_csv(out_path, index=False)
     avisar("guardando", "Archivo de cuotas guardado.")

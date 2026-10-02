@@ -73,6 +73,96 @@ COL_METODO = ["odds_a_ko", "odds_a_sub", "odds_a_dec",
 COL_METODO5 = ["odds_a_fin", "odds_a_dec", "odds_b_fin", "odds_b_dec"]
 
 
+def bandera_titulo(pelea) -> bool | None:
+    """Solo una columna explícita confirma el título; vacío significa desconocido.
+
+    Una estelar de cinco rounds también puede ser sin cinturón. Ni el segmento,
+    la duración ni el nombre de los peleadores permiten inferir este dato.
+    """
+    valores = set()
+    for campo in ("es_titulo", "title_bout"):
+        dato = pelea.get(campo)
+        if dato is None or pd.isna(dato):
+            continue
+        normal = str(dato).strip().lower()
+        if normal in ("true", "1", "1.0", "yes", "si", "sí"):
+            valores.add(True)
+        elif normal in ("false", "0", "0.0", "no"):
+            valores.add(False)
+    # Dos columnas contradictorias tampoco confirman un título.
+    return next(iter(valores)) if len(valores) == 1 else None
+
+
+def _resolver_titulos_oficiales(filas: list[dict], fecha_evento: str | None = None) -> list[dict]:
+    from src.title_bouts import resolver_cartelera
+    return resolver_cartelera(filas, fecha_evento=fecha_evento)
+
+
+def completar_titulos(cartelera: pd.DataFrame, csv_path: str | Path | None = None) -> None:
+    """Confirma títulos en un lote, respetando las anotaciones manuales del CSV.
+
+    Una URL de UFC también puede documentar una anotación manual: únicamente
+    titulo_automatico=True identifica los datos que pueden volver a resolverse.
+    Sin confirmación oficial una fila automática queda desconocida, evitando
+    conservar un cinturón que haya cambiado o un combate cancelado.
+    """
+    if cartelera.empty:
+        return
+    for campo, defecto in (("es_titulo", None), ("titulo_fuente", ""), ("titulo_automatico", False)):
+        cartelera[campo] = cartelera[campo].astype(object) if campo in cartelera.columns else defecto
+    if "title_bout" in cartelera.columns:
+        cartelera["title_bout"] = cartelera["title_bout"].astype(object)
+
+    filas, indices = [], []
+    for indice, fila in cartelera.iterrows():
+        titulo = bandera_titulo(fila)
+        automatico = bandera_titulo({"es_titulo": fila.get("titulo_automatico")}) is True
+        directo = bandera_titulo({"es_titulo": fila.get("es_titulo")})
+        alias = bandera_titulo({"es_titulo": fila.get("title_bout")})
+        if not automatico and directo is not None and alias is not None and directo != alias:
+            # Una contradicción manual no se transforma en una confirmación
+            # automática: mantiene ambos datos originales y queda sin título.
+            cartelera.at[indice, "titulo_fuente"] = ""
+            cartelera.at[indice, "titulo_automatico"] = False
+            continue
+        if titulo is not None and not automatico:
+            cartelera.at[indice, "es_titulo"] = titulo
+            fuente = fila.get("titulo_fuente")
+            cartelera.at[indice, "titulo_fuente"] = (str(fuente).strip() if pd.notna(fuente) else "") or "CSV"
+            cartelera.at[indice, "titulo_automatico"] = False
+            continue
+        filas.append(fila.to_dict())
+        indices.append(indice)
+    if not filas:
+        return
+
+    fecha = None
+    if csv_path is not None:
+        coincidencia = re.fullmatch(r"(?:betano|historico)_(\d{4}-\d{2}-\d{2})_.+", Path(csv_path).stem)
+        if coincidencia:
+            candidato = pd.to_datetime(coincidencia.group(1), format="%Y-%m-%d", errors="coerce")
+            if pd.notna(candidato):
+                fecha = candidato.strftime("%Y-%m-%d")
+    try:
+        resultados = _resolver_titulos_oficiales(filas, fecha_evento=fecha)
+    except (ImportError, OSError, ValueError):
+        resultados = []
+    if not isinstance(resultados, list) or len(resultados) != len(filas):
+        resultados = [{} for _ in filas]
+    for indice, resultado in zip(indices, resultados):
+        resultado = resultado if isinstance(resultado, dict) else {}
+        titulo = resultado.get("es_titulo")
+        titulo = titulo if isinstance(titulo, bool) else None
+        fuente = resultado.get("titulo_fuente")
+        cartelera.at[indice, "es_titulo"] = titulo
+        if "title_bout" in cartelera.columns:
+            # Este alias previo también debe revocarse cuando cambia o falta
+            # la confirmación automática, para que no reintroduzca el título.
+            cartelera.at[indice, "title_bout"] = None
+        cartelera.at[indice, "titulo_fuente"] = str(fuente).strip() if titulo is not None and fuente else ""
+        cartelera.at[indice, "titulo_automatico"] = True
+
+
 # --------------------------------------------------------------------------- #
 # Fuentes de datos por peleador
 # --------------------------------------------------------------------------- #
@@ -136,7 +226,7 @@ def get_stats(name: str) -> tuple[dict | None, str]:
     return None, "NO_ENCONTRADO"
 
 
-def _corto_aviso(fight: pd.Series, columna: str, nombre: str) -> int:
+def _corto_aviso(fight: pd.Series, columna: str, nombre: str, fecha=None) -> int:
     """
     1 si el peleador entró de reemplazo. Lo que diga el CSV manda; una celda
     VACÍA es "no lo sé", igual que si la columna no existiera, así que se cae al
@@ -150,6 +240,10 @@ def _corto_aviso(fight: pd.Series, columna: str, nombre: str) -> int:
     valor = pd.to_numeric(fight.get(columna), errors="coerce")
     if pd.notna(valor):
         return int(valor != 0)
+    # En una repetición se conoce la fecha del evento: basta ±1 día (husos
+    # horarios), como al entrenar. Sin fecha, las semanas alrededor de hoy.
+    if fecha is not None:
+        return reemplazos.flag(nombre, fecha, dias=1)
     return reemplazos.flag(nombre, pd.Timestamp.now(), dias=21)
 
 
@@ -372,10 +466,10 @@ def _tendencia_metodo(r: dict) -> str:
     return f"{corto} x{lift:.1f} vs base"
 
 
-_FORMA_CACHE: dict[str, str] = {}
+_FORMA_CACHE: dict[tuple, str] = {}
 
 
-def _forma(nombre: str, n: int = 3) -> str:
+def _forma(nombre: str, n: int = 3, hasta=None) -> str:
     """
     De qué viene el peleador: sus últimos `n` resultados, del más reciente al
     más viejo, como 'V(TKO) V(Dec) D(Sub)'.
@@ -384,10 +478,11 @@ def _forma(nombre: str, n: int = 3) -> str:
     Sale del mismo historial que usa oposicion.py, así que respeta el corte
     temporal (solo peleas anteriores a hoy).
     """
-    if nombre in _FORMA_CACHE:
-        return _FORMA_CACHE[nombre]
+    clave = (nombre, None if hasta is None else pd.Timestamp(hasta))
+    if clave in _FORMA_CACHE:
+        return _FORMA_CACHE[clave]
     CORTO = {"KO/TKO": "TKO", "Submission": "Sub", "Decision": "Dec"}
-    r = oposicion.resumen(nombre, pd.Timestamp.now(), n=n)
+    r = oposicion.resumen(nombre, pd.Timestamp.now() if hasta is None else hasta, n=n)
     if not r["n"]:
         out = "sin historial"
     else:
@@ -396,7 +491,7 @@ def _forma(nombre: str, n: int = 3) -> str:
             f"({CORTO.get(p['metodo'], p['metodo'][:3])})"
             for p in r["peleas"][:n]
         )
-    _FORMA_CACHE[nombre] = out
+    _FORMA_CACHE[clave] = out
     return out
 
 
@@ -408,7 +503,7 @@ def _cabecera(titulo: str, sub: str = "") -> None:
     print("=" * 104)
 
 
-def _tabla_modelo(rows: list[dict], valores: list) -> None:
+def _tabla_modelo(rows: list[dict], valores: list, hasta=None) -> None:
     """Tabla 1: SOLO el modelo, sin cuotas y SIN el dato de corto aviso."""
     _cabecera("1. MODELO SOLO  (sin cuotas y sin corto aviso)",
               "Lo que el bot saca de los stats. Acierta ~65% por su cuenta.")
@@ -420,7 +515,7 @@ def _tabla_modelo(rows: list[dict], valores: list) -> None:
         pick = r["A"] if p_a >= 0.5 else r["B"]
         alerta = "  <-- " + r["aviso"] if r.get("aviso") else ""
         print(f"  {vs:26}{pick[:21]:22}{max(p_a, 1-p_a)*100:>4.0f}%   "
-              f"{_forma(r['A']):<22} {_forma(r['B']):<22}{alerta}")
+              f"{_forma(r['A'], hasta=hasta):<22} {_forma(r['B'], hasta=hasta):<22}{alerta}")
 
 
 def _tabla_corto(rows: list[dict]) -> None:
@@ -644,7 +739,8 @@ def _imprimir_consenso(consenso: list[dict], con_cuotas: bool,
 # --------------------------------------------------------------------------- #
 def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
                  detalle: bool = False, devolver_todo: bool = False,
-                 progreso: Callable[[dict], None] | None = None):
+                 progreso: Callable[[dict], None] | None = None,
+                 corte=None):
     """
     Predice una cartelera completa. Si reports=True, además de la tabla CSV
     genera un reporte visual (donut + barras) por pelea en outputs/ (Plotly vía
@@ -660,6 +756,11 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
 
     progreso recibe avances de etapa/pelea, antes de cada consulta de ficha y
     después de cada pelea (también las omitidas). No cambia la salida del CLI.
+
+    corte='AAAA-MM-DD' es la REPETICIÓN de una cartelera que ya pasó: fichas,
+    ELO, oposición y modelos con SOLO lo anterior a esa fecha (src/corte.py), y
+    al final el resultado real de cada pelea, que se lee después de predecir y
+    no entra a ningún cálculo. Sin corte, nada de esto cambia.
     """
     def avisar(etapa, detalle, completadas=0, total=None):
         if progreso is not None:
@@ -668,11 +769,46 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
 
     avisar("preparando", "Leyendo la cartelera y cargando los modelos…")
     card = pd.read_csv(card_csv)
-    model, method_model = _load_models()
+    avisar("preparando", "Consultando la confirmación de títulos en UFC…")
+    completar_titulos(card, card_csv)
+    avisar("preparando", "Cargando los modelos de predicción…")
+    from src import value
+    repeticion = None
+    if corte is None:
+        model, method_model = _load_models()
+        # El clasificador lado × método sirve también para los gráficos de la
+        # UI, aunque esta cartelera no incluya cuotas de método. Usa la misma
+        # predicción simetrizada del análisis de valor; no se deriva
+        # multiplicando ganador y método, porque no son independientes.
+        method6_model, method6_cols = value.cargar_modelo_metodo() if devolver_todo else (None, None)
+        fecha_corte = pd.Timestamp.now()
+    else:
+        from src import corte as CT
+        pedida = CT.a_fecha(corte)
+        fecha_corte = CT.corte_efectivo(list(zip(card["fighter_a"], card["fighter_b"])), pedida)
+        avisar("preparando", f"Repetición: preparando un modelo que no vio nada desde el "
+                             f"{fecha_corte:%d-%m-%Y}…")
+        modelos = CT.modelos_a_fecha(fecha_corte, avisar=lambda txt: avisar("preparando", txt))
+        model, method_model = modelos["ganador"], modelos["metodo"]
+        method6_model, method6_cols = modelos["metodo6"] or (None, None)
+        hasta = CT.base_hasta()
+        repeticion = {"pedida": pedida.strftime("%Y-%m-%d"),
+                      "fecha": fecha_corte.strftime("%Y-%m-%d"),
+                      "ajustada": bool(fecha_corte != pedida),
+                      "modelo": modelos["origen"],
+                      "modelo_hasta": modelos["entrenado_hasta"],
+                      "modelo_peleas": modelos["peleas"],
+                      "base_hasta": hasta.strftime("%Y-%m-%d") if hasta is not None else None}
+        print(f"Repetición al {fecha_corte:%Y-%m-%d}: modelo {modelos['origen']} "
+              f"(entrenado hasta {modelos['entrenado_hasta']})")
     src_lbl = "XGBoost entrenado" if model is not None else "heurístico (corre 'python -m src.model' para usar el modelo)"
     print(f"\nCartelera: {Path(card_csv).name}")
     print(f"Probabilidad de ganador: {src_lbl}")
     event = _slug(Path(card_csv).stem)
+    if repeticion is not None:
+        # Los reportes de la repetición no pisan los de la carga normal.
+        event = f"{event}_corte_{repeticion['fecha']}"
+    modelo6 = (method6_model, method6_cols) if method6_model is not None else None
 
     # ¿El CSV trae cuotas? Si sí, se activa el análisis de valor.
     con_cuotas = {"odds_a", "odds_b"}.issubset(card.columns)
@@ -701,12 +837,17 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     for indice, (_, fight) in enumerate(card.iterrows()):
         na, nb = fight["fighter_a"], fight["fighter_b"]
         seg = fight.get("segment", "")
+        es_titulo = bandera_titulo(fight)
+        fuente_titulo = fight.get("titulo_fuente")
+        fuente_titulo = str(fuente_titulo).strip() if pd.notna(fuente_titulo) else ""
+        fuente_titulo = (fuente_titulo or "CSV") if es_titulo is not None else ""
+        titulo_automatico = bandera_titulo({"es_titulo": fight.get("titulo_automatico")}) is True
         avisar("prediccion", f"Pelea {indice + 1}/{total}: consultando la ficha de {na}…",
                indice, total)
-        a, sa = get_stats(na)
+        a, sa = get_stats(na) if repeticion is None else CT.ficha_a_fecha(na, fecha_corte)
         avisar("prediccion", f"Pelea {indice + 1}/{total}: consultando la ficha de {nb}…",
                indice, total)
-        b, sb = get_stats(nb)
+        b, sb = get_stats(nb) if repeticion is None else CT.ficha_a_fecha(nb, fecha_corte)
         if a is None or b is None:
             missing += [n for n, s in [(na, sa), (nb, sb)] if s == "NO_ENCONTRADO"]
             print(f"[skip] {na} vs {nb}: falta data ({sa}/{sb})")
@@ -720,19 +861,25 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         opciones5 = None
         # features con el MISMO cálculo que el entrenamiento (incluye grappling)
         from src.ufcstats_ingest import features_pelea
-        feat = features_pelea(a, b, _elo(a), _elo(b))
+        if repeticion is None:
+            feat = features_pelea(a, b, _elo(a), _elo(b))
+        else:
+            feat = features_pelea(a, b, CT.elo_a_fecha(a["name"], fecha_corte),
+                                  CT.elo_a_fecha(b["name"], fecha_corte))
         # Calidad de la oposición reciente. Se usan los nombres DEL CSV (no los
         # canónicos de la ficha) porque oposicion normaliza igual que UFCStats,
-        # y la fecha de HOY: "sus últimas 5 peleas hasta ahora".
-        feat.update(oposicion.features(a["name"], b["name"], pd.Timestamp.now()))
+        # y la fecha de HOY: "sus últimas 5 peleas hasta ahora" (en una
+        # repetición, la del corte: las 5 anteriores al evento).
+        feat.update(oposicion.features(a["name"], b["name"], fecha_corte))
         # CORTO AVISO. Prioridad: lo que diga el CSV (columnas corto_a/corto_b,
         # que el usuario llena a mano si sabe de un reemplazo de última hora) y
         # si no, el caché de Wikipedia por fecha. El caché sirve para carteleras
         # pasadas; para una futura, Wikipedia puede no estar actualizada todavía.
         # dias=21: el CSV no trae la fecha del evento, así que se busca en las
         # semanas alrededor de hoy (ver reemplazos.flag).
-        ca = _corto_aviso(fight, "corto_a", a["name"])
-        cb = _corto_aviso(fight, "corto_b", b["name"])
+        dia_evento = fecha_corte if repeticion is not None else None
+        ca = _corto_aviso(fight, "corto_a", a["name"], dia_evento)
+        cb = _corto_aviso(fight, "corto_b", b["name"], dia_evento)
         feat["reemplazo_diff"] = ca - cb
         X = pd.DataFrame([feat])
         # El modelo de ganador SÍ usa oposición; el de método NO (ver
@@ -780,6 +927,10 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
             fav, dog = (a, b) if p_a >= 0.5 else (b, a)
             method = _project_method(fav, dog, feat)
         sim = monte_carlo(p_a, method, a["name"], b["name"], n=C.N_SIMULATIONS)
+        p_metodo6 = None
+        if method6_model is not None and all(col in X for col in method6_cols):
+            p6 = value._p6_simetrica(method6_model, X, method6_cols)
+            p_metodo6 = {clase: float(p6[i]) for i, clase in enumerate(value.CLASES_METODO)}
         approx = "~" if (sa == "kaggle" or sb == "kaggle") else ""
 
         # Reporte visual por pelea (donut de victoria + barras de método).
@@ -807,13 +958,17 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         # afirmar que el peleador tiene cero peleas en UFC.
         def _sin_datos(f) -> bool:
             n_hist = _conteo_historial(f)
-            if not f.get("historial_disponible", True) or n_hist is None or n_hist < 3:
+            if confirmed_ufc_debut(f) or not f.get("historial_disponible", True) or n_hist is None or n_hist < 3:
                 return True
+            if f.get("identidad_ambigua"):
+                return True          # dos peleadores con este nombre en la base
             return float(f.get("slpm", 1) or 0) == 0 and float(f.get("reach_cm", 1) or 0) == 0
 
         pocos = [f["name"].split()[-1] for f in (a, b) if _sin_datos(f)]
         fila = {
             "orden_cartelera": indice, "total_cartelera": total,
+            "es_titulo": es_titulo, "titulo_fuente": fuente_titulo,
+            "titulo_automatico": titulo_automatico,
             # p del modelo con el flag neutralizado / con el flag real, y quién
             # entró de reemplazo. Alimentan las tablas 1 y 3 del reporte.
             "p_sin_corto_A": p_sin, "p_con_corto_A": p_con,
@@ -850,9 +1005,12 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
 
             # Mercado de MÉTODO (7 vías). Es el único donde el backtest
             # encontró ventaja real, así que se analiza aparte.
-            if con_metodo:
+            # En una repetición sin modelo de 6 clases propio no se analiza:
+            # value caería en el de models/, que sí vio peleas posteriores.
+            sin_m6 = repeticion is not None and modelo6 is None
+            if con_metodo and not sin_m6:
                 cuotas6 = [fight.get(c) for c in COL_METODO]
-                ops = value.analizar_metodo(X, cuotas6)
+                ops = value.analizar_metodo(X, cuotas6, modelo6=modelo6)
                 if ops and "error" not in ops[0]:
                     metodos.append((a["name"], b["name"], ops))
                     opciones = ops
@@ -862,9 +1020,9 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
             # Mercado de 5 VÍAS. No es una alternativa al de arriba: es lo que
             # Betano ofrece cuando NO separa KO de sumisión. Sin esto, esas
             # peleas se quedaban sin ninguna opción de método.
-            if con_metodo5:
+            if con_metodo5 and not sin_m6:
                 cuotas4 = [fight.get(c) for c in COL_METODO5]
-                ops5 = value.analizar_metodo5(X, cuotas4)
+                ops5 = value.analizar_metodo5(X, cuotas4, modelo6=modelo6)
                 if ops5 and "error" not in ops5[0]:
                     opciones5 = ops5
                 elif ops5:
@@ -875,6 +1033,17 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         # stats de golpeo") en vez de limitarse a mostrar la etiqueta.
         def _info(f, src):
             n_hist = _conteo_historial(f)
+            # UFCStats tiene tasas neutras como respaldo cuando la tabla está
+            # vacía. No mostrarlas como un historial real de victorias.
+            historial_metodos = None
+            if float(f.get("wins", 0) or 0) > 0:
+                tasas = {metodo: pd.to_numeric(f.get(campo), errors="coerce")
+                         for metodo, campo in (("KO/TKO", "win_ko_rate"),
+                                                ("Submission", "win_sub_rate"),
+                                                ("Decision", "win_dec_rate"))}
+                if all(pd.notna(t) and np.isfinite(t) and 0 <= t <= 1 for t in tasas.values()) \
+                        and 0 < sum(tasas.values()) <= 1.001:
+                    historial_metodos = {metodo: float(tasa) for metodo, tasa in tasas.items()}
             return {"n_peleas_hist": n_hist,
                     "historial_disponible": bool(f.get("historial_disponible", n_hist is not None)),
                     "n_peleas_ufc": _conteo_historial({"n_peleas_hist": f.get("n_peleas_ufc")}),
@@ -883,11 +1052,24 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
                     "slpm": float(f.get("slpm", 0) or 0),
                     "wins": int(f.get("wins", 0) or 0),
                     "losses": int(f.get("losses", 0) or 0),
+                    "ultimas_peleas": oposicion.ultimas_peleas(f["name"], fecha_corte),
+                    "metodo_victorias": historial_metodos,
+                    "metodo_victorias_fuente": ("carrera profesional (Sherdog)" if f.get("_sherdog")
+                                                else "victorias registradas en UFCStats" if src == "ufcstats"
+                                                else "victorias en UFC anteriores al corte" if src == "historial"
+                                                else "historial del dataset"),
+                    "identidad_ambigua": bool(f.get("identidad_ambigua")),
                     "sherdog": bool(f.get("_sherdog")), "fuente": src}
 
-        consenso.append({"a": a["name"], "b": b["name"], "sim": sim,
+        # El resultado se lee DESPUÉS de predecir, solo para mostrarlo.
+        resultado = (CT.resultado_real(a["name"], b["name"], fecha_corte, sim.winner)
+                     if repeticion is not None else None)
+        consenso.append({"a": a["name"], "b": b["name"], "sim": sim, "resultado": resultado,
                          "orden_cartelera": indice, "total_cartelera": total,
+                         "es_titulo": es_titulo, "titulo_fuente": fila["titulo_fuente"],
+                         "titulo_automatico": titulo_automatico,
                          "method": method, "pocos": pocos, "v": v,
+                         "probabilidades_metodo": p_metodo6,
                          "metodo6": opciones, "metodo5": opciones5,
                          "info_a": _info(a, sa), "info_b": _info(b, sb)})
         avisar("prediccion", f"Pelea {indice + 1}/{total} lista: {na} vs {nb}.",
@@ -898,7 +1080,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         return {"rows": [], "valores": [], "metodos": [], "consenso": [],
                 "missing": sorted(set(missing)), "con_cuotas": con_cuotas,
                 "con_metodo": con_metodo, "con_metodo5": con_metodo5,
-                "evento": event} if devolver_todo else None
+                "evento": event, "repeticion": repeticion} if devolver_todo else None
 
     avisar("informes", "Armando el resumen y guardando el reporte de la cartelera…")
     # --- Las tres miradas, por separado ---
@@ -907,7 +1089,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     # aparecía como "fuerte 77%" y se leía como si el sistema estuviera seguro.
     # Caso real: Cepo vs Urbina, 01-ago-2026 (ganó Urbina por TKO).
     hay_corto = any(r.get("corto_a") or r.get("corto_b") for r in rows)
-    _tabla_modelo(rows, valores)
+    _tabla_modelo(rows, valores, hasta=fecha_corte if repeticion is not None else None)
     if con_cuotas and valores:
         _tabla_mercado(rows, valores)
     # La 3 solo si de verdad hay algún reemplazo en la cartelera.
@@ -948,7 +1130,8 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
                 "con_cuotas": con_cuotas, "con_metodo": con_metodo,
                 "con_metodo5": con_metodo5,
                 "calibrador": calibrador is not None, "evento": event,
-                "hay_corto": hay_corto, "modelo_real": model is not None}
+                "hay_corto": hay_corto, "modelo_real": model is not None,
+                "repeticion": repeticion}
     return pd.DataFrame(rows)
 
 

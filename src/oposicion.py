@@ -96,6 +96,38 @@ def _es_finish(metodo: str) -> str:
     return "Decision"
 
 
+def _texto_historial(valor) -> str:
+    return str(valor).strip() if pd.notna(valor) else ""
+
+
+def _resultado_visible(yo: str, a: str, b: str, ganador: str,
+                       metodo: str, detalle: str) -> str | None:
+    """Resultado para mostrar, conservando NC y empate separados del modelo.
+
+    El CSV de UFCStats deja el ganador vacío en empates y no contest. CNC/NC
+    distingue los no contest; una decisión sin ganador es un empate. Un
+    resultado sin ganador ni un método reconocible permanece desconocido.
+    """
+    # Los códigos se buscan solo en los campos de resultado/método. El nombre
+    # del ganador no debe cambiar el significado del método de la pelea.
+    texto = " ".join((metodo, detalle)).upper()
+    codigo_ganador = ganador.upper()
+    if re.search(r"\b(?:CNC|NC|NO CONTEST|OVERTURNED)\b", texto):
+        return "NC"
+    gan = _norm(ganador)
+    if gan == yo:
+        return "W"
+    if gan in (a, b):
+        return "L"
+    if codigo_ganador in ("CNC", "NC", "NO CONTEST", "OVERTURNED"):
+        return "NC"
+    if codigo_ganador in ("DRAW", "EMPATE") or re.search(r"\b(?:DRAW|EMPATE)\b", texto):
+        return "D"
+    if not ganador and (metodo.upper() == "DECISION" or "DEC" in detalle.upper()):
+        return "D"
+    return None
+
+
 def _construir_indice() -> dict:
     """
     Un pase cronológico por todas las peleas construyendo el ELO, y de paso
@@ -112,6 +144,8 @@ def _construir_indice() -> dict:
 
     elo: dict[str, float] = {}
     hist: dict[str, list] = {}
+    visibles: dict[str, list] = {}
+    vistos_visibles: set = set()
 
     def get(f):
         return elo.get(f, C.ELO_BASE)
@@ -123,6 +157,11 @@ def _construir_indice() -> dict:
         ra, rb = get(a), get(b)
         met = _es_finish(r.method)
         gan = _norm(r.winner) if pd.notna(r.winner) else ""
+        metodo_original = _texto_historial(r.method)
+        detalle_original = _texto_historial(getattr(r, "method_detail", None))
+        ganador_original = _texto_historial(r.winner)
+        url = _texto_historial(getattr(r, "fight_url", None))
+        clave_pelea = ("url", url) if url else ("fila", r.date, frozenset((a, b)))
 
         # Se guarda el ELO del rival ANTES de esta pelea (rb para a, ra para b).
         for yo, rival, mi_elo, su_elo in ((a, b, ra, rb), (b, a, rb, ra)):
@@ -137,6 +176,16 @@ def _construir_indice() -> dict:
             hist.setdefault(yo, []).append(
                 (r.date, su_elo, res, met, nombre_rival,
                  getattr(r, "weight_class", None)))
+            resultado_visible = _resultado_visible(yo, a, b, ganador_original,
+                                                     metodo_original, detalle_original)
+            identidad_visible = (yo, clave_pelea)
+            if resultado_visible and identidad_visible not in vistos_visibles:
+                vistos_visibles.add(identidad_visible)
+                visibles.setdefault(yo, []).append({
+                    "fecha": r.date, "rival": nombre_rival,
+                    "resultado": resultado_visible,
+                    "metodo": detalle_original or metodo_original,
+                })
 
         # actualizar ELO: K con bonus por finalización. Sin categoría de peso —
         # acá interesa el nivel general del rival, no su ranking divisional.
@@ -168,6 +217,10 @@ def _construir_indice() -> dict:
             "met": [t[3] for t in lst],
             "rival": [t[4] for t in lst],
             "division": [t[5] for t in lst],
+            # Metadatos de presentación; no alteran los métodos/resultados que
+            # usa el modelo ni su ELO. Los códigos originales distinguen DQ,
+            # no contest y los tres tipos de decisión.
+            "historial_visible": sorted(visibles.get(f, []), key=lambda p: p["fecha"]),
         }
     print(f"[oposicion] historial de rivales para {len(idx)} peleadores")
     return idx
@@ -178,6 +231,22 @@ def _indice() -> dict:
     if _IDX is None:
         _IDX = _construir_indice()
     return _IDX
+
+
+def ultimas_peleas(nombre: str, hasta, n: int = N_MOSTRAR) -> list[dict]:
+    """Hasta cinco resultados reales, recientes primero y con corte exclusivo.
+
+    Usa las mismas identidades, fechas y fuente local que la calidad de
+    oposición. No inventa cuadros para completar cinco ni convierte filas
+    ambiguas en derrotas o decisiones.
+    """
+    d = _indice().get(_norm(nombre))
+    if not d:
+        return []
+    limite = min(max(int(n), 0), N_MOSTRAR)
+    hasta = pd.Timestamp(hasta)
+    recientes = [p for p in reversed(d.get("historial_visible", [])) if p["fecha"] < hasta]
+    return [{**p, "fecha": p["fecha"].strftime("%Y-%m-%d")} for p in recientes[:limite]]
 
 
 def resumen(nombre: str, hasta, n: int = N_RECIENTES) -> dict:

@@ -75,6 +75,8 @@ class AvanceDeCuotas(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, \
                 mock.patch.object(B, "find_card", return_value={"name": "UFC", "url": "/ufc"}), \
                 mock.patch.object(B, "list_fights", return_value=fights), \
+                mock.patch("src.card._resolver_titulos_oficiales", side_effect=lambda filas, fecha_evento=None:
+                           [{"es_titulo": None, "titulo_fuente": ""} for _ in filas]), \
                 mock.patch.object(B, "get_fight_odds", side_effect=cuotas):
             ruta = B.scrape_card("UFC", str(Path(tmp) / "cuotas.csv"), progreso=eventos.append)
             self.assertTrue(ruta.exists())

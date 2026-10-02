@@ -2,13 +2,17 @@
 fotos.py
 Foto de cada peleador para las tarjetas de la UI, con caché en disco.
 
-Fuentes, en orden:
-  1. ESPN: retratos PNG de sus fichas de MMA, resueltos con su buscador público.
+Fuentes de retratos:
+  1. UFC: fichas verificadas para resolver homónimos y nombres invertidos.
+  2. ESPN: retratos PNG de sus fichas de MMA, resueltos con su buscador público.
      La URL viene en la respuesta, junto al nombre, deporte e ID del peleador.
-  2. Wikipedia / Wikimedia Commons: API `prop=pageimages` como respaldo.
-  3. Sherdog, de respaldo, para quien no tiene artículo en Wikipedia (la mayoría
-     de los debutantes).
-  4. Ninguna: la UI muestra una silueta de peleador. Nunca una imagen rota.
+  3. UFC: retrato de la ficha oficial si ESPN no tiene uno.
+  4. Sherdog: únicamente imágenes de su directorio de peleadores.
+  5. Ninguna: la UI muestra una silueta de peleador. Nunca una imagen rota.
+
+`pageimages` de Wikipedia puede elegir fotos de prensa, eventos o personas con
+ropa que oculta el rostro. Su resolver se conserva como utilidad, pero esas
+imágenes editoriales ya no se usan como retratos de las tarjetas.
 
 La regla que manda en todo el archivo: **mejor sin foto que con la de otro**.
 Los cruces por nombre causaron los dos bugs más caros del proyecto (el récord de
@@ -24,7 +28,7 @@ import threading
 import time
 import unicodedata
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -43,6 +47,19 @@ HEADERS_ESPN = {**C.HEADERS, "Accept": "application/json", "Accept-Language": "e
 # por apellido ni por parecido: un alias solo sirve para este nombre completo.
 ALIASES_ESPN = {"bobby green": ("King Green", "2502364"),
                "ian garry": ("Ian Machado Garry", "4738092")}
+# Verificadas en sus fichas oficiales, no por parecido ni por apellido. ESPN
+# devuelve dos IDs MMA distintos para "Wang Cong"; esa ambigüedad solo se puede
+# resolver con una ficha identificada explícitamente, nunca eligiendo el primero.
+PERFILES_UFC = {"josh hokit": ("josh-hokit", "Josh Hokit"),
+                "wang cong": ("wang-cong", "Wang Cong"),
+                "cong wang": ("wang-cong", "Wang Cong"),
+                "bobby green": ("king-green", "King Green"),
+                "ian garry": ("ian-machado-garry", "Ian Machado Garry")}
+UFC_BASE = "https://www.ufc.com"
+# UFC redirige según la región y rechaza el Chrome antiguo de los scrapers del
+# proyecto. Identificar la aplicación permite consultar la ficha y su imagen.
+HEADERS_UFC = {**C.HEADERS, "User-Agent": "UFCFightPredictor/1.0"}
+VERSION_RETRATOS = 2
 # El mismo User-Agent con el que el proyecto ya se identifica ante Wikipedia: su
 # política exige uno propio con un modo de contacto.
 HEADERS_WIKI = reemplazos.HEADERS
@@ -144,6 +161,52 @@ def url_espn(nombre: str) -> str | None:
 
 
 # --------------------------------------------------------------------------- #
+# UFC
+# --------------------------------------------------------------------------- #
+def _retrato_ufc(url: str, nombre: str) -> bool:
+    p = urlsplit(url)
+    # El nombre está en el archivo de estudio (APELLIDO_NOMBRE_fecha.png).
+    # Se permiten los dos órdenes, pero se exige el nombre completo.
+    archivo = Path(p.path).name
+    prefijo = re.split(r"_\d", archivo)[0].removesuffix(".png")
+    tokens = _tokens(prefijo.replace("_", " "))
+    return (p.scheme == "https" and p.hostname in ("ufc.com", "www.ufc.com")
+            and p.path.startswith("/images/") and archivo.lower().endswith(".png")
+            and tokens == _tokens(nombre) and not p.fragment)
+
+
+def url_ufc(nombre: str) -> str | None:
+    """Retrato de estudio de una ficha UFC con nombre completo comprobado."""
+    slug, identidad = PERFILES_UFC.get(_norm(nombre), (_norm(nombre).replace(" ", "-"), nombre))
+    try:
+        r = requests.get(f"{UFC_BASE}/athlete/{slug}", headers=HEADERS_UFC,
+                         timeout=min(8, C.REQUEST_TIMEOUT_SEC))
+    except requests.RequestException as e:
+        raise SinRed(str(e)) from e
+    if r.status_code == 404:
+        return None
+    if r.status_code != 200:
+        raise SinRed(f"UFC HTTP {r.status_code}")
+    s = BeautifulSoup(r.text, "html.parser")
+    titulo = s.select_one("h1.hero-profile__name")
+    if not titulo or _norm(titulo.get_text(" ", strip=True)) != _norm(identidad):
+        return None
+    # La imagen social de la ficha es el recorte de busto, mientras la del hero
+    # puede incluir el cuerpo entero. Se verifica su archivo antes de aceptarla.
+    meta = s.select_one('meta[property="og:image"]')
+    src = urljoin(UFC_BASE, meta.get("content", "")) if meta else ""
+    if _retrato_ufc(src, identidad):
+        return src
+    for imagen in s.select("img.image-style-event-results-athlete-headshot"):
+        if _norm(imagen.get("alt", "")) != _norm(identidad):
+            continue
+        src = urljoin(UFC_BASE, imagen.get("src", ""))
+        if _retrato_ufc(src, identidad):
+            return src
+    return None
+
+
+# --------------------------------------------------------------------------- #
 # Wikipedia
 # --------------------------------------------------------------------------- #
 def _wiki_get(params: dict) -> dict:
@@ -222,15 +285,26 @@ def url_sherdog(nombre: str) -> str | None:
         slug = _norm(re.sub(r"-\d+$", "", href.split("/fighter/")[-1]).replace("-", " "))
         if slug == objetivo:
             fichas.add(href)
-    if len(fichas) != 1:
+    if len(fichas) > 1:
+        return AMBIGUO
+    if not fichas:
         return None
     ficha = _sherdog_get(sherdog.BASE + fichas.pop())
     meta = BeautifulSoup(ficha.text, "html.parser").select_one('meta[property="og:image"]')
     src = (meta.get("content") or "").strip() if meta else ""
     # Sherdog pone su logo como og:image cuando la ficha no tiene foto.
-    if not src or re.search(r"logo|default|placeholder", src, re.I):
+    if not _retrato_sherdog(src):
         return None
     return src
+
+
+def _retrato_sherdog(url: str) -> bool:
+    p = urlsplit(url)
+    return (p.scheme == "https"
+            and p.hostname in ("www.sherdog.com", "sherdog.com", "www2-cdn.sherdog.com")
+            and "/_images/fighter/" in p.path
+            and not re.search(r"logo|default|placeholder|icon", p.path, re.I)
+            and not p.fragment)
 
 
 # --------------------------------------------------------------------------- #
@@ -274,11 +348,19 @@ def foto(nombre: str) -> Path | None:
         anterior = (CARPETA / e["archivo"]) if e and e.get("archivo") else None
         if anterior and not anterior.exists():
             anterior = None
-        # Las entradas anteriores a ESPN se revisan una vez para sustituir la
-        # foto por el retrato. Mientras falla la red se conserva la foto local.
-        if anterior and e.get("espn_revisado"):
+        # No se borran archivos antiguos. Un retrato ESPN verificado sigue
+        # sirviendo; los negativos, Wikipedia y favicon antiguos se reconsultan.
+        espn_seguro = bool(e and e.get("fuente") == "espn" and re.fullmatch(
+            r"https://a\.espncdn\.com/i/headshots/mma/players/full/\d+\.png", e.get("url") or ""))
+        vigente = bool(e and e.get("version_retratos") == VERSION_RETRATOS)
+        seguro = espn_seguro or bool(vigente and (
+            e.get("fuente") == "ufc" and _retrato_ufc(e.get("url") or "", PERFILES_UFC.get(clave, (None, nombre))[1])
+            or e.get("fuente") == "sherdog" and _retrato_sherdog(e.get("url") or "")))
+        if not seguro:
+            anterior = None
+        if anterior and (espn_seguro and not vigente or e.get("prioridad_revisada")):
             return anterior
-        if (e and e.get("espn_revisado") and not e.get("archivo")
+        if (vigente and e.get("prioridad_revisada") and not e.get("archivo")
                 and ahora - e.get("consultado", 0) < REINTENTO_SIN_FOTO_SEG):
             return None
         if ahora - _fallo_red.get(clave, 0) < ESPERA_TRAS_FALLO_RED_SEG:
@@ -286,30 +368,24 @@ def foto(nombre: str) -> Path | None:
 
         ruta, fuente, url = None, None, None
         fallo, espn_revisado, ambiguo = False, False, False
-        try:
-            url = url_espn(nombre)
-            ambiguo = url == AMBIGUO
-            if url and not ambiguo:
-                ruta, fuente = _bajar(url, clave, HEADERS_ESPN), "espn"
-            espn_revisado = True
-        except SinRed:
-            fallo = True
-
+        oficiales = [(url_espn, "espn", HEADERS_ESPN), (url_ufc, "ufc", HEADERS_UFC)]
+        if clave in PERFILES_UFC:
+            oficiales.reverse()
+        for resolver, origen, headers in [*oficiales, (url_sherdog, "sherdog", sherdog.HEADERS)]:
+            try:
+                url = resolver(nombre)
+                if origen == "espn":
+                    espn_revisado = True
+                if url == AMBIGUO:
+                    ambiguo = True
+                    break
+                if url:
+                    ruta, fuente = _bajar(url, clave, headers), origen
+                    break
+            except SinRed:
+                fallo = True
         if not ruta and not ambiguo and anterior:
             ruta, fuente, url = anterior, e.get("fuente"), e.get("url")
-        if not ruta and not ambiguo:
-            for resolver, origen, headers in ((url_wikipedia, "wikipedia", HEADERS_WIKI),
-                                               (url_sherdog, "sherdog", sherdog.HEADERS)):
-                try:
-                    url = resolver(nombre)
-                    if url == AMBIGUO:
-                        ambiguo = True
-                        break
-                    if url:
-                        ruta, fuente = _bajar(url, clave, headers), origen
-                        break
-                except SinRed:
-                    fallo = True
         if fallo:
             _fallo_red[clave] = ahora
         if not ruta and fallo and not ambiguo:
@@ -318,6 +394,7 @@ def foto(nombre: str) -> Path | None:
             url = None
         idx[clave] = {"nombre": nombre, "archivo": ruta.name if ruta else None,
                       "fuente": fuente, "url": url, "consultado": ahora,
-                      "espn_revisado": espn_revisado}
+                      "espn_revisado": espn_revisado,
+                      "version_retratos": VERSION_RETRATOS, "prioridad_revisada": not fallo}
         _guardar_indice(idx)
         return ruta

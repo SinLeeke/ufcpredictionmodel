@@ -48,9 +48,12 @@ def card_aislado(flag_wikipedia: int = 0, modelo=None):
             mock.patch.object(C, "OUTPUTS", Path(tmp)), \
             mock.patch.object(card, "get_stats", lambda n: (peleador(n), "ufcstats")), \
             mock.patch.object(card, "_load_models", lambda: (modelo, None)), \
+            mock.patch.object(card, "_resolver_titulos_oficiales", lambda filas, fecha_evento=None:
+                              [{"es_titulo": None, "titulo_fuente": ""} for _ in filas]), \
             mock.patch.object(card, "_elo", lambda s: C.ELO_BASE), \
             mock.patch.object(card.oposicion, "features", lambda a, b, f: dict(oposicion_neutra)), \
             mock.patch.object(card.oposicion, "resumen", lambda *a, **k: {"n": 0}), \
+            mock.patch.object(card.oposicion, "ultimas_peleas", lambda *a, **k: []), \
             mock.patch.object(card.reemplazos, "flag", flag):
         yield {"card": card, "tmp": Path(tmp), "consultas_wiki": consultas}
 

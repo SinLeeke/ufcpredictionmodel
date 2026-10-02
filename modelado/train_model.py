@@ -89,15 +89,14 @@ def temporal_split(df: pd.DataFrame):
 
 
 # --------------------------------------------------------------------------- #
-# 1) Modelo de GANADOR (binario)
+# Hiperparámetros: UN solo lugar
 # --------------------------------------------------------------------------- #
-def train_winner(train: pd.DataFrame, test: pd.DataFrame) -> XGBClassifier:
-    cols = columnas_disponibles(train)      # amplía si el dataset trae grappling
-    X_tr, y_tr = train[cols], train["y"]
-    X_te, y_te = test[cols], test["y"]
-    print(f"  features usadas: {len(cols)}")
-
-    model = XGBClassifier(
+# Los usan la medición, la producción y el modelo "a la fecha" de la repetición
+# (src/corte.py). Antes estaban copiados en cada función; con tres copias, tocar
+# una y olvidar otra dejaba a la repetición prediciendo con un modelo distinto
+# del que se midió.
+def xgb_ganador() -> XGBClassifier:
+    return XGBClassifier(
         n_estimators=400,
         max_depth=4,
         learning_rate=0.03,
@@ -107,6 +106,47 @@ def train_winner(train: pd.DataFrame, test: pd.DataFrame) -> XGBClassifier:
         eval_metric="logloss",
         random_state=C.RANDOM_STATE,
     )
+
+
+def xgb_metodo() -> XGBClassifier:
+    return XGBClassifier(
+        objective="multi:softprob",
+        num_class=len(C.METHOD_CLASSES),
+        n_estimators=300,
+        max_depth=3,
+        learning_rate=0.04,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        eval_metric="mlogloss",
+        random_state=C.RANDOM_STATE,
+    )
+
+
+def ajustar_modelos(full: pd.DataFrame) -> tuple[XGBClassifier, XGBClassifier]:
+    """
+    (ganador, método) entrenados con TODAS las filas de `full`, que ya viene
+    recortado a su ventana. Es el ajuste de producción, sin escribir nada: lo
+    reutiliza la repetición para entrenar con las peleas anteriores a un corte.
+    """
+    cols_w = columnas_disponibles(full)
+    cols_m = columnas_disponibles(full, con_oposicion=False, con_corto=False)
+    w = xgb_ganador().fit(full[cols_w], full["y"])
+    cls_to_idx = {c: i for i, c in enumerate(C.METHOD_CLASSES)}
+    d = full[full["method"].isin(cls_to_idx)]
+    m = xgb_metodo().fit(d[cols_m], d["method"].map(cls_to_idx))
+    return w, m
+
+
+# --------------------------------------------------------------------------- #
+# 1) Modelo de GANADOR (binario)
+# --------------------------------------------------------------------------- #
+def train_winner(train: pd.DataFrame, test: pd.DataFrame) -> XGBClassifier:
+    cols = columnas_disponibles(train)      # amplía si el dataset trae grappling
+    X_tr, y_tr = train[cols], train["y"]
+    X_te, y_te = test[cols], test["y"]
+    print(f"  features usadas: {len(cols)}")
+
+    model = xgb_ganador()
     model.fit(X_tr, y_tr)
 
     print("\n=== GANADOR (XGBoost binario) ===")
@@ -159,17 +199,7 @@ def train_method(train: pd.DataFrame, test: pd.DataFrame) -> XGBClassifier | Non
         print("\n[!] menos de 2 clases de método en train -> se omite el modelo de método.")
         return None
 
-    model = XGBClassifier(
-        objective="multi:softprob",
-        num_class=len(C.METHOD_CLASSES),
-        n_estimators=300,
-        max_depth=3,
-        learning_rate=0.04,
-        subsample=0.85,
-        colsample_bytree=0.85,
-        eval_metric="mlogloss",
-        random_state=C.RANDOM_STATE,
-    )
+    model = xgb_metodo()
     # SIN BALANCEO DE CLASES — y esto NO es un descuido, es el arreglo de un bug.
     #
     # Antes se pesaba cada ejemplo por el inverso de la frecuencia de su clase
@@ -251,28 +281,14 @@ def entrenar_produccion(df: pd.DataFrame) -> None:
     """
     fin = df["date"].max()
     full = ventana(df, fin)
-    cols_w = columnas_disponibles(full)
-    cols_m = columnas_disponibles(full, con_oposicion=False, con_corto=False)
 
     print("\n=== MODELOS DE PRODUCCIÓN (entrenados con TODO hasta hoy) ===")
     print(f"  {len(full)} filas  ({full.date.min():%Y-%m-%d} a {full.date.max():%Y-%m-%d})")
     print(f"  +{len(full) - len(ventana(df, C.TRAIN_END_DATE))} filas más que el modelo de medición")
 
-    w = XGBClassifier(
-        n_estimators=400, max_depth=4, learning_rate=0.03, subsample=0.85,
-        colsample_bytree=0.85, reg_lambda=1.5, eval_metric="logloss",
-        random_state=C.RANDOM_STATE,
-    ).fit(full[cols_w], full["y"])
+    w, m = ajustar_modelos(full)
     with open(C.WINNER_MODEL, "wb") as fh:
         pickle.dump(w, fh)
-
-    cls_to_idx = {c: i for i, c in enumerate(C.METHOD_CLASSES)}
-    d = full[full["method"].isin(cls_to_idx)]
-    m = XGBClassifier(
-        objective="multi:softprob", num_class=len(C.METHOD_CLASSES),
-        n_estimators=300, max_depth=3, learning_rate=0.04, subsample=0.85,
-        colsample_bytree=0.85, eval_metric="mlogloss", random_state=C.RANDOM_STATE,
-    ).fit(d[cols_m], d["method"].map(cls_to_idx))
     with open(C.METHOD_MODEL, "wb") as fh:
         pickle.dump(m, fh)
 

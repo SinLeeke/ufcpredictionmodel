@@ -408,15 +408,18 @@ def mercado_metodo(cuotas6) -> tuple[np.ndarray, float]:
     return bruta / s, s
 
 
-def analizar_metodo(feat_df, cuotas6, min_ev: float = 0.0) -> list[dict]:
+def analizar_metodo(feat_df, cuotas6, min_ev: float = 0.0, modelo6=None) -> list[dict]:
     """
     Devuelve las 6 opciones de una pelea ordenadas por valor esperado.
 
     `feat_df` es el DataFrame de una fila con las features de la pelea (el mismo
     que usa card.py para el ganador). Cada opción trae la probabilidad del
     modelo, la del mercado, la combinada, el EV y si califica como apuesta.
+
+    `modelo6` = (modelo, columnas) reemplaza al de models/: la repetición de una
+    cartelera pasada usa uno entrenado sin las peleas desde el corte (src/corte.py).
     """
-    modelo, cols = cargar_modelo_metodo()
+    modelo, cols = modelo6 if modelo6 is not None else cargar_modelo_metodo()
     cal = cargar_calibrador_metodo()
     q, sobre = mercado_metodo(cuotas6)
     if modelo is None or cal is None or not np.isfinite(sobre):
@@ -472,7 +475,7 @@ MIN_SOBRERREDONDEO5 = 1.03
 SOBRERREDONDEO5_SOSPECHOSO = 1.12
 
 
-def analizar_metodo5(feat_df, cuotas4, min_ev: float = 0.0) -> list[dict]:
+def analizar_metodo5(feat_df, cuotas4, min_ev: float = 0.0, modelo6=None) -> list[dict]:
     """
     Las 4 opciones del 5-way, ordenadas por valor esperado.
 
@@ -484,7 +487,7 @@ def analizar_metodo5(feat_df, cuotas4, min_ev: float = 0.0) -> list[dict]:
     porque no hay datos de 5-way con que ajustar unos propios; es una
     aproximación razonable y está declarada como tal en `aproximado`.
     """
-    modelo, cols = cargar_modelo_metodo()
+    modelo, cols = modelo6 if modelo6 is not None else cargar_modelo_metodo()
     cal = cargar_calibrador_metodo()
     if modelo is None or cal is None:
         return []

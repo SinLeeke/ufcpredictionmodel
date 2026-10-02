@@ -69,7 +69,11 @@ def cargar() -> pd.DataFrame:
             "features.csv no trae las cuotas de método.\n"
             "Regenera el dataset:  python -m src.kaggle_ingest"
         )
-    # etiqueta de 6 clases: lado ganador x método
+    return etiquetar6(df)
+
+
+def etiquetar6(df: pd.DataFrame) -> pd.DataFrame:
+    """Las filas con método conocido y su etiqueta de 6 clases: lado ganador x método."""
     idx = df["method"].map(IDX_METODO)
     df = df[idx.notna()].copy()
     df["y6"] = np.where(df["y"] == 1, 0, 3) + idx[idx.notna()].astype(int)

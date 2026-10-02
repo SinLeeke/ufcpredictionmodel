@@ -163,6 +163,9 @@ class Estado:
         self.consulta = ""        # query de Betano o nombre del archivo
         self.csv_path: Path | None = None
         self.titulo = ""
+        # Repetición: la fecha de corte pedida ('AAAA-MM-DD') o None. La
+        # cartelera se predijo con lo que se sabía antes de ese día.
+        self.corte: str | None = None
 
         self.predicho_en: float | None = None
         self.cuotas_en: float | None = None
@@ -194,6 +197,7 @@ class Estado:
                 "consulta": self.consulta,
                 "titulo": self.titulo,
                 "csv": self.csv_path.name if self.csv_path else "",
+                "corte": self.corte,
                 "predicho_en": self.predicho_en,
                 "cuotas_en": self.cuotas_en,
                 "auto": self.auto,
@@ -241,6 +245,60 @@ def _txt(x) -> str:
     return str(x)
 
 
+def _ampliar_pelea(pelea: dict, probabilidades_metodo: dict | None = None) -> None:
+    """Metadatos para avisos y gráficos, también compatibles con demos antiguas.
+
+    Un historial local vacío no demuestra un debut. Las tasas históricas y
+    los seis resultados se mantienen como desconocidos si no hay evidencia;
+    nunca se rellenan con los promedios neutros del modelo.
+    """
+    from src.ufc_history import confirmed_ufc_debut
+
+    # Las demos antiguas no contienen información del cinturón. Un nombre o
+    # segmento estelar no confirma un título; la UI solo puede destacarlo con
+    # una bandera explícita, y nunca por la verdad lógica de "false" o NaN.
+    from src.card import bandera_titulo
+    pelea["es_titulo"] = bandera_titulo(pelea)
+    pelea["titulo_automatico"] = bandera_titulo({"es_titulo": pelea.get("titulo_automatico")}) is True
+    pelea.setdefault("titulo_fuente", "")
+
+    debutantes = []
+    for lado in ("a", "b"):
+        info = pelea.get(f"info_{lado}") or {}
+        pelea[f"info_{lado}"] = info
+        # Una demo antigua no tiene estos metadatos: conserva la ausencia de
+        # historial, sin añadir resultados actuales a una predicción pasada.
+        info.setdefault("ultimas_peleas", [])
+        if info.get("debut_ufc_confirmado") is True or confirmed_ufc_debut(info):
+            debutantes.append(pelea[lado])
+        historial = info.get("metodo_victorias")
+        tasas = {metodo: _num(historial.get(metodo)) for metodo in C.METHOD_CLASSES} \
+            if isinstance(historial, dict) else {}
+        if not tasas or any(t is None or not 0 <= t <= 1 for t in tasas.values()) \
+                or not 0 < sum(tasas.values()) <= 1.001:
+            tasas = None
+        pelea[f"metodo_hist_{lado}"] = tasas
+        pelea[f"metodo_hist_fuente_{lado}"] = _txt(info.get("metodo_victorias_fuente")) if tasas else ""
+    pelea["debutantes"] = debutantes
+    pelea["debut_cantidad"] = len(debutantes)
+
+    ci = pelea.get("ci_a") or []
+    pelea["ci_b"] = [round(1 - float(ci[1]), 4), round(1 - float(ci[0]), 4)] if len(ci) == 2 else None
+    pelea["p_decision"] = _num((pelea.get("metodo") or {}).get("Decision"))
+
+    # Los resultados conjuntos provienen del modelo entrenado de seis clases.
+    # Las demos previas pueden conservarlos dentro del análisis de cuotas.
+    clases = ("A_KO", "A_SUB", "A_DEC", "B_KO", "B_SUB", "B_DEC")
+    candidatos = probabilidades_metodo or pelea.get("probabilidades_metodo")
+    if not isinstance(candidatos, dict):
+        candidatos = {op.get("clase"): op.get("p_modelo")
+                      for op in pelea.get("metodo6") or [] if "error" not in op}
+    probs = {clase: _num(candidatos.get(clase)) for clase in clases}
+    if any(p is None or not 0 <= p <= 1 for p in probs.values()) or not 0.999 <= sum(probs.values()) <= 1.001:
+        probs = None
+    pelea["probabilidades_metodo"] = probs
+
+
 def _serializar(res: dict, csv_path: Path) -> tuple[dict, list[P.Pata]]:
     """Traduce la salida de predict_card(devolver_todo=True) a JSON plano."""
     rows = res["rows"]
@@ -255,6 +313,9 @@ def _serializar(res: dict, csv_path: Path) -> tuple[dict, list[P.Pata]]:
             "id": str(i),
             "a": c["a"], "b": c["b"],
             "segmento": _txt(fila.get("segmento")),
+            "es_titulo": c.get("es_titulo", fila.get("es_titulo")),
+            "titulo_fuente": _txt(c.get("titulo_fuente", fila.get("titulo_fuente"))),
+            "titulo_automatico": c.get("titulo_automatico", fila.get("titulo_automatico", False)),
             "ganador": sim.winner,
             "p_a": sim.p_a, "p_b": sim.p_b,
             "ci_a": list(sim.ci_a),
@@ -280,6 +341,11 @@ def _serializar(res: dict, csv_path: Path) -> tuple[dict, list[P.Pata]]:
             dato = c.get(campo, fila.get(campo))
             if isinstance(dato, int) and not isinstance(dato, bool):
                 pelea[campo] = dato
+        if res.get("repeticion") is not None:
+            # Solo en una repetición, y leído después de predecir. La clave va
+            # aunque sea None ("la base todavía no la tiene"): la UI distingue
+            # así una repetición de una cartelera normal pelea por pelea.
+            pelea["resultado"] = c.get("resultado")
         if v is not None:
             # TODO numérico pasa por _num(): value.analizar() devuelve NaN cuando
             # la pelea no trae cuotas, y un NaN suelto rompe la respuesta entera
@@ -306,6 +372,7 @@ def _serializar(res: dict, csv_path: Path) -> tuple[dict, list[P.Pata]]:
                      for k in o}
                     for o in c[mercado] if "error" not in o
                 ]
+        _ampliar_pelea(pelea, c.get("probabilidades_metodo") or getattr(sim, "p_method6", None))
         peleas.append(pelea)
 
     patas = P.patas_de_cartelera(consenso)
@@ -320,6 +387,7 @@ def _serializar(res: dict, csv_path: Path) -> tuple[dict, list[P.Pata]]:
         "calibrador": res.get("calibrador", False),
         "modelo_real": res.get("modelo_real", True),
         "hay_corto": res.get("hay_corto", False),
+        "repeticion": res.get("repeticion"),
         "tiers": P.TIERS,
         # Las secciones en que la interfaz agrupa las patas. Van desde acá y no
         # hardcodeadas en el JS para que agregar un mercado nuevo (rounds,
@@ -388,6 +456,9 @@ def _por_que_confianza(p: float, pocos: list, infos: dict) -> str:
                 causas.append(f"<b>{apellido}</b> tiene {peleas} con estadísticas detalladas en la base local.{extra}")
             elif not i.get("historial_disponible", True):
                 causas.append(f"El historial detallado de <b>{apellido}</b> no está disponible en la base local.")
+            elif i.get("identidad_ambigua"):
+                causas.append(f"Hay dos peleadores llamados <b>{nombre}</b> en UFCStats y la base local "
+                              "no separa sus peleas: sus estadísticas podrían ser de los dos.")
             elif float(i.get("slpm") or 0) == 0:
                 causas.append(f"<b>{apellido}</b> tiene la ficha vacía: cero golpes registrados.")
         detalle = " ".join(causas) or "A algún peleador le faltan datos en UFCStats."
@@ -411,9 +482,44 @@ def _por_que_confianza(p: float, pocos: list, infos: dict) -> str:
 # --------------------------------------------------------------------------- #
 # Cuotas de Betano
 # --------------------------------------------------------------------------- #
-def listar_carteleras() -> list[dict]:
+def _par(a: str, b: str) -> str:
+    from src.fighter_names import canonical_key
+    return "|".join(sorted((canonical_key(a), canonical_key(b))))
+
+
+def es_ufc(nombre_liga: str, peleas: list[dict], confirmadas: set | None = None) -> bool:
     """
-    Carteleras de MMA abiertas en Betano, con fecha y número de peleas.
+    ¿Esta cartelera de Betano es de UFC? El modelo solo conoce UFC: una de
+    otra liga sale con los dos peleadores "no encontrados" o, peor, con un
+    homónimo de UFC.
+
+    Betano la nombra ("UFC 332", "UFC Fight Night") o la mete en ligas
+    genéricas como "Encuentros", donde también van RIZIN, PFL o eventos
+    regionales. En ese caso pasa solo si al menos la mitad de sus peleas está
+    en una cartelera confirmada por UFC (ufc_oficial): parejas por identidad,
+    nunca por apellido.
+    """
+    import re
+    if re.search(r"\bUFC\b", nombre_liga or "", re.I):
+        return True
+    if not peleas:
+        return False
+    if confirmadas is None:
+        try:
+            from src import ufc_oficial
+            confirmadas = ufc_oficial.pares_confirmados()
+        except Exception:                                   # noqa: BLE001
+            confirmadas = set()
+    from src.fighter_names import canonical_key
+    pares = ["|".join(sorted((canonical_key(f["fighter_a"]), canonical_key(f["fighter_b"]))))
+             for f in peleas]
+    return sum(par in confirmadas for par in pares) * 2 >= len(pares)
+
+
+def listar_carteleras() -> dict:
+    """
+    Carteleras de UFC abiertas en Betano, con fecha y número de peleas, y
+    cuántas de otras ligas se dejaron fuera (ver es_ufc).
 
     `list_cards()` solo devuelve nombre y url — con eso la lista de la UI era
     una fila de nombres sin contexto. Acá se añade una petición por cartelera
@@ -428,16 +534,38 @@ def listar_carteleras() -> list[dict]:
     from src import betano_scraper as bs
 
     salida: list[dict] = []
+    ocultas = 0
+    confirmadas = None            # se pide a UFC solo si aparece una liga sin nombre UFC
+    titulos = None                # las estelares que UFC marca "Title Bout"
     for c in bs.list_cards():
         try:
             grupos = bs._por_fecha(bs.list_fights(c["url"]))
         except Exception:                                   # noqa: BLE001
-            salida.append({**c, "fecha": None, "peleas": None, "estelar": ""})
-            continue
+            grupos = None
         if not grupos:
-            salida.append({**c, "fecha": None, "peleas": None, "estelar": ""})
+            # Sin peleas a la vista no se puede comprobar qué liga es: solo
+            # pasa si Betano la llama UFC.
+            if es_ufc(c["name"], [], set()):
+                salida.append({**c, "fecha": None, "peleas": None, "estelar": ""})
+            else:
+                ocultas += 1
             continue
         for dia, peleas in grupos.items():
+            if titulos is None:
+                try:
+                    from src import ufc_oficial
+                    titulos = ufc_oficial.pares_confirmados(solo_titulos=True)
+                except Exception:                           # noqa: BLE001
+                    titulos = set()
+            if confirmadas is None and not es_ufc(c["name"], [], set()):
+                try:
+                    from src import ufc_oficial
+                    confirmadas = ufc_oficial.pares_confirmados()
+                except Exception:                           # noqa: BLE001
+                    confirmadas = set()
+            if not es_ufc(c["name"], peleas, confirmadas or set()):
+                ocultas += 1
+                continue
             est = peleas[-1]
             salida.append({
                 "id": c["id"], "url": c["url"],
@@ -448,11 +576,12 @@ def listar_carteleras() -> list[dict]:
                 "dias": (dia - _dt.date.today()).days,
                 "peleas": len(peleas),
                 "estelar": f"{est['fighter_a']} vs {est['fighter_b']}",
+                "titulo": _par(est["fighter_a"], est["fighter_b"]) in titulos,
                 # lo que hay que mandarle a /api/cartelera/betano
                 "query": c["name"],
             })
     salida.sort(key=lambda x: (x["fecha"] or "9999"))
-    return salida
+    return {"carteleras": salida, "ocultas": ocultas}
 
 
 def bajar_cuotas(query: str, destino: Path | None = None,
@@ -495,13 +624,16 @@ def _claves_cuotas(datos: dict) -> dict[str, float]:
 # --------------------------------------------------------------------------- #
 # Predicción (en hilo aparte)
 # --------------------------------------------------------------------------- #
-def _predecir_sync(csv_path: Path, progreso: Callable[[dict], None] | None = None) -> dict:
+def _predecir_sync(csv_path: Path, progreso: Callable[[dict], None] | None = None,
+                   corte: str | None = None) -> dict:
     """Usa callbacks para el avance; conserva stdout para el diagnóstico final."""
     from src.card import predict_card
+    # Sin corte, la llamada queda idéntica a la de siempre.
+    extra = {"corte": corte} if corte else {}
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         res = predict_card(csv_path, reports=True, detalle=False, devolver_todo=True,
-                           progreso=progreso)
+                           progreso=progreso, **extra)
     salida = buf.getvalue()
     if not res or not res.get("rows"):
         raise RuntimeError(
@@ -510,10 +642,14 @@ def _predecir_sync(csv_path: Path, progreso: Callable[[dict], None] | None = Non
 
 
 def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
-           refrescar_cuotas: bool = True, fecha: str | None = None) -> None:
+           refrescar_cuotas: bool = True, fecha: str | None = None,
+           corte: str | None = None) -> None:
     """
     Arranca la carga de una cartelera en segundo plano. La UI hace polling a
     /api/estado mientras tanto.
+
+    corte='AAAA-MM-DD' la predice como repetición (ver src/corte.py). Se valida
+    antes de llamar: acá ya se asume una fecha bien formada.
     """
     with ESTADO.lock:
         if ESTADO.cargando:
@@ -536,7 +672,7 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
             titulo = ruta.stem if ruta is not None else ""
             cuotas_en = None
             if origen == "betano":
-                ruta, titulo = bajar_cuotas(consulta, fecha=fecha, progreso=avance)
+                ruta, titulo = bajar_cuotas(consulta, destino=ruta, fecha=fecha, progreso=avance)
                 cuotas_en = time.time()
             elif refrescar_cuotas and ESTADO.origen == "betano" and ESTADO.consulta:
                 pass
@@ -545,7 +681,7 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
                 raise RuntimeError("No hay cartelera que cargar.")
 
             avance({"etapa": "preparando", "detalle": f"Cargando modelos para {ruta.name}…"})
-            res = _predecir_sync(ruta, progreso=avance)
+            res = _predecir_sync(ruta, progreso=avance, **({"corte": corte} if corte else {}))
             avance({"etapa": "serializando", "detalle": "Preparando los resultados para mostrarlos…"})
             datos, patas = _serializar(res, ruta)
 
@@ -564,6 +700,7 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
                 ESTADO.consulta = consulta or ESTADO.consulta
                 ESTADO.csv_path = ruta
                 ESTADO.titulo = titulo or ruta.stem
+                ESTADO.corte = corte
                 ESTADO.datos = datos
                 ESTADO.patas = patas
                 ESTADO.predicho_en = time.time()
@@ -606,6 +743,7 @@ def limpiar() -> None:
         ESTADO.consulta = ""
         ESTADO.csv_path = None
         ESTADO.titulo = ""
+        ESTADO.corte = None
         ESTADO.predicho_en = None
         ESTADO.cuotas_en = None
         ESTADO.proximo_auto = None
@@ -624,12 +762,14 @@ def refrescar() -> str:
     with ESTADO.lock:
         if ESTADO.cargando:
             return "Ya hay una carga en curso."
-        origen, consulta, ruta = ESTADO.origen, ESTADO.consulta, ESTADO.csv_path
+        origen, consulta, ruta, corte = ESTADO.origen, ESTADO.consulta, ESTADO.csv_path, ESTADO.corte
     if not origen:
         return "No hay ninguna cartelera cargada todavía."
     if origen == "demo":
         return "Modo demo: no hay cuotas que refrescar."
-    cargar(origen, consulta, ruta)
+    # Una repetición se vuelve a predecir con el MISMO corte: refrescar no
+    # puede convertirla en una predicción de hoy.
+    cargar(origen, consulta, ruta, corte=corte)
     return ""
 
 
@@ -723,6 +863,7 @@ def refrescar_linea() -> str:
                 prob, pocos = max(sim.p_a, sim.p_b), pl.get("pocos") or []
                 pl.update({
                     "p_a": sim.p_a, "p_b": sim.p_b, "ci_a": list(sim.ci_a),
+                    "ci_b": [round(1 - sim.ci_a[1], 4), round(1 - sim.ci_a[0], 4)],
                     "ganador": sim.winner,
                     "confianza": _confianza(prob, pocos),
                     "por_que_confianza": _por_que_confianza(
@@ -745,6 +886,117 @@ def refrescar_linea() -> str:
         return f"{movidas} cuotas movidas" if movidas else "sin cambios"
     except Exception as e:                            # noqa: BLE001
         return f"falló: {e}"
+
+
+# --------------------------------------------------------------------------- #
+# Portada: noticias y carteleras confirmadas por UFC
+# --------------------------------------------------------------------------- #
+_REFRESCO_PORTADA = threading.Lock()
+
+
+def _refrescar_portada() -> None:
+    from src import ufc_oficial
+    try:
+        ufc_oficial.noticias()
+        ufc_oficial.eventos()
+    except Exception:                                       # noqa: BLE001
+        pass                      # se sigue mostrando lo guardado
+    finally:
+        _REFRESCO_PORTADA.release()
+
+
+def _en_base(recientes: list[dict]) -> None:
+    """
+    Marca los eventos terminados que la base local ya tiene, para ofrecer
+    Repetir. Se cruzan por fecha (±1 día: UFC fecha en hora de Chile y UFCStats
+    en la del lugar) y por la estelar, no por el nombre del evento.
+    """
+    import datetime as dt
+    try:
+        from src import corte
+        peleas = corte._peleas()
+    except Exception:                                       # noqa: BLE001
+        return
+    estelares = peleas[peleas["estelar"]]
+    for e in recientes:
+        dia = dt.datetime.fromtimestamp(e["inicio"]["estelar"]).date()
+        cerca = estelares[(estelares["date"].dt.date - dia).abs() <= dt.timedelta(days=1)]
+        palabras = set(_slug(e.get("titular", "")).split("_"))
+        hit = cerca[[_slug(a).split("_")[-1] in palabras and _slug(b).split("_")[-1] in palabras
+                     for a, b in zip(cerca["fighter_a"], cerca["fighter_b"])]]
+        if len(hit) == 1:
+            r = hit.iloc[0]
+            e["en_base"] = {"evento": r["event"], "fecha": r["date"].strftime("%Y-%m-%d")}
+
+
+def portada() -> dict:
+    """
+    Noticias y eventos de UFC para la pestaña Inicio. Responde con lo guardado
+    y, si está vencido, lo refresca en otro hilo (la UI vuelve a pedir). Solo
+    la primera vez, sin nada guardado, espera a UFC.
+    """
+    from src import ufc_oficial
+    noticias, eventos, vencido = ufc_oficial.guardado()
+    actualizando = False
+    if noticias is None or eventos is None:
+        try:
+            noticias, eventos = ufc_oficial.noticias(), ufc_oficial.eventos()
+        except Exception:                                   # noqa: BLE001
+            pass
+    elif vencido and _REFRESCO_PORTADA.acquire(blocking=False):
+        threading.Thread(target=_refrescar_portada, daemon=True).start()
+        actualizando = True
+    eventos = dict(eventos or {"proximos": [], "recientes": []})
+    eventos["recientes"] = [dict(e) for e in eventos.get("recientes", [])]
+    _en_base(eventos["recientes"])
+    # Lo último que la base local sí tiene: siempre se puede repetir.
+    try:
+        from src import corte
+        en_base = corte.peleas_anteriores("", 4)["peleas"]
+    except Exception:                                       # noqa: BLE001
+        en_base = []
+    with ESTADO.lock:
+        actual = ({"titulo": ESTADO.titulo, "peleas": len(ESTADO.datos.get("peleas", [])),
+                   "corte": ESTADO.corte} if ESTADO.datos else None)
+    return {"noticias": (noticias or {}).get("notas", []),
+            "proximos": eventos.get("proximos", []),
+            "recientes": eventos["recientes"],
+            "en_base": en_base,
+            "consultado": min(filter(None, [(noticias or {}).get("consultado"),
+                                            eventos.get("consultado")]), default=None),
+            "sin_conexion": noticias is None and not eventos.get("proximos"),
+            "actualizando": actualizando or _REFRESCO_PORTADA.locked(),
+            "actual": actual}
+
+
+def cargar_oficial(id_evento: str) -> str:
+    """Predice una cartelera confirmada por UFC (sin cuotas). Devuelve el CSV."""
+    from src import ufc_oficial
+    ruta = ufc_oficial.cartelera_csv(id_evento)
+    cargar("csv", ruta.name, ruta)
+    return ruta.name
+
+
+# --------------------------------------------------------------------------- #
+# Repetición: peleas que ya pasaron, con los datos de ese día
+# --------------------------------------------------------------------------- #
+def peleas_anteriores(q: str = "", limite: int = 24) -> dict:
+    """Las peleas de la base local para elegir en Cargar (ver corte.peleas_anteriores)."""
+    from src import corte
+    return corte.peleas_anteriores(q, limite)
+
+
+def cargar_historico(evento: str, fecha: str) -> str:
+    """
+    Arma el CSV del evento desde la base local y lo predice con corte en su
+    fecha. Devuelve el nombre del archivo. Lanza ValueError si no existe o si
+    la fecha no sirve como corte.
+    """
+    from src import corte
+    dia = corte.a_fecha(fecha)
+    ruta = corte.cartelera_de_evento(evento, dia.strftime("%Y-%m-%d"))
+    cargar("csv", ruta.name, ruta, corte=dia.strftime("%Y-%m-%d"))
+    return ruta.name
 
 
 # --------------------------------------------------------------------------- #
@@ -771,12 +1023,15 @@ def cargar_demo(ruta: Path) -> None:
     import json
     from dataclasses import fields
     d = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    for pelea in d["datos"]["peleas"]:
+        _ampliar_pelea(pelea)
     campos = {f.name for f in fields(P.Pata)}
     patas = [P.Pata(**{k: v for k, v in p.items() if k in campos}) for p in d["datos"]["patas"]]
     with ESTADO.lock:
         ESTADO.origen = "demo"
         ESTADO.consulta = d.get("csv", "")
         ESTADO.csv_path = None
+        ESTADO.corte = d.get("corte")
         ESTADO.titulo = f"DEMO · {d.get('titulo', Path(ruta).stem)}"
         ESTADO.datos = d["datos"]
         ESTADO.patas = patas

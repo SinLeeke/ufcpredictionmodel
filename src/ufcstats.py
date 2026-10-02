@@ -470,10 +470,12 @@ def get_fighter(name: str, use_cache: bool = True) -> Optional[dict]:
     vieja = next((d for d in guardadas if d.get("_parser") == VERSION_PARSER),
                  guardadas[0] if guardadas else None)
     if vieja is not None and vieja.get("_parser") == VERSION_PARSER:
-        # No invalida el caché global. Solo una ficha sin resultados necesita
-        # verificar su tabla para diferenciar un debut de una página vacía.
+        # El récord de la ficha incluye otras organizaciones: tener victorias
+        # no demuestra que ya haya peleado en UFC. Clasificar una vez todas las
+        # fichas antiguas con URL conocida, sin invalidar sus estadísticas ni
+        # hacer otra búsqueda de identidad. Incluso una tabla ambigua guarda la
+        # versión consultada para no repetir esta migración en cada carga.
         necesita_historial = (vieja.get("_historial_ufc_version") != HISTORY_METADATA_VERSION
-                              and vieja.get("wins") == 0 and vieja.get("losses") == 0
                               and vieja.get("ufcstats_url"))
         if not necesita_historial:
             return vieja

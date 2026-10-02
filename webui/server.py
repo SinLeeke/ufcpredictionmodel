@@ -44,7 +44,7 @@ def estado():
 @app.get("/api/betano/carteleras")
 def betano_carteleras():
     try:
-        return {"carteleras": engine.listar_carteleras()}
+        return engine.listar_carteleras()
     except Exception as e:                                   # noqa: BLE001
         raise HTTPException(502, f"No pude consultar Betano: {e}")
 
@@ -65,6 +65,17 @@ def cargar_betano(body: CargaBetano):
 
 class CargaCSV(BaseModel):
     nombre: str
+    corte: str | None = None      # AAAA-MM-DD: repetición con los datos de ese día
+
+
+def _corte_valido(corte: str | None) -> str | None:
+    """La fecha de corte normalizada, o 400 con el motivo en castellano."""
+    from src import corte as CT
+    try:
+        dia = CT.a_fecha(corte)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return dia.strftime("%Y-%m-%d") if dia is not None else None
 
 
 @app.get("/api/cards")
@@ -92,10 +103,75 @@ def cargar_csv(body: CargaCSV):
     # El nombre viene del navegador: hay que verificar que no se salga de cards/.
     if not _dentro_de(ruta, C.ROOT / "cards") or not ruta.exists():
         raise HTTPException(404, f"No existe cards/{body.nombre}")
+    corte = _corte_valido(body.corte)
     if engine.ESTADO.cargando:
         raise HTTPException(409, "Ya hay una carga en curso.")
-    engine.cargar("csv", body.nombre, ruta)
+    engine.cargar("csv", body.nombre, ruta, corte=corte)
     return {"ok": True}
+
+
+@app.get("/api/inicio")
+def inicio():
+    """La portada: noticias y carteleras confirmadas de UFC, desde la caché."""
+    return engine.portada()
+
+
+@app.get("/api/inicio/imagen/{id_nota}")
+def imagen_nota(id_nota: str):
+    """
+    La imagen de una nota, bajada una vez a disco. Solo por un id que vino en la
+    portada: el navegador nunca elige qué URL se baja. 204 si no hay.
+    """
+    from src import ufc_oficial
+    ruta = ufc_oficial.imagen(id_nota)
+    if ruta is None:
+        return Response(status_code=204)
+    return FileResponse(ruta, headers={"Cache-Control": "private, max-age=86400"})
+
+
+class CargaOficial(BaseModel):
+    id: str
+
+
+@app.post("/api/cartelera/ufc")
+def cargar_ufc(body: CargaOficial):
+    """Predice una cartelera confirmada por UFC, sin cuotas."""
+    if engine.ESTADO.cargando:
+        raise HTTPException(409, "Ya hay una carga en curso.")
+    try:
+        nombre = engine.cargar_oficial(body.id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return {"ok": True, "nombre": nombre}
+
+
+@app.get("/api/anteriores")
+def peleas_anteriores(q: str = "", limite: int = 24):
+    """
+    Peleas de la base local para repetirlas. Sin `q`, la estelar de cada evento;
+    con `q`, todas las que nombren a ese peleador o evento. Nunca el resultado.
+    """
+    try:
+        return engine.peleas_anteriores(q.strip()[:80], max(1, min(limite, 240)))
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+
+
+class CargaHistorica(BaseModel):
+    evento: str
+    fecha: str                    # AAAA-MM-DD del evento: es también el corte
+
+
+@app.post("/api/cartelera/anterior")
+def cargar_anterior(body: CargaHistorica):
+    _corte_valido(body.fecha)
+    if engine.ESTADO.cargando:
+        raise HTTPException(409, "Ya hay una carga en curso.")
+    try:
+        nombre = engine.cargar_historico(body.evento, body.fecha)
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(404, str(e))
+    return {"ok": True, "nombre": nombre}
 
 
 @app.post("/api/cartelera/subir")
@@ -307,16 +383,24 @@ def main() -> None:
         engine.cargar_demo(ruta)
         print(f"  [demo] {ruta.name}")
     engine.arrancar_auto()
+    # --puerto N: para abrir una segunda copia (por ejemplo la demo) sin cerrar
+    # la que ya está en el 8000.
     puerto = 8000
+    if "--puerto" in sys.argv:
+        i = sys.argv.index("--puerto")
+        if i + 1 >= len(sys.argv) or not sys.argv[i + 1].isdigit():
+            raise SystemExit("--puerto necesita un número, por ejemplo --puerto 8010.")
+        puerto = int(sys.argv[i + 1])
     print("=" * 60)
     print("  UFC Predictor — UI")
     print(f"  http://127.0.0.1:{puerto}")
     print("  (Ctrl+C para cerrar)")
     print("=" * 60)
-    try:
-        webbrowser.open(f"http://127.0.0.1:{puerto}")
-    except Exception:                                        # noqa: BLE001
-        pass
+    if "--sin-navegador" not in sys.argv:
+        try:
+            webbrowser.open(f"http://127.0.0.1:{puerto}")
+        except Exception:                                    # noqa: BLE001
+            pass
     uvicorn.run(app, host="127.0.0.1", port=puerto, log_level="warning")
 
 

@@ -29,6 +29,9 @@ def normalize_name(name: str) -> str:
 _GROUPS = (
     ("King Green", "Bobby Green"),
     ("Ian Machado Garry", "Ian Garry"),
+    # UFC /athlete/wang-cong y UFCStats /fighter-details/2997e7fe3c9d3d4a;
+    # Betano invierte el orden del nombre en la misma pareja Silva–Wang.
+    ("Wang Cong", "Cong Wang"),
     ("JunYong Park", "Jun Yong Park"),
     ("Alexander Volkov", "Alekander Volkov"),
     ("Alex Ricci", "Alessandro Ricci"),

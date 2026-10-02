@@ -13,6 +13,7 @@
 <link rel="preload" href="/fuentes/barlow-condensed-800.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fuentes/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/analisis.css">
 </head>
 <body>
 
@@ -32,7 +33,8 @@
   </div>
 
   <nav class="tabs" aria-label="Secciones">
-    <button class="tab activa" data-tab="cartelera">Cartelera</button>
+    <button class="tab activa" data-tab="inicio">Inicio</button>
+    <button class="tab" data-tab="cartelera">Cartelera</button>
     <button class="tab" data-tab="parlay">Combinada <span id="badge-patas" class="badge">0</span></button>
     <button class="tab" data-tab="datos">Cargar</button>
     <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
@@ -50,6 +52,8 @@
     <div id="reloj-caja" class="reloj-caja" title="Refresco automático de cuotas">
       <span id="reloj"></span>
     </div>
+    <!-- Repetición: la cartelera se predijo con los datos de un día pasado. -->
+    <span id="repe-caja" class="repe-caja oculto"></span>
     <label id="vivo-caja" class="vivo-caja oculto"
            title="Refresca solo la línea de ganador cada 10 s, con una sola petición a Betano">
       <input type="checkbox" id="chk-vivo"> <span>EN VIVO</span>
@@ -103,6 +107,11 @@
 <section id="carga-cartelera" class="carga-cartelera oculto" aria-labelledby="carga-titulo">
   <p class="carga-rotulo">Cargando cartelera</p>
   <h2 id="carga-titulo">Preparando…</h2>
+  <!-- Las etapas de la carga, como el rótulo de "a continuación" de la tele:
+       las hechas con visto, la actual marcada y las que faltan apagadas. -->
+  <ol id="carga-etapas" class="carga-etapas" aria-hidden="true">
+    <li data-paso="0">Cuotas</li><li data-paso="1">Modelo</li><li data-paso="2">Peleas</li><li data-paso="3">Informe</li>
+  </ol>
   <p id="carga-detalle" class="carga-detalle" role="status" aria-live="polite"></p>
   <div class="carga-medida">
     <label for="carga-barra">Progreso de esta etapa <span id="carga-unidades"></span></label>
@@ -119,8 +128,37 @@
   <p id="carga-aviso" class="carga-aviso oculto"></p>
 </section>
 
+<!-- ========================= INICIO ======================== -->
+<!-- La portada, como la de un sitio de la liga: noticias al centro, las peleas
+     que vienen y los eventos al costado. Todo de UFC (ufc_oficial.py), desde una
+     caché: abre igual sin internet, con lo último que se bajó. -->
+<section id="tab-inicio" class="panel activa">
+  <div id="inicio-actual" class="inicio-actual oculto"></div>
+  <div class="inicio">
+    <section class="inicio-noticias" aria-labelledby="tit-noticias">
+      <div class="col-cab"><h2 id="tit-noticias">Noticias</h2><span id="noticias-estado" class="col-dato"></span></div>
+      <div id="noticias" aria-busy="true"></div>
+      <p class="inicio-fuente">Noticias y carteleras de <b>UFC Español</b> (ufcespanol.com). Cada titular
+        abre la nota original. Sin relación con UFC: solo se citan sus titulares.</p>
+    </section>
+    <section class="inicio-col" aria-labelledby="tit-proximas">
+      <div class="col-cab"><h2 id="tit-proximas">Próximas peleas</h2>
+        <div class="segmentado mini" role="group" aria-label="Qué peleas mostrar">
+          <button class="seg activa" data-prox="estelar">Estelar</button>
+          <button class="seg" data-prox="todas">Todas</button>
+        </div>
+      </div>
+      <div id="proximas" class="proximas" aria-busy="true"></div>
+    </section>
+    <section class="inicio-col" aria-labelledby="tit-eventos">
+      <div class="col-cab"><h2 id="tit-eventos">Eventos</h2></div>
+      <div id="eventos" aria-busy="true"></div>
+    </section>
+  </div>
+</section>
+
 <!-- ======================= CARTELERA ======================= -->
-<section id="tab-cartelera" class="panel activa">
+<section id="tab-cartelera" class="panel">
 
   <div id="bienvenida" class="bienvenida">
     <h2>Bienvenido</h2>
@@ -149,6 +187,8 @@
     <div id="tarjetas-kpi" class="kpis"></div>
 
     <div id="avisos" class="avisos"></div>
+
+    <section id="marcador" class="marcador oculto" aria-label="Cómo le fue al modelo en la repetición"></section>
 
     <section class="bloque">
       <div class="bloque-cab">
@@ -240,6 +280,7 @@
 <!-- ========================= CARGAR ======================== -->
 <section id="tab-datos" class="panel">
   <div class="cargar">
+    <div class="cargar-col">
     <section class="caja caja-betano" aria-labelledby="tit-betano">
       <div class="caja-cab">
         <span data-ico="senal"></span>
@@ -260,33 +301,56 @@
       </div>
     </section>
 
+    <!-- Peleas que ya pasaron, como en la programación de repeticiones del
+         canal: se elige una y se predice con lo que se sabía ese día. -->
+    <section class="caja caja-anteriores" aria-labelledby="tit-anteriores">
+      <div class="caja-cab">
+        <span data-ico="repetir"></span>
+        <h2 id="tit-anteriores">Peleas anteriores</h2>
+        <span id="anteriores-rango" class="caja-cab-dato"></span>
+      </div>
+      <p class="nota">Elige una pelea que ya pasó y el modelo la predice como ese día:
+        solo ve lo anterior a la fecha (estadísticas, ELO, rivales y un modelo entrenado
+        sin esas peleas). Después del pronóstico aparece cómo terminó.</p>
+      <div class="campo">
+        <label for="buscar-anterior">Busca un peleador o un evento</label>
+        <div class="fila-input">
+          <span class="input-ico" data-ico="buscar"></span>
+          <input type="search" id="buscar-anterior" placeholder="Makhachev, UFC 322…" autocomplete="off">
+        </div>
+      </div>
+      <div id="lista-anteriores" class="anteriores" tabindex="0" aria-label="Peleas anteriores"></div>
+    </section>
+    </div>
+
     <section class="caja caja-archivo" aria-labelledby="tit-archivo">
       <div class="caja-cab">
         <span data-ico="csv"></span>
-        <h2 id="tit-archivo">Desde un archivo</h2>
+        <h2 id="tit-archivo">Guardadas</h2>
       </div>
-      <p class="nota">Un CSV con al menos dos columnas: <code>fighter_a</code> y
-        <code>fighter_b</code>. Si además le pones <code>odds_a</code> y
-        <code>odds_b</code> se activa el análisis de valor.</p>
-      <div class="fila-input subir">
-        <label class="elegir-archivo" for="archivo">
-          <span data-ico="subir"></span>
-          <span><b id="archivo-nombre">Elegir un archivo .csv</b>
-            <small>toca para buscarlo en tu PC</small></span>
-        </label>
-        <input type="file" id="archivo" accept=".csv" class="archivo-input">
-        <button id="btn-subir" class="primario">Subir</button>
-      </div>
-      <details class="mini">
-        <summary>Ver el formato exacto</summary>
+      <p class="nota">Las carteleras que ya bajaste. Si su fecha ya pasó, <b>Repetir</b>
+        la predice con los datos que había antes de ese día.</p>
+      <div id="lista-csvs"></div>
+      <details class="mini subir-propio">
+        <summary>Subir un CSV propio</summary>
+        <p class="nota">Un CSV con al menos dos columnas: <code>fighter_a</code> y
+          <code>fighter_b</code>. Si además le pones <code>odds_a</code> y
+          <code>odds_b</code> se activa el análisis de valor.</p>
+        <div class="fila-input subir">
+          <label class="elegir-archivo" for="archivo">
+            <span data-ico="subir"></span>
+            <span><b id="archivo-nombre">Elegir un archivo .csv</b>
+              <small>toca para buscarlo en tu PC</small></span>
+          </label>
+          <input type="file" id="archivo" accept=".csv" class="archivo-input">
+          <button id="btn-subir" class="primario">Subir</button>
+        </div>
         <pre class="ejemplo">fighter_a,fighter_b,segment,odds_a,odds_b
 Islam Makhachev,Ian Machado Garry,Estelar,1.33,3.15
 Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
         <p class="nota">Los nombres deben escribirse como aparecen en UFCStats. Las
           celdas vacías están bien: lo que falte simplemente no se analiza.</p>
       </details>
-      <h3 class="guardados-tit">Ya guardados</h3>
-      <div id="lista-csvs"></div>
     </section>
   </div>
 </section>
@@ -653,7 +717,7 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
     </p>
     <p class="pie-nota pie-legal">
       Sin relación con UFC ni con sus dueños: el nombre solo dice de qué trata. Fotos de
-      peleadores: ESPN, Wikipedia/Wikimedia Commons o Sherdog; sin foto, una silueta.
+      peleadores: ESPN, perfiles oficiales de UFC o Sherdog; sin foto verificada, una silueta.
     </p>
     <p class="pie-firma">
       hecho por <a href="https://github.com/SinLeeke/ufcpredictionmodel" target="_blank"
@@ -670,6 +734,7 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
 </div>
 
 <script src="/iconos.js"></script>
+<script src="/analisis.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

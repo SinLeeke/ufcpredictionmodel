@@ -41,10 +41,13 @@ copiar eso sin dejar de vender seguridad.
 - Servidor local FastAPI en `127.0.0.1`, sin autenticación, a propósito. La UI es
   HTML/CSS/JS vanilla en `webui/static`, sin build y **sin CDN**: tiene que abrir sin
   internet, que es justo cuando se mira una cartelera ya bajada.
-- Cinco pestañas: **Cartelera** (avisos, KPIs, Qué apostar, peleas en tarjetas o tabla,
+- Seis pestañas: **Inicio** (la portada: noticias de UFC, próximas peleas confirmadas
+  con cuenta regresiva y eventos para predecir o repetir; es la que abre),
+  **Cartelera** (avisos, KPIs, Qué apostar, peleas en tarjetas o tabla,
   modal de confianza), **Combinada** (selecciones agrupadas por mercado y por pelea,
   bloqueos excluyente/similar, boleto de hasta 13 patas, bankroll, veredicto y métricas),
-  **Cargar** (carteleras de Betano con un clic, CSV, archivos guardados),
+  **Cargar** (carteleras de Betano con un clic, peleas anteriores para repetirlas con
+  los datos de ese día, archivos guardados y CSV propio),
   **Mantenimiento** (estado de modelos, tareas de a una, registro) y **Guía**.
 - Las cuotas se refrescan solas cada 10 min con origen Betano; **EN VIVO** refresca solo
   la línea de ganador cada 10 s. Reloj de cuenta regresiva en la cabecera.

@@ -72,6 +72,56 @@ class AvancePorPelea(unittest.TestCase):
 
 
 class IdentidadYHistorial(unittest.TestCase):
+    def test_ultimas_peleas_viajan_en_info_con_el_mismo_corte_de_las_features(self):
+        from webui import engine as E
+        ultimas = [{"resultado": "W", "metodo": "U-DEC", "rival": "Rival Real", "fecha": "2024-01-01"},
+                   {"resultado": "NC", "metodo": "CNC", "rival": "Otro Rival", "fecha": "2023-01-01"}]
+        with card_aislado() as env:
+            csv = env["tmp"] / "c.csv"
+            csv.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\n", encoding="utf-8")
+            with mock.patch.object(env["card"].oposicion, "features", wraps=env["card"].oposicion.features) as features, \
+                    mock.patch.object(env["card"].oposicion, "ultimas_peleas",
+                                      side_effect=lambda nombre, hasta: ultimas if nombre == "Uno Uno" else []) as recientes:
+                res = predecir(env["card"], csv)
+                datos, _ = E._serializar(res, csv)
+            corte_features = features.call_args.args[2]
+            self.assertTrue(all(call.args[1] == corte_features for call in recientes.call_args_list))
+        self.assertEqual(datos["peleas"][0]["info_a"]["ultimas_peleas"], ultimas)
+        self.assertEqual(datos["peleas"][0]["info_b"]["ultimas_peleas"], [])
+
+    def test_metodos_del_historial_se_exportan_y_el_debut_sin_victorias_no_inventa_tasas(self):
+        from src import value
+        from webui import engine as E
+        with card_aislado() as env:
+            csv = env["tmp"] / "c.csv"
+            csv.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\n", encoding="utf-8")
+            with mock.patch.object(env["card"], "get_stats", side_effect=lambda nombre: (
+                    peleador(nombre, wins=0 if nombre == "Dos Dos" else 10), "ufcstats")), \
+                    mock.patch.object(value, "cargar_modelo_metodo", return_value=(None, None)):
+                res = predecir(env["card"], csv)
+                datos, _ = E._serializar(res, csv)
+        pelea = datos["peleas"][0]
+        self.assertEqual(pelea["metodo_hist_a"], {"KO/TKO": 0.35, "Submission": 0.15, "Decision": 0.50})
+        self.assertIsNone(pelea["metodo_hist_b"])
+
+    def test_modelo_de_seis_resultados_funciona_sin_mercados_ni_cuotas(self):
+        import numpy as np
+        from src import value
+        from webui import engine as E
+        p6 = np.array([0.31, 0.07, 0.22, 0.15, 0.05, 0.20])
+        with card_aislado() as env:
+            csv = env["tmp"] / "c.csv"
+            csv.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\n", encoding="utf-8")
+            modelo = object()
+            with mock.patch.object(value, "cargar_modelo_metodo", return_value=(modelo, ["streak_diff"])), \
+                    mock.patch.object(value, "_p6_simetrica", return_value=p6) as predecir6:
+                res = predecir(env["card"], csv)
+                datos, _ = E._serializar(res, csv)
+            predecir6.assert_called_once()
+            self.assertIs(predecir6.call_args.args[0], modelo)
+        self.assertFalse(datos["con_cuotas"])
+        self.assertEqual(datos["peleas"][0]["probabilidades_metodo"], dict(zip(value.CLASES_METODO, p6)))
+
     def test_bobby_green_usa_la_fila_vigente_de_king_green(self):
         import config as C
         with card_aislado() as env:
@@ -134,15 +184,20 @@ class IdentidadYHistorial(unittest.TestCase):
         self.assertNotIn("ninguna pelea en UFC", texto)
 
     def test_debut_ufc_no_depende_del_total_de_otras_organizaciones(self):
+        from webui import engine as E
         with card_aislado() as env:
             csv = env["tmp"] / "c.csv"
             csv.write_text("fighter_a,fighter_b\nUno Uno,Dos Dos\n", encoding="utf-8")
             with mock.patch.object(env["card"], "get_stats", side_effect=lambda nombre: (
                     peleador(nombre, n_peleas_hist=5, n_peleas_ufc=0,
                              historial_ufc_confirmado=True), "ufcstats")):
-                consenso = predecir(env["card"], csv)["consenso"][0]
+                res = predecir(env["card"], csv)
+                consenso = res["consenso"][0]
+                datos, _ = E._serializar(res, csv)
         self.assertTrue(consenso["info_a"]["debut_ufc_confirmado"])
         self.assertTrue(consenso["info_b"]["debut_ufc_confirmado"])
+        self.assertEqual(datos["peleas"][0]["debutantes"], ["Uno Uno", "Dos Dos"])
+        self.assertEqual(datos["peleas"][0]["confianza"], "NO FIABLE")
 
     def test_fallback_kaggle_tambien_enriquece_historial(self):
         from src import card

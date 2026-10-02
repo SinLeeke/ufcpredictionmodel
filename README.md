@@ -182,6 +182,9 @@ Más detalles de datos y mantenimiento en [MANUAL.md](MANUAL.md).
 ```
 
 En **Cargar**, elige una cartelera de Betano y pulsa **Predecir**, o sube tu CSV.
+Para ver qué habría dicho el modelo en una pelea que **ya pasó**, elígela en **Peleas
+anteriores** (o pulsa **Repetir** en una cartelera guardada con fecha pasada): se predice
+con lo que se sabía antes de ese día y, después, se muestra cómo terminó.
 El scraper y el refresco de cuotas usan el dominio chileno
 [www.betanosports.com](https://www.betanosports.com/) definido en `config.BETANO_BASE`.
 El modo en vivo se activa desde la interfaz.
@@ -196,26 +199,46 @@ La consola permite el mismo flujo:
 Añade `--fecha AAAA-MM-DD` al scraper si una liga contiene eventos de varios días.
 Con `--detalle`, `src.card` muestra las tablas completas.
 
+En un CSV manual, `segment` identifica la estelar o coestelar. Para marcar un combate
+por el título, añade `es_titulo` (también se acepta `title_bout`) con `true/false`,
+`1/0` o `sí/no`. Un valor vacío, desconocido o contradictorio queda sin confirmar.
+El dorado se aplica a **cualquier pelea por el título confirmada**, sea estelar,
+coestelar u otro combate. La estelar y todos los combates por el título llevan
+octágono; una coestelar sin cinturón conserva su tarjeta normal.
+Al cargar o actualizar una cartelera, el sistema consulta las fichas oficiales de
+eventos de UFC y cruza la pareja de peleadores con la fecha. La etiqueta oficial
+«Title Bout» confirma el cinturón; su lugar en la cartelera o durar cinco asaltos
+no basta. Una anotación manual explícita tiene prioridad.
+El CSV guarda la fuente en `titulo_fuente` y la fecha en `fecha_evento_utc`; también
+se reconoce la fecha de archivos `betano_AAAA-MM-DD_…csv`. Sin fecha o confirmación
+oficial, el dato queda desconocido. Las consultas usan caché y un fallo de conexión
+no impide predecir el evento.
+Los datos resueltos llevan `titulo_automatico=true` y se vuelven a comprobar al
+actualizar; para imponer una anotación manual sobre ellos, usa
+`titulo_automatico=false` junto con `es_titulo`.
+
 ---
 
 ## 🕸 Qué scrapea y cómo
 
-Seis fuentes para los datos y las cuotas. **Ninguna necesita navegador**: todo con `requests`, caché en disco y
+Siete fuentes para los datos y las cuotas. **Ninguna necesita navegador**: todo con `requests`, caché en disco y
 descarga incremental — cada corrida pide solo lo que falta.
 
 | Fuente | Aporta | Al día |
 |---|---|:---:|
 | **UFCStats** | resultados, stats por pelea y por round, fichas | ✅ mismo día |
+| **UFC.com** | confirma qué combates son por el título en la cartelera oficial, por pareja y fecha | ✅ |
 | **Kaggle** (`mdabbert`) | cuotas históricas — lo único que UFCStats no publica | ⏳ ~4 meses |
 | **BestFightOdds** | descarga cuotas recientes para inspección; no entra en el entrenamiento actual | ✅ |
 | **Wikipedia** | quién entró de reemplazo (corto aviso) | ✅ |
 | **Sherdog** | carrera fuera de UFC, solo al predecir debutantes | ✅ |
 | **Betano** | cuotas de la cartelera que viene | ✅ |
 
-Los retratos de la interfaz tienen un circuito aparte: **ESPN → Wikipedia → Sherdog →
+Los retratos de la interfaz tienen un circuito aparte: **perfil UFC verificado → ESPN → UFC → Sherdog →
 silueta**. ESPN aporta los PNG transparentes de sus fichas de MMA; no añade datos de
 entrenamiento. Las imágenes se guardan en `data/raw/fotos/`, y las entradas de caché
-anteriores se revisan para preferir esos retratos sin borrar las fotos locales existentes.
+anteriores se revisan para preferir retratos verificados sin borrar las fotos locales existentes.
+Las imágenes editoriales de Wikipedia y los iconos de los sitios no se usan en las tarjetas.
 
 <details>
 <summary><b>🔧 Los tres problemas que costó resolver</b></summary>
@@ -649,10 +672,17 @@ devuelve sus estructuras en vez de imprimirlas y descartarlas.
 
 | | |
 |---|---|
-| **Carteleras solas** | las de Betano, con fecha, número de peleas y estelar. Un clic y predice. Avisa cuando Betano todavía tiene pocas peleas montadas |
+| **Inicio** | la portada, con la estructura de un sitio de liga: noticias de UFC Español al centro (nota de portada, destacadas y titulares por día), las próximas peleas confirmadas por UFC con su cuenta regresiva a la cartelera estelar o a las preliminares, y los eventos: próximos (con **Predecir**, sin cuotas), terminados y los últimos de tu base (con **Repetir**). Sale de una caché en disco (`ufc_oficial.py`): abre sin internet con lo último que se bajó |
+| **Carteleras solas** | las de **UFC** en Betano, con fecha, número de peleas y estelar. Un clic y predice. Las de otras ligas (Betano mete RIZIN o PFL en "Encuentros") se ocultan y se dice cuántas, salvo que sus peleas estén en una cartelera confirmada por UFC. Avisa cuando Betano todavía tiene pocas peleas montadas |
 | **Carga visible** | muestra etapa, detalle, unidades terminadas y tiempo transcurrido. El porcentaje y el tiempo restante corresponden a la etapa actual; la estimación aparece cuando hay avances medidos, y 100 % llega cuando los resultados están listos |
-| **Estelar y coestelar** | la cartelera empieza por las dos peleas principales, cada una en su octágono con los retratos dentro; después vienen las demás peleas. Los CSV manuales pueden indicar `segment` para identificar sus principales |
-| **Retratos de ESPN** | PNG transparentes vinculados al nombre y al ID de MMA; Wikipedia y Sherdog son respaldo. Ante un nombre ambiguo aparece una silueta |
+| **Estelar y coestelar** | la estelar y cualquier pelea de campeonato usan octágono en ambos estilos, de hasta 460 px, con retratos y cifras proporcionados para conservar su tamaño. En escritorio queda a la izquierda, con cuotas, modelo, métodos y datos del combate a la derecha; en pantallas estrechas se apilan. Los títulos confirmados conservan metal dorado en marco y barra, nombres en dorado sólido y cifras en tinta del tema para mejorar el contraste. Una coestelar sin título conserva la tarjeta normal. Los CSV manuales pueden indicar `segment` para identificar sus principales |
+| **Retratos verificados** | ESPN, fichas oficiales de UFC y retratos del directorio de Sherdog. Las tarjetas normales usan cajas simétricas 4:3 apoyadas sobre una base de su esquina; dentro del octágono los retratos tienen más espacio, sin recortar la cabeza. Wang Cong y Josh Hokit tienen fichas explícitas; ante otros nombres ambiguos aparece una silueta |
+| **Combates desplegables** | cada encabezado muestra «Peleador 1 vs Peleador 2». Todos los combates empiezan plegados; un clic despliega la tarjeta u octágono con una animación de altura al abrir y cerrar. Conservan su estado al refrescar y respetan movimiento reducido |
+| **Análisis por pelea** | gráfico de victoria e incertidumbre, métodos históricos frente a la proyección, y seis resultados por peleador si existe el modelo entrenado. «Explorar análisis» queda cerrado al abrir o reabrir una pelea; la persona decide expandirlo. Los refrescos en vivo conservan esa elección |
+| **Últimas cinco peleas** | tiras de casillas rectas bajo los nombres, antes del porcentaje: verde para victoria y rojo para derrota, con letra y método. Dentro de la lona, tocar la tira abre los detalles de los cinco combates; en las tarjetas normales cada casilla abre su pelea. Se muestran solo los resultados disponibles |
+| **Colores de las esquinas** | dentro de combates sin título, el peleador izquierdo tiene nombre, porcentaje y barra en rojo; el derecho, en azul, aunque cambie el favorito. El encabezado conserva el color de texto del tema. La confianza aparece una sola vez junto a los nombres del encabezado |
+| **Lectura y movimiento** | índice para saltar a cada combate, tarjetas compactas con letras secundarias más grandes, datos finales en columnas estables, entradas al desplazarse y animaciones que respetan movimiento reducido |
+| **Repetición** | **Peleas anteriores** lista las peleas de la base local (hasta donde llegue) con buscador por peleador o evento; elegir una predice su cartelera con **solo lo anterior a esa fecha**: stats y récord recalculados pelea a pelea, ELO pre-evento, rivales y un modelo reentrenado sin esas peleas si el de producción ya las vio. Después del pronóstico aparece el resultado real (Acertó / Falló), un marcador de la noche con su margen de error y si las apuestas sugeridas habrían salido. Las cuotas son las de cierre de Kaggle o BestFightOdds. La lista nunca pone al ganador primero |
 | **Modo EN VIVO** | refresca la línea de ganador **cada 10 s** con *una sola* petición: la página del evento ya trae el mercado de toda la cartelera. No re-predice — la probabilidad del modelo no cambia porque se mueva la cuota, solo la mezcla y el EV |
 | **Todo explicado** | ninguna etiqueta aparece muda. "NO FIABLE" dice el motivo con nombre y apellido; cada selección dice *conviene / se puede / no conviene* y por qué; hay una pestaña **Guía** con el glosario completo |
 | **Mantenimiento** | actualizar la base, reentrenar y correr los backtests con el registro en vivo, una tarea a la vez |
@@ -667,13 +697,14 @@ Los criterios y los casos revisados están en la
 [auditoría de identidades](docs/auditoria-identidades.md).
 
 Una ficha sin historial descargado se muestra como **historial de UFC no disponible**.
-Eso no equivale a cero peleas ni activa la etiqueta de debutante. La etiqueta
-**Pelea de un debutante** requiere un debut confirmado; si falta historial o hay pocas
+Eso no equivale a cero peleas ni activa el aviso de debutante. Un debut confirmado
+se destaca sobre la pelea y en la cabecera de la cartelera, tanto si debuta uno como
+si debutan ambos. Si falta historial o hay pocas
 peleas para evaluar, se mantiene **NO FIABLE** con la causa explicada.
 
 Capturas de la interfaz local:
 
-![Cartelera con estelar y coestelar en octágonos y retratos de ESPN](docs/capturas/cartelera-octagonos.jpg)
+![Cartelera local con retratos y probabilidades](docs/capturas/cartelera-octagonos.jpg)
 
 ![Ficha de Bobby Green con identidad e historial resueltos](docs/capturas/bobby-green-historial.jpg)
 
@@ -825,7 +856,8 @@ Con la ruta suelta, `python modelado/train_model.py`, Python no encuentra `confi
 > Ojo con los dos últimos: el nombre dice "backtest" pero **también construyen modelos**
 > que `card.py` necesita.
 
-**Scrapers** — `ufcstats.py` (fichas + anti-bot), `ufcstats_events.py` (resultados),
+**Scrapers** — `ufc_oficial.py` (noticias y carteleras confirmadas de ufc.com para la
+portada, con caché), `ufcstats.py` (fichas + anti-bot), `ufcstats_events.py` (resultados),
 `ufcstats_fighters.py` (biometría), `ufcstats_fightstats.py` (stats por pelea y round),
 `betano_scraper.py`, `bfo_odds.py`, `reemplazos.py`, `sherdog.py`, `scraper.py` (Kaggle),
 `fast_fetch.py` (paralelo, ~8 req/s).
@@ -835,7 +867,8 @@ graduado, simetría), `oposicion.py`, `control_stats.py`, `ufcstats_ingest.py`,
 `simulate.py` (Monte Carlo).
 
 **Predicción** — `card.py` (el orquestador), `value.py` (EV, Kelly, calibrador),
-`odds.py`, `visuals.py`, `model.py`.
+`odds.py`, `visuals.py`, `model.py`, `corte.py` (la repetición: cada pieza recortada a
+una fecha, también para `backtest_carteleras`).
 
 **Web** — `webui/server.py`, `engine.py`, `parlay.py`, `jobs.py` y `static/`.
 

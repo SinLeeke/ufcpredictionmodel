@@ -313,20 +313,59 @@ scroll horizontal a 390 ni a 320 px.
   índice de la Guía) sube con ella mediante la clase `cab-oculta` en la raíz.
 - **Combinada a la altura de la pantalla:** la lista de selecciones y el boleto tienen
   scroll propio y la sección mide lo que la ventana; en el celular se apilan.
-- **Estelar y coestelar** dentro de un octágono regular de ocho lados iguales (hasta 800
-  y 660 px); el resto de las peleas en tarjetas cara a cara.
+- **La estelar y cualquier combate por el título** dentro de un octágono regular
+  de ocho lados iguales (hasta 460 px). Se aprovecha más la lona para conservar el
+  tamaño de fotos y cifras al reducir el espacio exterior. En escritorio queda a la izquierda y las
+  cuotas, modelo, métodos y datos del combate a la derecha; en pantallas estrechas se apilan.
+  Una coestelar sin título lleva su rótulo en una tarjeta normal, en ambos estilos.
+  La lona tiene textura de tejido, marca impresa y acolchados de esquinas roja y azul;
+  cualquier combate por el título repite el mismo degradado metálico de la barra en
+  bordes y reja. Los nombres usan dorado sólido (oscuro en claro y luminoso en oscuro),
+  las cifras la tinta del tema: los reflejos metálicos no se aplican al texto. El título
+  se identifica en ambos temas, confirmado por
+  `es_titulo: true`. Este dato se obtiene de la ficha oficial de UFC para la pareja
+  y fecha del evento, o de una anotación manual explícita en el CSV. La ubicación en la
+  cartelera o los cinco asaltos no confirman un título.
+- **Combates desplegables:** encabezado «Peleador 1 vs Peleador 2» para cada combate.
+  Todos empiezan plegados; abrir uno muestra su tarjeta u octágono y el acceso al análisis.
+  La altura se anima al abrir y cerrar, permite cambiar de dirección durante el
+  movimiento y respeta la preferencia de movimiento reducido. El estado abierto
+  o cerrado se conserva al refrescar.
+  La etiqueta de confianza aparece únicamente en este encabezado, con la explicación
+  accesible desde el cuerpo del combate.
+- **Esquinas sin título:** nombres y porcentajes rojos para el lado izquierdo y azules
+  para el derecho dentro de la tarjeta. Los nombres del encabezado conservan el color
+  de texto del tema. Los dos tramos de
+  la barra mantienen estos colores aunque cambie el favorito; el dorado identifica títulos.
+- **Retratos y comparativa:** cajas 4:3 proporcionadas y apoyadas en una base de su
+  esquina en tarjetas normales, con la imagen completa. Cuota, casa y modelo comparten
+  columnas y separadores; las etiquetas secundarias tienen más tamaño sin aumentar
+  el espacio vacío. Finalización, tendencia, comisión y ayuda tienen lugares estables.
+- **Debuts confirmados:** encabezado de advertencia encima del combate y resumen en la
+  cartelera. Nombra al debutante o a ambos; un historial faltante no activa este aviso.
+- **Análisis debajo del combate:** donut de victoria con intervalos, barras de métodos
+  históricos y proyectados, y seis resultados por peleador si existe el modelo. Los
+  datos desconocidos se muestran como ausentes. El análisis interior empieza cerrado
+  al abrir o reabrir el combate; la persona decide expandirlo. Los refrescos en vivo
+  conservan su elección.
+- **Últimas cinco peleas:** secuencia reciente de cada peleador con resultado y método.
+  Casillas rectas bajo los nombres, antes de los porcentajes, verdes para victorias
+  y rojas para derrotas; la letra y el método expresan el dato también sin color.
+  En los octágonos las dos secuencias quedan dentro de la lona; cada fila abre el
+  detalle completo del historial de ese peleador.
+  Se muestran solo los combates disponibles.
 - Puntos de quiebre: 1180, 1080, 900, 760, 640, 560 y 480 px.
 - En el celular, todo lo que se toca mide al menos 44 px; lo que no puede crecer (el
   "?" de una pelea, la × de la cartelera) extiende su área táctil con un `::after`.
 
 ## Elevation & Depth
 
-Sin sombras. La profundidad sale de tres cosas: el tono (fondo → superficie →
+La profundidad principal sale de tres cosas: el tono (fondo → superficie →
 superficie 2), las **reglas gruesas** (3 px de tinta sobre cada panel, roja bajo la
 cabecera y sobre el pie) y la inversión (el sello Probado, la pestaña activa y el aviso
 flotante van en tinta o hueso sólidos). El modal se separa con un velo de tinta al 66 %.
-La única sombra del archivo es el filo rojo de un poste del octágono, que es dibujo y no
-elevación.
+La jaula añade una sombra suave de arena y sus acolchados tienen luces y sombras.
+El conjunto de combate tiene una sombra tenue; los datos conservan superficies planas.
 
 ### Named Rules
 
@@ -383,21 +422,79 @@ derecha cuánto apostar, cuánto paga y el valor. La explicación de cada nivel 
 por grupo.
 
 ### Cara a cara y octágono
-Dos retratos que ocupan todo el alto (cara arriba, nunca hundida), nombres, porcentajes
-enfrentados, la barra dual y las filas en espejo. Sin foto oficial, una silueta de
-peleador; nunca la foto de otro.
+Dos retratos ajustados para conservar la cabeza completa, nombres, porcentajes
+enfrentados, la barra dual y las filas en espejo. La estelar y todo título confirmado usan octágono;
+los retratos quedan integrados dentro de la lona con margen frente a las diagonales,
+junto al historial reciente y la marca propia centrada. La comparativa de cuotas,
+métodos y datos finales se presentan en una columna lateral, debajo en pantallas
+estrechas. La coestelar sin título usa una tarjeta normal con su rótulo.
+Sin foto oficial, una silueta de peleador; nunca la foto de otro.
+
+Dentro de la lona, el bloque arranca a 10,5 cqw del borde y la barra mide el 84 % del
+ancho, centrada: la franja de ancho completo de la línea pintada va de y = 32 a y = 68
+(en % de la jaula) y abajo los chaflanes cierran 1 cqw por cada 1 cqw que se baja. Con
+la barra a lo ancho y más abajo, sus puntas tocaban la diagonal. Todo lo que se agregue
+debajo de la barra (la placa del resultado) se mide contra esa diagonal. La marca
+impresa del centro es solo el glifo: el texto "UFC PREDICTOR" se leía a pedazos entre
+las casillas del historial. En la lona, el historial abrevia KO/TKO como KO: sus
+casillas miden ~27 px.
+
+### Inicio
+La portada que se abre por defecto, con la estructura de un sitio de liga y la gráfica
+de la transmisión. Tres columnas (dos bajo 1180 px, una bajo 900 px), cada una un panel
+con su regla de tinta:
+
+- **Noticias**: la nota de portada a todo el ancho con la foto y el titular encima (velo
+  oscuro solo bajo el texto, "hace X h" en un rótulo rojo inclinado), dos destacadas con
+  foto y los titulares por día, con "Hoy" en rojo y "Ayer" en tinta. Cada uno abre la nota
+  original en otra pestaña. Las horas van en 24 h.
+- **Próximas peleas**: las próximas cuatro carteleras confirmadas por UFC; cada pelea en
+  dos líneas, una por esquina, con el cuadro de color de la esquina, el ranking y la cuenta
+  regresiva a su parte de la cartelera (verde; "En vivo" en rojo con latido durante 6 h).
+  "Estelar / Todas" filtra la cartelera estelar o todas las partes.
+- **Eventos**: un sello con el número (o FN / RTU) y el nombre; próximos con **Predecir**
+  (la cartelera de UFC, sin cuotas), terminados con **Repetir** si la base ya los tiene, y
+  los últimos de la base. La acción entra de costado al pasar el mouse o con el foco.
+- Arriba, si hay una cartelera cargada, un rótulo invertido para volver a ella.
+
+### Repetición
+La cartelera de una noche que ya pasó, predicha con lo que se sabía antes de ese día.
+Habla como la repetición de la tele:
+
+- **Rótulo REPETICIÓN** en la cabecera, en hueso sobre el canal y con la fecha del corte,
+  en el lugar del reloj de cuotas (no hay cuotas que refrescar: son las de cierre).
+- **Aviso informativo** con qué se recortó y qué no (los dos calibradores), y un aviso si
+  el corte cae después de la última pelea de la base.
+- **Marcador**: "acertó X de N" en cifra grande, la advertencia de que una noche no mide
+  un modelo (margen ±50/√N puntos) y una tira de casillas pelea por pelea (verde con
+  visto, rojo con cruz, gris si la base no tiene el resultado) que lleva a cada combate.
+- **Zócalo del resultado** bajo el cara a cara: el sello Acertó / Falló a la izquierda,
+  con ícono y palabra, y "Ganó X · cómo · asalto" al lado. En el octágono es una placa
+  angosta en la lona libre bajo la barra; en el acta del juez, un timbre más.
+- En el encabezado plegable, el resultado va en tinta sólida con el ícono en verde o
+  rojo (`--res-si` / `--res-no`), para no confundirse con los sellos de confianza.
+
+### Peleas anteriores (Cargar)
+La lista para elegir una repetición, debajo de Betano: fecha y evento arriba; abajo el
+cara a cara con cada retrato apoyado en la línea de su esquina (roja la A, azul la B) y
+el "vs" al medio, que al pasar el mouse o con el foco se convierte en "Repetir". El
+orden de las esquinas nunca dice quién ganó. En el celular los nombres se apilan entre
+los dos retratos. Las fotos se piden al acercarse a la pantalla. El CSV propio queda
+plegado dentro de **Guardadas**, donde las carteleras con fecha pasada tienen
+**Repetir**.
 
 ### Acta de la pelea (estilo C)
 La hoja con su marco impreso de doble filete y las perforaciones de la carpeta. Arriba,
-tres casilleros: pelea (su lugar en la cartelera), segmento y confianza (un timbre:
-sólido para lo más fuerte o lo más grave, doble filete para lo intermedio, punteado para
-moneda). Las dos esquinas con su foto de carnet y el nombre a máquina. Las cifras en
+dos casilleros: pelea (su lugar en la cartelera) y segmento. La confianza aparece una
+sola vez en el encabezado desplegable. Las dos esquinas con su foto de carnet y el
+nombre a máquina, seguidas del historial reciente. Las cifras en
 filas como los asaltos de la tarjeta, con el rótulo en la columna del medio. "Cómo
 termina" como tres casillas, la más probable tachada con lápiz. El pronóstico encerrado
 con lápiz, salvo en moneda y NO FIABLE (un juez no marca ganador ahí). Observaciones
 sobre renglones y la letra chica "Estimación del modelo, no una tarjeta oficial". La
-estelar y la coestelar ocupan todo el ancho con las fotos a los costados (la estelar,
-sujeta con clip); el resto va de a dos por fila y una en el celular.
+estelar y cualquier título confirmado conservan el octágono también en este estilo.
+La coestelar sin título y las demás peleas usan el acta normal, de a dos por fila y
+una en el celular.
 
 En las otras pestañas el estilo C es una capa: Qué apostar como libro de registro con
 los niveles de evidencia como timbres, la Combinada como boleta (casillas y un ticket
@@ -413,19 +510,40 @@ sin animar nada, porque ningún dato cambió.
 ### Movimiento
 Dos curvas para todo: `--ease-out` `cubic-bezier(0.23, 1, 0.32, 1)` para lo que entra,
 sale o responde, y `--ease-in-out` `cubic-bezier(0.77, 0, 0.175, 1)` para lo que viaja
-por la pantalla. Solo `transform` y `opacity`.
+por la pantalla. Las entradas usan `transform` y `opacity`; los desplegables de
+combates animan su altura al abrir y cerrar.
 
 - Cifras que cambian en EN VIVO: entran desde abajo en 220 ms y dejan un destello que se
   apaga en 900 ms; las barras se reacomodan en 280 ms.
-- Barras de probabilidad y de método: se llenan en 300 ms solo en el primer pintado de
-  cada cartelera, con 40 ms de desfase entre tarjetas.
+- **El momento de la cartelera: entrar a la jaula.** Al abrir la estelar (o un título)
+  la jaula se arma de afuera hacia adentro: la reja y la baranda se asientan (380 ms),
+  caen los ocho postes (28 ms de desfase), la línea de la lona se pinta alrededor
+  (720 ms), cada retrato entra desde su esquina con un barrido, los porcentajes corren
+  de 0 a su valor (560 ms, cifras tabulares) y la barra se llena desde los dos lados.
+  Solo con transform, opacity, clip-path y el trazo del SVG; ~1,1 s en total.
+- Barras de probabilidad y de método: se llenan desde su esquina al **abrir** cada
+  combate (420 ms). Antes se llenaban al pintar la cartelera, con los combates
+  plegados, y nadie lo veía.
+- Repetición: el zócalo del resultado se descubre de izquierda a derecha (380 ms) y el
+  sello cae al final; la tira del marcador se completa casilla por casilla (35 ms).
+- Peleas anteriores: las filas nuevas entran como lista (30 ms de desfase); el "vs"
+  cede su lugar a "Repetir" (160 ms). La lista tiene scroll propio y se completa sola al
+  llegar al final.
+- **Pestañas**: la etiqueta hueso viaja de la pestaña vieja a la nueva (300 ms,
+  ease-in-out), como el rótulo que se desliza en la gráfica de la tele.
+- **Cartelera nueva**: las cifras de la barra de información corren hasta su valor y los
+  zócalos de "Qué apostar" se descubren de izquierda a derecha (70 ms de desfase).
+- **Inicio**, una vez por visita: la foto de portada se asienta y su titular se barre de
+  izquierda a derecha; las columnas se completan fila por fila. Las cuentas regresivas
+  que cambian suben como las cifras de EN VIVO.
+- El rótulo REPETICIÓN de la cabecera se descubre de lado al aparecer.
 - Boleto: la pata entra bajando 6 px (200 ms), sale subiendo (140 ms) y las que quedan
   suben a su lugar (FLIP, 200 ms).
 - Pestaña: el panel nuevo sube 4 px y aparece en 150 ms.
 - Aviso: entra en 220 ms y sale en 160 ms por el mismo borde. Modal: 180 a 200 ms de
   entrada, 140 ms de salida.
-- Estilo C, solo en la primera vista de una cartelera: el timbre cae (220 ms) y el lápiz
-  encierra al ganador (450 ms).
+- Estilo C, solo en la primera vista de una cartelera: el lápiz encierra al ganador
+  (450 ms).
 - Con teclado (Enter, Espacio, Esc) nada se anima. Con "menos movimiento" se quitan
   desplazamientos, escalas y el latido de EN VIVO; quedan los fundidos y el destello.
 
@@ -443,7 +561,8 @@ por la pantalla. Solo `transform` y `opacity`.
 ### Don't:
 - **Don't** suavizar, esconder o cambiar el significado de fuerte, buena, justa, moneda,
   NO FIABLE, sí/quizás/no, Probado, Sin ventaja clara, Ruido, Sin validar.
-- **Don't** usar rojo en algo que no sea marca o peligro.
+- **Don't** usar rojo fuera de marca, peligro o la esquina izquierda identificada
+  por su nombre. En el combate, el par rojo y azul expresa las esquinas y no el riesgo.
 - **Don't** usar sombras difusas, esquinas redondeadas, degradados azul a violeta ni
   glassmorphism.
 - **Don't** poner franjas de color a un costado de tarjetas o avisos.

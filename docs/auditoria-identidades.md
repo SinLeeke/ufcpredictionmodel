@@ -15,7 +15,7 @@ Los 277 registros con `n_peleas_hist=0` se explicaron así:
 | Otras variantes verificadas | 95 | Equivalencias explícitas, sin búsqueda difusa automática. |
 | Nombre incompleto `Derrick` | 1 | Se mantiene sin equivalencia global por ambigüedad. |
 
-El registro compartido contiene 96 grupos de identidad: los dos iniciales y 94 grupos añadidos. Hay 97 variantes de filas antiguas con evidencia de una o más peleas coincidentes. `Da Un Jung` y `Da-Un Jung` pertenecen al mismo grupo. Al comparar los CSV después de aplicar las equivalencias, solo `Derrick` sigue sin una correspondencia inequívoca global.
+La auditoría inicial registró 96 grupos de identidad: los dos iniciales y 94 grupos añadidos. Hay 97 variantes de filas antiguas con evidencia de una o más peleas coincidentes. `Da Un Jung` y `Da-Un Jung` pertenecen al mismo grupo. Al comparar los CSV después de aplicar las equivalencias, solo `Derrick` sigue sin una correspondencia inequívoca global. El 2 de octubre de 2026 se añadió el orden alternativo `Cong Wang`/`Wang Cong`, verificado en la cartelera oficial de UFC 332 y en la ficha individual; esa fila no proviene del cruce histórico de los datasets.
 
 El caso Bobby Green conserva el historial detallado de King Green: 31 peleas en esta descarga local, frente al contador agregado antiguo 28. No se inventa un contador; las cifras proceden de los registros disponibles y pueden diferir de una ficha en vivo más reciente.
 
@@ -31,6 +31,7 @@ El nombre de referencia corresponde a la ficha/dataset UFCStats auditado. Una ca
 
 | Variante antigua | Referencia | Combates coincidentes | Ejemplo: fecha y rival | Fuente |
 | --- | --- | ---: | --- | --- |
+| Cong Wang (Betano) | Wang Cong | — | UFC 332 anunciado: 2026-10-03 local/04 UTC, Natalia Silva | [Ficha UFC](https://www.ufc.com/athlete/wang-cong), [Ficha UFCStats](http://ufcstats.com/fighter-details/2997e7fe3c9d3d4a), [Cartelera UFC 332](https://www.ufc.com/event/ufc-332) |
 | Jun Yong Park | JunYong Park | 1 | 2019-12-21, Marc-Andre Barriault | [UFCStats](http://ufcstats.com/fight-details/b3bd27affa038e9c) |
 | Alekander Volkov | Alexander Volkov | 1 | 2019-11-09, Greg Hardy | [UFCStats](http://ufcstats.com/fight-details/3cd1f2c31b4e325a) |
 | Alessandro Ricci | Alex Ricci | 2 | 2017-02-19, Paul Felder | [UFCStats](http://ufcstats.com/fight-details/f00ac5af033f44b4) |
