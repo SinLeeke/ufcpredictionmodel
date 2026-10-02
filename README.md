@@ -10,6 +10,7 @@
 [![Acierto](https://img.shields.io/badge/acierto-66--69%25-0d0d0d?style=flat-square)](#-qué-tan-bien-funciona-y-qué-no)
 [![UI web](https://img.shields.io/badge/UI-local%20incluida-e53935?style=flat-square)](#-interfaz-web)
 [![Pruebas](https://github.com/SinLeeke/ufcpredictionmodel/actions/workflows/pruebas.yml/badge.svg)](https://github.com/SinLeeke/ufcpredictionmodel/actions/workflows/pruebas.yml)
+[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-0d0d0d?style=flat-square)](LICENSE)
 
 <br>
 
@@ -900,6 +901,7 @@ ufc_predictor/
 ├── MANUAL.md           el uso diario, comando por comando
 ├── DESIGN.md           el sistema visual de la interfaz
 ├── PRODUCT.md          para quién es la interfaz y qué tiene que lograr
+├── LICENSE             MIT
 ├── config.py           rutas, umbrales y constantes
 └── data/ models/ outputs/ backups/   generados, no versionados
 ```
@@ -991,6 +993,10 @@ Este proyecto no habría sido posible sin estas fuentes y trabajos previos.
 
 ## 📝 Notas
 
+- **Licencia**: el código es [MIT](LICENSE): se puede usar, modificar y redistribuir
+  conservando el aviso de copyright. Cubre el código de este repositorio, no los datos de
+  terceros que se descargan al usarlo (UFCStats, Kaggle, Betano, ESPN, Sherdog y el resto
+  de [Créditos](#-créditos)), que siguen bajo los términos de cada fuente.
 - Los datos y modelos **no se versionan**: se regeneran con los comandos de arriba.
 - **Scraping educado**: delays entre peticiones, caché en disco, User-Agent identificable y
   descarga incremental para no re-pedir lo que ya se tiene. La variable de entorno
