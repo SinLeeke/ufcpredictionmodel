@@ -1998,14 +1998,25 @@ function pintarNoticias(d) {
     if (!dias.has(dia)) dias.set(dia, []);
     dias.get(dia).push(n);
   });
+  // Los titulares van en una lista con scroll propio: eran ~35 y la columna
+  // medía el doble que las otras dos, que dejaban media portada vacía.
+  let titulares = '';
   dias.forEach((ns, dia) => {
     const tag = dia === hoy ? '<span class="dia-tag hoy">Hoy</span>' : dia === ayer ? '<span class="dia-tag">Ayer</span>' : '';
-    html += `<h3 class="dia">${esc(fechaLarga(dia))}${tag}</h3><ul class="titulares">${ns.map(n => `
+    titulares += `<h3 class="dia">${esc(fechaLarga(dia))}${tag}</h3><ul class="titulares">${ns.map(n => `
       <li><a class="titular" ${enlace(n)}><span class="titular-hora">${esc(horaLocal(new Date(n.fecha) / 1000))}</span>
         <span class="titular-texto">${esc(n.titulo)}</span>${ico('ir')}</a></li>`).join('')}</ul>`;
   });
+  if (titulares) html += `<div class="noticias-lista" tabindex="0" aria-label="Titulares anteriores">${titulares}</div>`;
   $('#noticias').innerHTML = html;
   $$('#noticias img').forEach(img => img.onerror = () => img.remove());
+  const listaNoticias = $('#noticias .noticias-lista');
+  if (listaNoticias) {
+    const marcar = () => listaNoticias.classList.toggle('hay-mas',
+      listaNoticias.scrollHeight - listaNoticias.scrollTop - listaNoticias.clientHeight > 8);
+    listaNoticias.addEventListener('scroll', marcar, { passive: true });
+    marcar();
+  }
 }
 
 function pintarProximas(d) {

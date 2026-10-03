@@ -1443,7 +1443,12 @@ input[type=search]::-webkit-search-cancel-button{cursor:pointer}
    abajo avisa que hay más. */
 .anteriores{display:grid;gap:6px;margin-top:14px;align-content:start;max-height:min(64vh,600px);overflow-y:auto;
   overscroll-behavior:contain;padding:2px 8px 2px 2px;scrollbar-width:thin;scrollbar-color:var(--tenue) transparent}
-.anteriores.hay-mas{-webkit-mask-image:linear-gradient(#000 calc(100% - 56px),transparent);
+/* Los titulares de la portada, igual: con scroll propio, para que la columna de
+   noticias no mida el doble que las otras dos. */
+.noticias-lista{max-height:min(70vh,640px);overflow-y:auto;overscroll-behavior:contain;padding-right:8px;
+  scrollbar-width:thin;scrollbar-color:var(--tenue) transparent}
+.noticias-lista:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
+.anteriores.hay-mas,.noticias-lista.hay-mas{-webkit-mask-image:linear-gradient(#000 calc(100% - 56px),transparent);
   mask-image:linear-gradient(#000 calc(100% - 56px),transparent)}
 .anteriores:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
 .anteriores-fin{display:grid;place-items:center;min-height:48px;font:700 13px/1 var(--display);letter-spacing:.07em;
