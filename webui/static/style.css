@@ -120,6 +120,12 @@ body{
   font-variant-numeric:tabular-nums;
   -webkit-font-smoothing:antialiased;
 }
+/* Lo de arriba solo no basta: el atajo font: resetea font-variant-numeric (y
+   también font-feature-settings), y hay más de cien reglas con font:. Sin esto
+   el porcentaje de la jaula medía 109 px con "11,1 %" y 143 px con "44,4 %":
+   bailaba mientras contaba y saltaba en el último cuadro. Ningún texto de la
+   página necesita cifras proporcionales, así que va para todos. */
+*,*::before,*::after{font-variant-numeric:tabular-nums!important}
 h1,h2,h3,h4{font-family:var(--display);font-weight:800;text-transform:uppercase;line-height:1.05;margin:0}
 h2{font-size:30px;letter-spacing:.01em}
 h3{font-size:15px;letter-spacing:.06em;color:var(--tenue);font-weight:700}
@@ -601,15 +607,19 @@ td .pelea-debut{display:block;width:fit-content;margin-top:5px}
   radial-gradient(ellipse at 78% 12%,color-mix(in srgb,#276bb0 8%,transparent),transparent 52%),
   radial-gradient(ellipse 48% 70% at 50% 8%,var(--foco),transparent 72%),var(--sup2)}
 .jaula{position:relative;width:min(100%,460px);aspect-ratio:1;container-type:inline-size;
-  filter:drop-shadow(0 8px 8px rgba(0,0,0,.16));
   --c:29.29cqw}                         /* corte de un octágono regular: lado / √2 */
+/* La sombra va en un envoltorio de la reja y no en la jaula entera: un filtro
+   en el padre obligaba a repintar toda la escena en cada cuadro del armado.
+   Tampoco puede ir en la reja misma: su clip-path se aplica después del filtro
+   y se comería la sombra. La reja es la silueta, así que la sombra es igual. */
+.reja-sombra{position:absolute;inset:0;filter:drop-shadow(0 8px 8px rgba(0,0,0,.16))}
 /* Tres capas recortadas en octágono, de afuera hacia adentro: la reja de
    alambre, la baranda acolchada y la lona. El corte de cada capa se achica en
    0,414 × lo que la capa se mete, para que los chaflanes queden paralelos. */
-.jaula>.reja,.jaula>.baranda,.jaula>.lona{position:absolute;
+.reja-sombra>.reja,.jaula>.baranda,.jaula>.lona{position:absolute;
   clip-path:polygon(var(--k) 0,calc(100% - var(--k)) 0,100% var(--k),100% calc(100% - var(--k)),
     calc(100% - var(--k)) 100%,var(--k) 100%,0 calc(100% - var(--k)),0 var(--k))}
-.jaula>.reja{inset:0;--k:var(--c);background:
+.reja-sombra>.reja{inset:0;--k:var(--c);background:
   repeating-linear-gradient(45deg,var(--estelar-hilo) 0 .18cqw,transparent .18cqw 1.1cqw),
   repeating-linear-gradient(-45deg,var(--estelar-hilo) 0 .18cqw,transparent .18cqw 1.1cqw),var(--estelar-reja)}
 .jaula>.baranda{inset:1.35cqw;--k:calc(var(--c) - .56cqw);
@@ -676,7 +686,7 @@ td .pelea-debut{display:block;width:fit-content;margin-top:5px}
 .estelar-comparativa .espejo b{color:var(--txt)}
 /* El metal identifica títulos en el marco y la barra. La tinta sólida permite
    leer nombres y cifras sin los reflejos claros del degradado. */
-.estelar-titulo .jaula>.reja{background:
+.estelar-titulo .reja-sombra>.reja{background:
   repeating-linear-gradient(45deg,var(--estelar-hilo) 0 .18cqw,transparent .18cqw 1.1cqw),
   repeating-linear-gradient(-45deg,var(--estelar-hilo) 0 .18cqw,transparent .18cqw 1.1cqw),var(--titulo-metal)}
 .estelar-titulo .lona-linea{opacity:.8}

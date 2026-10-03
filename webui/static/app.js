@@ -873,9 +873,15 @@ function alternarCombate(detalle, abierto) {
   if (abierto && cerrado) animarApertura(detalle);
 }
 function animarApertura(detalle) {
-  if (reducir() || porTeclado) return;
+  if (porTeclado) return;
   const art = detalle.querySelector('[data-pelea]');
   if (!art) return;
+  // Con movimiento reducido no hay desplazamientos ni escalas, pero el
+  // contenido tampoco aparece de golpe: se funde, sin moverse.
+  if (reducir()) {
+    art.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease' });
+    return;
+  }
   if (art.querySelector('.jaula')) { entradaJaula(art); return; }
   const [a, b] = art.querySelectorAll('.duelo-barra i');
   llenarDesde(a, 'left', 120); llenarDesde(b, 'right', 120);
@@ -886,27 +892,62 @@ function animarApertura(detalle) {
   if (timbre) timbre.animate(
     [{ opacity: 0, transform: 'rotate(-4deg) scale(1.35)' }, { opacity: 1, transform: 'rotate(-4deg) scale(1)' }],
     { duration: 220, delay: 160, easing: EASE_OUT, fill: 'backwards' });
-  const trazo = art.querySelector('.ac-lapiz path');
-  if (trazo) trazo.animate([{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }],
-    { duration: 450, delay: 300, easing: EASE_OUT, fill: 'backwards' });
+  trazar(art.querySelector('.ac-lapiz path'), { duration: 450, delay: 300, easing: EASE_OUT });
   revelarResultado(art, 420);
 }
 
+// Dibuja un trazo SVG de punta a punta. El largo se mide en píxeles de
+// pantalla: con vector-effect="non-scaling-stroke" el guion se calcula en la
+// pantalla y no en el viewBox, así que el truco de pathLength="1" no sirve.
+// Antes lo usaba y Chrome repartía el guion en trozos sueltos por las
+// esquinas; al terminar, la línea completa aparecía de golpe. El largo se
+// estima muestreando el trazo con un margen hacia arriba: si sobra, el último
+// cuadro igual queda completo, y al quitar la animación no cambia nada.
+function trazar(geom, opciones) {
+  const svg = geom?.ownerSVGElement;
+  if (!svg || typeof geom.getTotalLength !== 'function') return;
+  const caja = svg.getBoundingClientRect();
+  const vista = svg.viewBox.baseVal;
+  if (!caja.width || !vista?.width) return;
+  const sx = caja.width / vista.width, sy = caja.height / vista.height;
+  const total = geom.getTotalLength();
+  let largo = 0, previo = geom.getPointAtLength(0);
+  for (let i = 1; i <= 96; i++) {
+    const pt = geom.getPointAtLength(total * i / 96);
+    largo += Math.hypot((pt.x - previo.x) * sx, (pt.y - previo.y) * sy);
+    previo = pt;
+  }
+  const L = Math.ceil(largo * 1.02) + 2;
+  geom.animate([{ strokeDasharray: `${L}px ${L}px`, strokeDashoffset: `${L}px` },
+    { strokeDasharray: `${L}px ${L}px`, strokeDashoffset: '0px' }], { fill: 'backwards', ...opciones });
+}
+
 // EL momento de la cartelera: abrir la estelar es entrar a la jaula. Se arma
-// de afuera hacia adentro como en la transmisión: la reja y la baranda se
-// asientan, caen los ocho postes, la línea de la lona se pinta alrededor, cada
-// peleador entra desde su esquina, los porcentajes corren hasta su valor y la
-// barra se llena desde los dos lados. En una repetición, al final se estampa
-// cómo terminó. Todo con transform, opacity y clip-path: nada mueve el layout.
+// de afuera hacia adentro, en tres tiempos como en la transmisión:
+//   1. La estructura (0-550 ms): la reja y la baranda se asientan y los ocho
+//      postes caen en sentido horario.
+//   2. La lona (160-760 ms): la línea se pinta alrededor, de un solo trazo.
+//   3. La pelea (300-900 ms): cada peleador entra desde su esquina, después
+//      su nombre, su historial y su porcentaje, y lo último en asentarse es la
+//      barra que se llena desde los dos lados. En una repetición, al final se
+//      estampa cómo terminó.
+// Antes todo arrancaba en los primeros 300 ms, lo de adentro (rótulos y
+// porcentajes) se veía desde el primer cuadro, y la línea, la cuenta y la
+// barra aterrizaban juntas con un salto: "pum, se armó". Los finales van
+// escalonados para que el armado se asiente en vez de golpear. Solo
+// transform y opacity (más el trazo): nada mueve el layout.
 function entradaJaula(art) {
   const j = art.querySelector('.jaula');
   const anim = (el, frames, opciones) => el?.animate(frames, { easing: EASE_OUT, fill: 'backwards', ...opciones });
-  anim(j.querySelector('.reja'), [{ opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1 }], { duration: 380 });
-  anim(j.querySelector('.baranda'), [{ opacity: 0, scale: 1.03 }, { opacity: 1, scale: 1 }], { duration: 380, delay: 40 });
+  const entra = (el, delay, duracion = 260) =>
+    anim(el, [{ opacity: 0, translate: '0 6px' }, { opacity: 1, translate: '0 0' }], { duration: duracion, delay });
+  // 1. Estructura. Nada nace de escala cero: la reja ya está casi en su sitio.
+  anim(j.querySelector('.reja'), [{ opacity: 0, scale: .97 }, { opacity: 1, scale: 1 }], { duration: 320 });
+  anim(j.querySelector('.baranda'), [{ opacity: 0, scale: .97 }, { opacity: 1, scale: 1 }], { duration: 320, delay: 40 });
   j.querySelectorAll('.poste').forEach((poste, i) =>
-    anim(poste, [{ opacity: 0, scale: .3 }, { opacity: 1, scale: 1 }], { duration: 260, delay: 90 + i * 28 }));
-  anim(j.querySelector('.lona-linea polygon'), [{ strokeDasharray: 1, strokeDashoffset: 1 }, { strokeDasharray: 1, strokeDashoffset: 0 }],
-    { duration: 720, delay: 120, easing: EASE_IN_OUT });
+    anim(poste, [{ opacity: 0, scale: .6 }, { opacity: 1, scale: 1 }], { duration: 220, delay: 120 + i * 30 }));
+  // 2. La lona. El polígono parte junto al primer poste y gira como ellos.
+  trazar(j.querySelector('.lona-linea polygon'), { duration: 600, delay: 160, easing: EASE_IN_OUT });
   // La marca impresa se funde hasta SU opacidad tenue (7 %, menos con la placa
   // del resultado), leída del CSS, y nunca más allá: así al terminar no hay
   // salto. Antes subía a 1 (en la caja y después en el dibujo, que según el
@@ -916,22 +957,24 @@ function entradaJaula(art) {
   const impresion = j.querySelector('.lona-impresion');
   if (impresion) {
     impresion.getAnimations().forEach(a => a.cancel());   // reabrir a medio fundido
-    anim(impresion, [{ opacity: 0 }, { opacity: getComputedStyle(impresion).opacity }], { duration: 700, delay: 260 });
-    anim(impresion.querySelector('.lona-marca'), [{ scale: .85 }, { scale: 1 }], { duration: 700, delay: 260 });
+    anim(impresion, [{ opacity: 0 }, { opacity: getComputedStyle(impresion).opacity }], { duration: 600, delay: 260 });
+    anim(impresion.querySelector('.lona-marca'), [{ scale: .9 }, { scale: 1 }], { duration: 600, delay: 260 });
   }
-  anim(j.querySelector('.retrato.a'), [{ opacity: 0, translate: '-14% 0', clipPath: 'inset(0 100% 0 0)' },
-    { opacity: 1, translate: '0 0', clipPath: 'inset(0 0 0 0)' }], { duration: 460, delay: 140 });
-  anim(j.querySelector('.retrato.b'), [{ opacity: 0, translate: '14% 0', clipPath: 'inset(0 0 0 100%)' },
-    { opacity: 1, translate: '0 0', clipPath: 'inset(0 0 0 0)' }], { duration: 460, delay: 140 });
-  j.querySelectorAll('.j-nombre, .j-vs').forEach((n, i) =>
-    anim(n, [{ opacity: 0, translate: '0 6px' }, { opacity: 1, translate: '0 0' }], { duration: 300, delay: 240 + i * 30 }));
+  // 3. La pelea. Los retratos entraban además con clip-path, que se repinta
+  // en cada cuadro; el desplazamiento desde su esquina ya cuenta de dónde vienen.
+  anim(j.querySelector('.retrato.a'), [{ opacity: 0, translate: '-8% 0' }, { opacity: 1, translate: '0 0' }], { duration: 420, delay: 300 });
+  anim(j.querySelector('.retrato.b'), [{ opacity: 0, translate: '8% 0' }, { opacity: 1, translate: '0 0' }], { duration: 420, delay: 300 });
+  j.querySelectorAll('.j-nombre, .j-vs').forEach((n, i) => entra(n, 380 + i * 30, 300));
+  entra(j.querySelector('.historial-lona .historial-cab'), 440);
+  j.querySelectorAll('.historial-lona .historial-ausente').forEach((n, i) => entra(n, 460 + i * 30));
   j.querySelectorAll('.historial-lona .historial-cuadro').forEach((c, i) =>
-    anim(c, [{ opacity: 0, scale: .6 }, { opacity: 1, scale: 1 }], { duration: 200, delay: 300 + (i % 5) * 35 }));
-  j.querySelectorAll('.j-pct [data-num]').forEach(cifra => contar(cifra, 280, 560));
+    anim(c, [{ opacity: 0, scale: .9 }, { opacity: 1, scale: 1 }], { duration: 220, delay: 460 + (i % 5) * 35 }));
+  j.querySelectorAll('.j-pct').forEach(n => entra(n, 460));
+  j.querySelectorAll('.j-pct [data-num]').forEach(cifra => contar(cifra, 460, 400));
   const [a, b] = j.querySelectorAll('.duelo-barra i');
-  llenarDesde(a, 'left', 380, 480); llenarDesde(b, 'right', 380, 480);
-  art.querySelectorAll('.estelar-datos .mbar i').forEach((m, i) => llenarDesde(m, 'left', 420 + i * 50));
-  revelarResultado(art, 760);
+  llenarDesde(a, 'left', 480, 420); llenarDesde(b, 'right', 480, 420);
+  art.querySelectorAll('.estelar-datos .mbar i').forEach((m, i) => llenarDesde(m, 'left', 420 + i * 40));
+  revelarResultado(art, 950);
 }
 
 // Una cifra corre de 0 a su valor, con las mismas comas y decimales que va a
@@ -1397,7 +1440,7 @@ function lineaLona(p) {
   const id = 'oro-lona-' + Array.from(String(p?.id || '')).map(c => c.codePointAt(0).toString(16)).join('-');
   return `<svg class="lona-linea" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
     ${metal ? `<defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f4df9b"/><stop offset=".28" stop-color="#bd9138"/><stop offset=".53" stop-color="#f3dfa4"/><stop offset=".78" stop-color="#9b7126"/><stop offset="1" stop-color="#dfbd68"/></linearGradient></defs>` : ''}
-    <polygon points="${pts}" pathLength="1" fill="none" stroke="${metal ? `url(#${id})` : 'currentColor'}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+    <polygon points="${pts}" fill="none" stroke="${metal ? `url(#${id})` : 'currentColor'}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
 // Las cifras de la jaula, en espejo: el valor de cada peleador bajo su
@@ -1422,7 +1465,7 @@ function jaula(p, mov, tipo) {
   return `
   <article class="estelar ${p.es_titulo === true ? 'estelar-titulo' : ''}" data-pelea="${p.id}">
     <div class="estelar-distribucion"><div class="jaula-escena"><div class="jaula">
-      <div class="reja"></div><div class="baranda"></div>${postes}
+      <div class="reja-sombra"><div class="reja"></div></div><div class="baranda"></div>${postes}
       <div class="lona">
         ${lineaLona(p)}
         <div class="lona-impresion" aria-hidden="true">${marcaLona()}</div>
@@ -1456,7 +1499,7 @@ function jaula(p, mov, tipo) {
 
 // El trazo del lápiz alrededor del nombre: a mano, sin cerrar del todo.
 const LAPIZ = `<svg class="ac-lapiz" viewBox="0 0 200 64" preserveAspectRatio="none" aria-hidden="true">
-  <path d="M16 38C8 20 50 7 102 6c54-1 90 10 92 27 2 19-46 27-100 26C40 58 6 49 8 32 9 21 38 12 72 9" pathLength="1"
+  <path d="M16 38C8 20 50 7 102 6c54-1 90 10 92 27 2 19-46 27-100 26C40 58 6 49 8 32 9 21 38 12 72 9"
         fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
 // Un juez no encierra un ganador en una pelea pareja ni sin datos: ahí el
 // nombre queda escrito pero sin el círculo (el timbre ya dice por qué).
