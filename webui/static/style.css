@@ -126,6 +126,12 @@ body{
    bailaba mientras contaba y saltaba en el último cuadro. Ningún texto de la
    página necesita cifras proporcionales, así que va para todos. */
 *,*::before,*::after{font-variant-numeric:tabular-nums!important}
+/* Excepto en lo que nombra y nunca cambia (títulos, el número del evento, los
+   titulares): ahí la cifra tabular abre un hueco feo, "33 1", porque el 1 ocupa
+   lo que un dígito ancho. Una cifra que cambia ([data-num]) sigue tabular. */
+:is(h1,h2,h3,h4,.ev-sello,.ev-que,.res-nombre,.prox-evento,.titular-texto,.np-texto,.nd-texto,.guardado-que>b):not([data-num]),
+:is(h1,h2,h3,h4,.ev-sello,.ev-que,.res-nombre,.prox-evento,.titular-texto,.np-texto,.nd-texto,.guardado-que>b) :not([data-num]){
+  font-variant-numeric:proportional-nums!important}
 /* El fundido al cambiar de tema o de estilo (conFundido en app.js): el de
    View Transitions dura 250 ms; aquí, 200 y con ease, que es un cambio de color. */
 ::view-transition-group(root),::view-transition-old(root),::view-transition-new(root){animation-duration:200ms;animation-timing-function:ease}
