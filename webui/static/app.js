@@ -964,11 +964,12 @@ function entradaJaula(art) {
   const anim = (el, frames, opciones) => el?.animate(frames, { easing: EASE_OUT, fill: 'backwards', ...opciones });
   const entra = (el, delay, duracion = 260) =>
     anim(el, [{ opacity: 0, translate: '0 6px' }, { opacity: 1, translate: '0 0' }], { duration: duracion, delay });
-  // 1. Estructura. Nada nace de escala cero: la reja ya está casi en su sitio.
+  // 1. Estructura. Nada nace de escala cero: la reja y los postes ya están casi
+  // en su sitio (0,97 y 0,9); la opacidad hace el resto.
   anim(j.querySelector('.reja'), [{ opacity: 0, scale: .97 }, { opacity: 1, scale: 1 }], { duration: 320 });
   anim(j.querySelector('.baranda'), [{ opacity: 0, scale: .97 }, { opacity: 1, scale: 1 }], { duration: 320, delay: 40 });
   j.querySelectorAll('.poste').forEach((poste, i) =>
-    anim(poste, [{ opacity: 0, scale: .6 }, { opacity: 1, scale: 1 }], { duration: 220, delay: 120 + i * 30 }));
+    anim(poste, [{ opacity: 0, scale: .9 }, { opacity: 1, scale: 1 }], { duration: 220, delay: 120 + i * 30 }));
   // 2. La lona. El polígono parte junto al primer poste y gira como ellos.
   trazar(j.querySelector('.lona-linea polygon'), { duration: 600, delay: 160, easing: EASE_IN_OUT });
   // La marca impresa se funde hasta SU opacidad tenue (7 %, menos con la placa
