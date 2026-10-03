@@ -1420,6 +1420,11 @@ input:focus{outline:2px solid var(--marca);outline-offset:-1px}
 .guardado>.ico{width:22px;height:22px;color:var(--tenue)}
 .guardado-que b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .guardado .secundario{padding:8px 12px;font-size:13px}
+/* Debajo del título legible, el tipo como sello y el archivo en chico. */
+.guardado-tipo{display:inline-block;margin-right:6px;padding:2px 5px 1px;font:800 10.5px/1 var(--display);letter-spacing:.07em;
+  text-transform:uppercase;color:var(--txt2);border:1px solid var(--linea)}
+.guardado-archivo{display:block;margin-top:2px;font:400 11.5px/1.3 var(--maquina,"Courier Prime","Courier New",ui-monospace,monospace);color:var(--tenue);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .cargar-col{display:grid;gap:16px;min-width:0}
 .caja-cab-dato{margin-left:auto;font:700 13px/1.2 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--tenue);text-align:right}

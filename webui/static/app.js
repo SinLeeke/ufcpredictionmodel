@@ -2594,6 +2594,28 @@ $('#btn-subir').onclick = async () => {
   } catch (e) { barra(e.message,'error'); }
 };
 
+// El nombre de archivo de una cartelera guardada, leído como persona:
+// "historico_2026-09-12_noche_ufc_silva_vs_delgado.csv" -> Noche UFC · Silva vs
+// Delgado, del tipo Histórico y del 12 de septiembre. El archivo mismo sigue
+// a la vista en chico: es lo que se busca en cards/ si hace falta.
+const EVENTOS_ARCHIVO = [[/^ufc_fight_night_/, 'UFC Fight Night'], [/^noche_ufc_/, 'Noche UFC'], [/^ufc_(\d+)_/, 'UFC $1']];
+const conMayuscula = (t) => t.split(' ').map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(' ');
+function leerArchivoCartelera(nombre) {
+  const base = nombre.replace(/\.csv$/i, '');
+  const m = base.match(/^(historico|betano)_(\d{4}-\d{2}-\d{2})_(.+)$/i);
+  const tipo = !m ? 'Propio' : m[1].toLowerCase() === 'historico' ? 'Histórico' : 'Betano';
+  let resto = m ? m[3] : base, evento = '';
+  for (const [re, nombreEvento] of EVENTOS_ARCHIVO) {
+    const e = resto.match(re);
+    if (e) { evento = nombreEvento.replace('$1', e[1] || ''); resto = resto.slice(e[0].length); break; }
+  }
+  const lados = resto.split('_vs_');
+  const titulo = lados.length === 2
+    ? lados.map(l => conMayuscula(l.replace(/_/g, ' '))).join(' vs ')
+    : (t => t[0].toUpperCase() + t.slice(1))(resto.replace(/_/g, ' '));
+  return { tipo, dia: m ? m[2] : null, titulo: evento ? `${evento} · ${titulo}` : titulo };
+}
+
 let CSVS_MOSTRADOS = false;
 async function cargarCSVs() {
   try {
@@ -2607,11 +2629,14 @@ async function cargarCSVs() {
           const dia = c.nombre.match(/(\d{4}-\d{2}-\d{2})/)?.[1];
           const pasada = dia && dia < hoy;
           const historica = /^historico_/i.test(c.nombre);
+          const leido = leerArchivoCartelera(c.nombre);
+          const bajada = new Date(c.modificado*1000).toLocaleString('es-CL',
+            { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
           return `<div class="guardado">
           ${ico('csv')}
-          <div class="guardado-que"><b>${esc(c.nombre)}</b>
-            <span class="sub">${new Date(c.modificado*1000).toLocaleString('es-CL',
-              { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span></div>
+          <div class="guardado-que"><b title="${esc(leido.titulo)}">${esc(leido.titulo)}</b>
+            <span class="sub"><span class="guardado-tipo">${leido.tipo}</span>${leido.dia ? ` ${esc(fechaCorta(leido.dia))} ·` : ''} guardada ${esc(bajada)}</span>
+            <small class="guardado-archivo" title="${esc(c.nombre)}">${esc(c.nombre)}</small></div>
           <div class="guardado-acciones">
             ${historica && pasada ? '' : `<button class="secundario" data-n="${esc(c.nombre)}">Analizar</button>`}
             ${pasada ? `<button class="secundario repetir" data-n="${esc(c.nombre)}" data-corte="${dia}"
