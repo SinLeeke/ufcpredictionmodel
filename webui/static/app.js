@@ -1392,7 +1392,9 @@ function etiquetaTitulo(p) {
 function repartoPlegado(p) {
   if (!Number.isFinite(p.p_a) || !Number.isFinite(p.p_b)) return '';
   const favA = p.p_a >= p.p_b;
-  return `<span class="combate-reparto"><span data-lado="a" class="${favA ? '' : 'menos'}">${pct(p.p_a, 0)}</span>${barraDuelo(p)}<span data-lado="b" class="${favA ? 'menos' : ''}">${pct(p.p_b, 0)}</span></span>`;
+  // Las cifras redondeadas son solo para el ojo: un lector de pantalla ya oye
+  // los dos nombres con su porcentaje en la descripción de la barra.
+  return `<span class="combate-reparto"><span data-lado="a" class="${favA ? '' : 'menos'}" aria-hidden="true">${pct(p.p_a, 0)}</span>${barraDuelo(p)}<span data-lado="b" class="${favA ? 'menos' : ''}" aria-hidden="true">${pct(p.p_b, 0)}</span></span>`;
 }
 function combatePlegable(p, contenido, tipo = '', abierto = false) {
   const titulo = p.es_titulo === true;
