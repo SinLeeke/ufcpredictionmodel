@@ -2631,14 +2631,31 @@ const NOMBRES_SALUD = {
 // nueve botones rojos iguales no había forma de saber por dónde empezar.
 const TAREA_DEL_MES = 'actualizar_bd';
 
+// Los ítems de salud que cambiaron dejan el mismo destello que una cifra EN
+// VIVO, y su luz entra apenas desde más chica. La primera vez que se pinta el
+// tablero no hay nada con qué comparar y no se marca nada.
+function marcarSaludCambiada(previo) {
+  if (!previo.size) return;
+  $$('#salud .estado[data-k]').forEach(e => {
+    const antes = previo.get(e.dataset.k);
+    if (antes == null || antes === e.dataset.firma) return;
+    e.querySelector(':scope > div')?.classList.add('destello');
+    if (!reducir()) e.querySelector('.luz')?.animate(
+      [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE_OUT });
+  });
+}
+
 async function cargarTareas() {
   const [t,s] = await Promise.all([api('/api/tareas'), api('/api/salud')]);
   const fechaArchivo = (ts) => ts ? new Date(ts * 1000).toLocaleDateString('es-CL',
     { day:'numeric', month:'short', year:'numeric' }) : '';
+  // Lo que decía cada ítem antes de repintar: al terminar una tarea se marca
+  // solo lo que cambió (pasó de "falta" a "listo", o se rehízo con otra fecha).
+  const previo = new Map($$('#salud .estado[data-k]').map(e => [e.dataset.k, e.dataset.firma]));
   $('#salud').innerHTML = `<div class="tablero">${
     Object.entries(NOMBRES_SALUD).map(([k,lbl]) => {
       const hay = s[k]?.existe;
-      return `<div class="estado ${hay?'hay':'falta'}">
+      return `<div class="estado ${hay?'hay':'falta'}" data-k="${esc(k)}" data-firma="${hay ? 1 : 0}:${esc(s[k]?.modificado ?? '')}">
         <span class="luz">${ico(hay ? 'ok' : 'no')}</span>
         <div><b>${lbl}</b><span class="sub">${hay
           ? `listo · ${fechaArchivo(s[k].modificado)}` : 'falta: se crea con una tarea de abajo'}</span></div>
@@ -2648,6 +2665,7 @@ async function cargarTareas() {
       <div><span class="v">${s.ventana_anios}${NBSP_FINO}años</span><span class="k">de historia para entrenar</span></div>
       <div><span class="v">${miles(s.simulaciones)}</span><span class="k">simulaciones por pelea</span></div>
     </div>`;
+  marcarSaludCambiada(previo);
 
   $('#lista-tareas').innerHTML = t.recetas.map(r => `
     <div class="tarea ${r.id === TAREA_DEL_MES ? 'del-mes' : ''}">

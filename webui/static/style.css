@@ -1516,6 +1516,7 @@ input[type=search]::-webkit-search-cancel-button{cursor:pointer}
 .tablero{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--linea);border:1px solid var(--linea)}
 .estado{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;align-items:center;padding:13px 16px;background:var(--sup)}
 .estado .luz{display:grid;place-items:center;width:30px;height:30px}
+.estado>div{position:relative;isolation:isolate}   /* para el destello de un ítem que cambió */
 .estado .luz .ico{width:16px;height:16px}
 .estado.hay .luz{background:var(--ok);color:var(--sobre-solido)}
 .estado.falta .luz{background:var(--error);color:var(--sobre-solido)}
