@@ -230,10 +230,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
    los separa de la navegación y van sin mayúsculas (en condensada: con la letra
    de texto el nombre de la cartelera no cabía y se cortaba). */
 .cartelera-caja{display:flex;align-items:center;gap:6px;margin-left:auto;min-width:0;
-  padding-left:16px;border-left:2px solid var(--cab-linea);align-self:center;min-height:30px}
+  padding-left:10px;border-left:2px solid var(--cab-linea);align-self:center;min-height:30px}
 .cartelera-activa{
   background:none;border:0;padding:4px 0;color:var(--cab-txt);min-width:0;
-  font:600 16px/1.1 var(--display);letter-spacing:.01em;text-transform:none;
+  font:600 15px/1.1 var(--display);letter-spacing:.01em;text-transform:none;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30ch;display:block;
 }
 .cartelera-activa:hover:not(:disabled){color:var(--cab-txt);border:0}
