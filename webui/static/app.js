@@ -2027,6 +2027,23 @@ function pintarNoticias(d) {
   }
 }
 
+// UFC Español manda la categoría a veces en inglés ("Women's Flyweight") y a
+// veces traducida a máquina ("Gallo de las mujeres", "De peso pesado"). Se
+// muestran todas en el castellano de la transmisión. "Peso de la mujer" no
+// dice qué división es (es la traducción rota de alguna femenina), así que
+// queda en "Femenino" en vez de adivinarla.
+const PESOS_ES = {
+  'flyweight': 'Peso mosca', 'bantamweight': 'Peso gallo', 'featherweight': 'Peso pluma',
+  'lightweight': 'Ligero', 'welterweight': 'Peso welter', 'middleweight': 'Peso medio',
+  'light heavyweight': 'Peso semipesado', 'heavyweight': 'Peso pesado', 'catchweight': 'Peso pactado',
+  "women's strawweight": 'Peso paja femenino', "women's flyweight": 'Peso mosca femenino',
+  "women's bantamweight": 'Peso gallo femenino', "women's featherweight": 'Peso pluma femenino',
+  'gallo de las mujeres': 'Peso gallo femenino', 'mosca de las mujeres': 'Peso mosca femenino',
+  'paja de las mujeres': 'Peso paja femenino', 'pluma de las mujeres': 'Peso pluma femenino',
+  'de peso pesado': 'Peso pesado', 'peso de la mujer': 'Femenino',
+};
+const pesoEnEspanol = (t) => PESOS_ES[String(t || '').trim().toLowerCase()] || t;
+
 function pintarProximas(d) {
   // Las próximas cuatro carteleras: más allá, la columna sería un listado eterno.
   const eventos = (d.proximos || []).slice(0, 4);
@@ -2039,7 +2056,7 @@ function pintarProximas(d) {
     const peleas = (e.peleas || []).filter(p => todas || p.seccion === 'estelar');
     const fila = (p) => {
       const ts = e.inicio[p.seccion] || e.inicio.estelar;
-      const peso = [p.peso, p.seccion !== 'estelar' ? (p.seccion === 'early' ? 'early' : 'prelim.') : ''].filter(Boolean).join(' · ');
+      const peso = [pesoEnEspanol(p.peso), p.seccion !== 'estelar' ? (p.seccion === 'early' ? 'early' : 'prelim.') : ''].filter(Boolean).join(' · ');
       return `<li class="pp${p.titulo ? ' titulo' : ''}">
         <span class="pp-n" data-lado="a"><i aria-hidden="true"></i><span>${esc(p.a)}</span>${p.rango_a ? `<small>${esc(p.rango_a)}</small>` : ''}</span>
         <span class="pp-n" data-lado="b"><i aria-hidden="true"></i><span>${esc(p.b)}</span>${p.rango_b ? `<small>${esc(p.rango_b)}</small>` : ''}</span>
