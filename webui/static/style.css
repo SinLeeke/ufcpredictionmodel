@@ -470,8 +470,24 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
 .combate-desplegable:not(.combate-titulo) .ac-prob .ac-v[data-lado],
 .combate-desplegable:not(.combate-titulo) .estelar-datos-nombres [data-lado]{color:var(--color-esquina)}
 .combate-desplegable:not(.combate-titulo) .duelo-barra i[data-lado]{background:var(--color-esquina)}
+/* El reparto en chico de la fila plegada (repartoPlegado). Al abrir se funde:
+   la barra grande de adentro ya lo dice. */
+.combate-reparto{display:grid;grid-template-columns:auto 112px auto;align-items:center;gap:8px;margin-left:auto;flex:none;
+  font:800 15px/1 var(--display);color:var(--txt);transition:opacity 160ms ease}
+.combate-reparto>span.menos{color:var(--tenue)}
+.combate-desplegable:not(.combate-titulo) .combate-reparto>span[data-lado]:not(.menos){color:var(--color-esquina)}
+.combate-reparto .duelo-barra{height:6px;gap:2px}
+.combate-desplegable[open]:not([data-cerrando])>.combate-cab .combate-reparto{opacity:0}
+/* Ancho fijo para la confianza y las cifras: así las barras de todas las filas
+   quedan en la misma columna aunque una diga JUSTA y otra NO FIABLE. */
+.combate-reparto>span{min-width:2.6em}
+.combate-reparto>span[data-lado="a"]{text-align:right}
+.combate-reparto+.pill{min-width:76px;text-align:center}
 @media(max-width:640px){
   .combate-cab{padding:11px 12px;gap:9px;min-height:64px}
+  /* En el celular no caben las cifras: queda la barra, cuyo color dice la esquina. */
+  .combate-reparto{grid-template-columns:56px;gap:0}
+  .combate-reparto>span{display:none}
   .combate-nombres{font-size:19px;gap:5px}
   .combate-cab .pill{font-size:11px}
 }

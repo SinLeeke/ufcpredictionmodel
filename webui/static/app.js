@@ -1386,13 +1386,21 @@ function etiquetaTitulo(p) {
   return p.es_titulo === true ? '<span class="pelea-cinturon">Por el título</span>' : '';
 }
 
+// En la fila plegada, el reparto en chico: quién es favorito y por cuánto se
+// lee sin abrir cada pelea. Es el mismo dato y la misma barra de adentro; al
+// abrir el combate se apaga, porque la grande ya lo dice.
+function repartoPlegado(p) {
+  if (!Number.isFinite(p.p_a) || !Number.isFinite(p.p_b)) return '';
+  const favA = p.p_a >= p.p_b;
+  return `<span class="combate-reparto"><span data-lado="a" class="${favA ? '' : 'menos'}">${pct(p.p_a, 0)}</span>${barraDuelo(p)}<span data-lado="b" class="${favA ? 'menos' : ''}">${pct(p.p_b, 0)}</span></span>`;
+}
 function combatePlegable(p, contenido, tipo = '', abierto = false) {
   const titulo = p.es_titulo === true;
   const etiqueta = tipo === 'estelar' ? 'Pelea estelar' : tipo === 'coestelar' ? 'Co-estelar' : p.segmento;
   return `<details class="combate-desplegable ${titulo ? 'combate-titulo' : ''}" data-combate="${esc(p.id)}"${abierto ? ' open' : ''}>
     <summary class="combate-cab"><span class="combate-rotulo"><span class="combate-nombres"><b data-lado="a">${esc(p.a)}</b><small>vs</small><b data-lado="b">${esc(p.b)}</b></span>
       ${etiqueta || p.es_titulo === true ? `<span class="combate-etiquetas">${esc(etiqueta || '')}${p.es_titulo === true ? `${etiqueta ? ' · ' : ''}Por el título` : ''}</span>` : ''}</span>
-      <span class="pill ${claseConf(p.confianza)}">${esc(p.confianza)}</span>${pillResultado(p)}<svg class="combate-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
+      ${repartoPlegado(p)}<span class="pill ${claseConf(p.confianza)}">${esc(p.confianza)}</span>${pillResultado(p)}<svg class="combate-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
     </summary><div class="combate-contenido">${contenido}</div></details>`;
 }
 
