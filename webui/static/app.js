@@ -2781,6 +2781,19 @@ function medirCabecera() {
 medirCabecera();
 addEventListener('resize', medirCabecera);
 
+// En el celular las pestañas se desplazan de lado y la última quedaba cortada
+// ("CARGA"), que parecía un error. Mientras queda algo por desplazar, ese borde
+// se desvanece; al llegar al final, el desvanecido se va.
+const barraTabs = $('.tabs');
+function bordesTabs() {
+  const falta = barraTabs.scrollWidth - barraTabs.clientWidth - barraTabs.scrollLeft;
+  barraTabs.classList.toggle('mas-derecha', falta > 2);
+  barraTabs.classList.toggle('mas-izquierda', barraTabs.scrollLeft > 2);
+}
+barraTabs.addEventListener('scroll', bordesTabs, { passive: true });
+addEventListener('resize', bordesTabs);
+bordesTabs();
+
 /* ====================== BARRA SUPERIOR AL HACER SCROLL ================= */
 /* Al bajar se esconde entera (cabecera + pestañas) para dejar la pantalla a la
    cartelera; al subir aunque sea un poco, vuelve. El umbral evita que

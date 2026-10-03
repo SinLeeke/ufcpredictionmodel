@@ -211,6 +211,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
 /* Al cambiar de pestaña, la etiqueta viaja de la vieja a la nueva (app.js,
    viajarPestana): mientras viaja, la nueva todavía no tiene la suya. */
 .tabs{position:relative;isolation:isolate}
+/* Desvanecido en el borde por donde quedan pestañas (bordesTabs en app.js). */
+.tabs.mas-derecha{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
+.tabs.mas-izquierda{-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px);mask-image:linear-gradient(90deg,transparent,#000 36px)}
+.tabs.mas-izquierda.mas-derecha{-webkit-mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent)}
 .tab{z-index:1}
 .tab-viaje{position:absolute;top:12px;bottom:12px;z-index:0;background:var(--cab-txt);transform-origin:left center;pointer-events:none}
 .tabs.viajando .tab.activa::before{opacity:0;transition:none}
