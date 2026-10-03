@@ -9,6 +9,7 @@
 .analisis-summary-datos{margin-left:auto;font-size:13px;color:var(--tenue)}
 .analisis-flecha{transition:transform 180ms var(--ease-out)}
 .analisis-pelea[open] .analisis-flecha{transform:rotate(180deg)}
+.analisis-pelea[data-cerrando] .analisis-flecha{transform:rotate(0)}
 .analisis-contenido{padding:0 20px 18px;min-width:0}
 .analisis-esquinas{display:flex;flex-wrap:wrap;gap:8px 24px;padding:3px 0 14px;font-size:13px;font-weight:600}
 .analisis-esquina{display:flex;align-items:center;gap:7px;min-width:0;overflow-wrap:anywhere}

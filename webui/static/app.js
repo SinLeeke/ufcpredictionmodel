@@ -655,7 +655,7 @@ function pintarCartelera(d, mov) {
   S.repeticion = d.repeticion || null;
   const antes = S.otraCartelera ? new Map() : capturarCifras(raiz);
   const analisisAbiertos = S.otraCartelera ? null : new Set(
-    $$('#peleas [data-analisis][open]').map(e => e.dataset.analisis));
+    $$('#peleas [data-analisis][open]').filter(e => !e.hasAttribute('data-cerrando')).map(e => e.dataset.analisis));
   const combatesAbiertos = new Set(S.otraCartelera ? [] :
     $$('#peleas [data-combate][open]').filter(e => !e.hasAttribute('data-cerrando')).map(e => e.dataset.combate));
   $('#bienvenida').classList.add('oculto');
@@ -804,6 +804,13 @@ function pintarCartelera(d, mov) {
   $$('#peleas [data-combate]').forEach(detalle => detalle.querySelector(':scope > summary').addEventListener('click', evento => {
     evento.preventDefault();
     alternarCombate(detalle, !(transicionesCombate.get(detalle)?.abierto ?? detalle.open));
+  }));
+  // El análisis se despliega igual que su combate: antes se abría y se cerraba
+  // de golpe, y al cerrarlo todo lo de abajo saltaba hacia arriba. Cierra más
+  // rápido de lo que abre: al cerrar, el usuario ya terminó de mirarlo.
+  $$('#peleas [data-analisis]').forEach(detalle => detalle.querySelector(':scope > summary').addEventListener('click', evento => {
+    evento.preventDefault();
+    desplegarCombate(detalle, !(transicionesCombate.get(detalle)?.abierto ?? detalle.open), { cerrar: 220 });
   }));
   $$('#peleas [data-analisis]').forEach(detalle => detalle.addEventListener('toggle', () => {
     if (!detalle.open || reducir() || porTeclado) return;
@@ -1364,8 +1371,10 @@ function combatePlegable(p, contenido, tipo = '', abierto = false) {
 
 // La altura se anima en ambos sentidos. Al cerrar, details permanece abierto
 // hasta terminar; al cambiar de dirección se parte de la altura que se ve.
+// Sirve para cualquier <details> desplegable: combates, resultados del inicio
+// y el análisis de cada pelea.
 const transicionesCombate = new WeakMap();
-function desplegarCombate(detalle, abierto) {
+function desplegarCombate(detalle, abierto, { abrir = 340, cerrar = 340 } = {}) {
   const anterior = transicionesCombate.get(detalle);
   if (!anterior && detalle.open === abierto) return;
   if (abierto) detalle.querySelectorAll('[data-analisis]').forEach(analisis => { analisis.open = false; });
@@ -1380,13 +1389,19 @@ function desplegarCombate(detalle, abierto) {
     return;
   }
   detalle.open = true;
+  // Cerrado mide lo que su summary más el borde y el relleno del details. Antes
+  // era "summary − 1", que no calzaba con ninguno (1 px en los combates, 2 en
+  // el análisis, 4 en los resultados del inicio): al terminar de cerrar, la
+  // fila daba un saltito hasta su altura real.
+  const cs = getComputedStyle(detalle);
   const hasta = abierto ? detalle.getBoundingClientRect().height
-    : detalle.querySelector(':scope > summary').getBoundingClientRect().height - 1;
+    : detalle.querySelector(':scope > summary').getBoundingClientRect().height +
+      ['borderTopWidth', 'borderBottomWidth', 'paddingTop', 'paddingBottom'].reduce((s, k) => s + parseFloat(cs[k]), 0);
   if (!abierto) detalle.setAttribute('data-cerrando', '');
   detalle.style.height = desde + 'px';
   detalle.style.overflow = 'hidden';
   const animacion = detalle.animate([{height:desde + 'px'}, {height:hasta + 'px'}],
-    {duration:340, easing:EASE_OUT, fill:'forwards'});
+    {duration:abierto ? abrir : cerrar, easing:EASE_OUT, fill:'forwards'});
   transicionesCombate.set(detalle, {animacion, abierto});
   animacion.onfinish = () => {
     detalle.open = abierto;
