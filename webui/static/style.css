@@ -394,6 +394,12 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
 .aviso.err{background:var(--error-sup)} .aviso.err .ai{background:var(--error);color:var(--sobre-solido)}
 .aviso.warn{background:var(--alerta-sup)} .aviso.warn .ai{background:var(--alerta);color:var(--sobre-solido)}
 .aviso.ok{background:var(--ok-sup)} .aviso.ok .ai{background:var(--ok);color:var(--sobre-solido)}
+/* Un aviso informativo (las cuotas que se movieron) pesaba casi lo mismo que una
+   advertencia (peleadores omitidos, debutantes). Ahora va sin caja, con el ícono
+   delineado y el texto secundario: se lee, pero no compite con las alertas. */
+.avisos .aviso.info{background:transparent;padding:4px 16px 4px 10px;color:var(--txt2)}
+.avisos .aviso.info .ai{background:transparent;color:var(--txt2);box-shadow:inset 0 0 0 1.5px var(--linea)}
+.avisos .aviso.info b{color:var(--txt)}
 
 /* ------------------------------- sellos ------------------------------- */
 /* La intensidad codifica la fuerza: sólido = lo más fuerte (o lo más grave), con
@@ -1798,6 +1804,7 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 
 /* --- avisos: notas sobre el acta --- */
 [data-estilo="juez"] .aviso{border:1px solid var(--linea)}
+[data-estilo="juez"] .avisos .aviso.info{border-color:transparent}
 [data-estilo="juez"] .aviso.err{border-color:var(--error)}
 
 /* --- timbres: la intensidad sigue diciendo la fuerza (sólido = lo más fuerte
