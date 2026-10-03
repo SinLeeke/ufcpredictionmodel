@@ -201,9 +201,18 @@ $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
 $$('.seg[data-vista]').forEach(b => b.onclick = () => {
   $$('.seg[data-vista]').forEach(x => x.classList.remove('activa'));
   b.classList.add('activa');
+  const antes = S.vista;
   S.vista = b.dataset.vista;
   $('#peleas').classList.toggle('oculto', S.vista !== 'tarjetas');
   $('#tabla-wrap').classList.toggle('oculto', S.vista !== 'tabla');
+  // La vista que entra se funde como un panel de pestaña (150 ms): antes una
+  // desaparecía y la otra aparecía en el mismo cuadro. La que sale no se anima,
+  // y con teclado el cambio es instantáneo.
+  if (antes === S.vista || porTeclado) return;
+  $(S.vista === 'tabla' ? '#tabla-wrap' : '#peleas').animate(reducir()
+    ? [{ opacity: 0 }, { opacity: 1 }]
+    : [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
+    { duration: 150, easing: EASE_OUT });
 });
 
 /* ============================== MODAL ================================= */
