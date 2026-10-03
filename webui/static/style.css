@@ -126,6 +126,8 @@ body{
    bailaba mientras contaba y saltaba en el último cuadro. Ningún texto de la
    página necesita cifras proporcionales, así que va para todos. */
 *,*::before,*::after{font-variant-numeric:tabular-nums!important}
+/* Los ceros que guardan el ancho de una cifra mientras corre (contar). */
+.cifra-relleno{visibility:hidden}
 h1,h2,h3,h4{font-family:var(--display);font-weight:800;text-transform:uppercase;line-height:1.05;margin:0}
 h2{font-size:30px;letter-spacing:.01em}
 h3{font-size:15px;letter-spacing:.06em;color:var(--tenue);font-weight:700}

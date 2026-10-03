@@ -985,19 +985,30 @@ function entradaJaula(art) {
 }
 
 // Una cifra corre de 0 a su valor, con las mismas comas y decimales que va a
-// tener. Las cifras son tabulares: los dígitos no bailan mientras corren.
+// tener. Las cifras son tabulares: los dígitos no bailan mientras corren. Y
+// mientras tiene menos dígitos que al final se rellena por la izquierda con
+// ceros invisibles, que miden exactamente un dígito tabular: sin eso "9,8 %"
+// medía 112 px y "21,1 %" 140, y todo lo centrado se corría al cruzar el 10.
+// (El espacio de cifra U+2007 no sirve: Barlow no lo trae y el de la fuente
+// de respaldo es más angosto.)
 function contar(el, delay, duracion) {
   const final = el.textContent;
   const valor = parseFloat(final.replace(/[^\d,]/g, '').replace(',', '.'));
   if (!Number.isFinite(valor)) return;
   const decimales = (final.split(',')[1] || '').replace(/\D/g, '').length;
   const sufijo = final.includes('%') ? NBSP_FINO + '%' : '';
+  const pintar = (v) => {
+    const t = fmt(v, decimales) + sufijo;
+    const falta = final.length - t.length;
+    if (falta > 0) el.innerHTML = `<span class="cifra-relleno" aria-hidden="true">${'0'.repeat(falta)}</span>${t}`;
+    else el.textContent = t;
+  };
   const inicio = performance.now() + delay;
-  el.textContent = fmt(0, decimales) + sufijo;
+  pintar(0);
   const paso = (t) => {
     if (!el.isConnected) return;
     const x = Math.min(1, Math.max(0, (t - inicio) / duracion));
-    el.textContent = x >= 1 ? final : fmt(valor * (1 - Math.pow(1 - x, 4)), decimales) + sufijo;
+    if (x >= 1) el.textContent = final; else pintar(valor * (1 - Math.pow(1 - x, 4)));
     if (x < 1) requestAnimationFrame(paso);
   };
   requestAnimationFrame(paso);
