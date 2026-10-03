@@ -180,6 +180,9 @@ test('table title labels only appear for confirmed championships', () => {
 let reducedMotion = false;
 context.reducir = () => reducedMotion;
 context.EASE_OUT = 'ease-out';
+// Cerrado, un details mide su summary más su borde y su relleno: aquí, 75 px
+// de summary y 1 px de borde arriba = los 76 px de la fila cerrada.
+context.getComputedStyle = () => ({borderTopWidth:'1px', borderBottomWidth:'0px', paddingTop:'0px', paddingBottom:'0px'});
 function animatedFight() {
   const attrs = new Set();
   const animations = [];
@@ -187,7 +190,7 @@ function animatedFight() {
   const detail = {
     open:false, style:{height:'', overflow:''}, visualHeight:null,
     getBoundingClientRect() { return {height:this.visualHeight ?? (this.open ? 600 : 76)}; },
-    querySelector() { return {getBoundingClientRect:() => ({height:this.open ? 77 : 76})}; },
+    querySelector() { return {getBoundingClientRect:() => ({height:75})}; },
     querySelectorAll(selector) { assert.equal(selector, '[data-analisis]'); return [analysis]; },
     setAttribute(name) { attrs.add(name); },
     removeAttribute(name) { attrs.delete(name); },
