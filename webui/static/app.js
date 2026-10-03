@@ -127,14 +127,21 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || panelOpciones.classList.contains('oculto')) return;
   abrirOpciones(false); btnOpciones.focus();
 });
+// Cambiar de tema o de estilo cambia toda la página en un cuadro. Con View
+// Transitions se funde la página vieja en la nueva (200 ms, solo opacidad, así
+// que vale también con movimiento reducido). Con teclado, o en un navegador
+// sin View Transitions, el cambio es instantáneo como antes.
+function conFundido(cambio) {
+  if (porTeclado || typeof document.startViewTransition !== 'function') return cambio();
+  document.startViewTransition(cambio);
+}
 $$('input[name="tema"]').forEach(r => r.onchange = () => {
-  aplicarTema(r.value);
+  conFundido(() => aplicarTema(r.value));
   guardar('tema', r.value === 'auto' ? null : r.value);
 });
 $$('input[name="estilo"]').forEach(r => r.onchange = () => {
-  aplicarEstilo(r.value);
   guardar('estilo', r.value === 'juez' ? 'juez' : null);
-  repintarEstilo();
+  conFundido(() => { aplicarEstilo(r.value); repintarEstilo(); });
 });
 // Cambiar de estilo cambia cómo se arma cada pelea (octágono o acta), así que
 // la cartelera se vuelve a pintar; sin animar nada, porque ningún dato cambió.

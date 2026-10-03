@@ -126,6 +126,9 @@ body{
    bailaba mientras contaba y saltaba en el último cuadro. Ningún texto de la
    página necesita cifras proporcionales, así que va para todos. */
 *,*::before,*::after{font-variant-numeric:tabular-nums!important}
+/* El fundido al cambiar de tema o de estilo (conFundido en app.js): el de
+   View Transitions dura 250 ms; aquí, 200 y con ease, que es un cambio de color. */
+::view-transition-group(root),::view-transition-old(root),::view-transition-new(root){animation-duration:200ms;animation-timing-function:ease}
 /* Los ceros que guardan el ancho de una cifra mientras corre (contar). */
 .cifra-relleno{visibility:hidden}
 h1,h2,h3,h4{font-family:var(--display);font-weight:800;text-transform:uppercase;line-height:1.05;margin:0}
