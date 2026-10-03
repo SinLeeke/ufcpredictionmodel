@@ -506,8 +506,17 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
 .combate-reparto>span{min-width:2.6em}
 .combate-reparto>span[data-lado="a"]{text-align:right}
 .combate-reparto+.pill{min-width:76px;text-align:center}
+/* En una repetición la fila suma los sellos del resultado: "FALLÓ" es más angosto
+   que "ACERTÓ" o "MÉTODO" y corría las barras 9 px. También van a ancho fijo. */
+.combate-cab .pill.res{min-width:77px;text-align:center}
+@media(max-width:640px){.combate-cab .pill.res{min-width:72px}}
 @media(max-width:640px){
-  .combate-cab{padding:11px 12px;gap:9px;min-height:64px}
+  .combate-cab{padding:11px 12px;gap:9px;min-height:64px;flex-wrap:wrap}
+  /* Los nombres nunca bajan de 180 px: en una repetición la fila suma tres
+     sellos, la barra y la flecha, y los nombres quedaban de a una letra por
+     línea. Si no cabe todo, la barra y los sellos pasan a una segunda línea. */
+  .combate-rotulo{flex:1 1 180px}
+  .combate-flecha{margin-left:auto}    /* a la derecha también cuando pasa a la segunda línea */
   /* En el celular no caben las cifras: queda la barra, cuyo color dice la esquina. */
   .combate-reparto{grid-template-columns:56px;gap:0}
   .combate-reparto>span{display:none}
