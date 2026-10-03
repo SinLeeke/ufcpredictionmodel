@@ -220,10 +220,15 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .badge{font:700 12px/1 var(--display);color:var(--cab-regla);margin-left:5px}
 .tab.activa .badge{color:var(--cab-rojo)}
 
-.cartelera-caja{display:flex;align-items:center;gap:6px;margin-left:auto;min-width:0}
+/* La cartelera cargada y su estado no son pestañas: antes usaban la misma
+   mayúscula condensada y se leían como dos secciones más. Una regla vertical
+   los separa de la navegación y van sin mayúsculas (en condensada: con la letra
+   de texto el nombre de la cartelera no cabía y se cortaba). */
+.cartelera-caja{display:flex;align-items:center;gap:6px;margin-left:auto;min-width:0;
+  padding-left:16px;border-left:2px solid var(--cab-linea);align-self:center;min-height:30px}
 .cartelera-activa{
-  background:none;border:0;padding:4px 0;color:var(--cab-tenue);min-width:0;
-  font:600 14px/1.1 var(--display);letter-spacing:.05em;text-transform:uppercase;
+  background:none;border:0;padding:4px 0;color:var(--cab-txt);min-width:0;
+  font:600 16px/1.1 var(--display);letter-spacing:.01em;text-transform:none;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30ch;display:block;
 }
 .cartelera-activa:hover:not(:disabled){color:var(--cab-txt);border:0}
@@ -234,7 +239,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .cartelera-x:hover:not(:disabled){color:var(--cab-txt);border-color:var(--cab-tenue)}
 
 .cabecera-acciones{display:flex;align-items:center;gap:12px;flex:none}
-.reloj-caja{font:600 14px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--cab-tenue);white-space:nowrap}
+.reloj-caja{display:flex;align-items:center;gap:7px;font:500 14px/1 var(--display);letter-spacing:.02em;color:var(--cab-tenue);white-space:nowrap}
+.reloj-caja::before{content:"";width:6px;height:6px;flex:none;background:currentColor;opacity:.7}   /* el punto de estado */
 .reloj-caja b{color:var(--cab-txt);font-weight:700}
 .cab .primario{background:var(--cab-rojo);border-color:var(--cab-rojo);color:#fff}
 .cab .primario:hover:not(:disabled){background:var(--cab-txt);border-color:var(--cab-txt);color:var(--cab-bg)}
@@ -1751,6 +1757,11 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 [data-estilo="juez"] .cab .primario:hover:not(:disabled){background:var(--marca);border-color:var(--marca);color:var(--sobre-marca)}
 [data-estilo="juez"] .vivo-caja.activo{color:#fff;background:var(--cab-rojo);border-color:var(--cab-rojo)}
 [data-estilo="juez"] .cartelera-activa,[data-estilo="juez"] .reloj-caja{font-family:var(--maquina);font-weight:700;letter-spacing:0}
+/* A máquina la letra es más ancha y el nombre de la cartelera ya se cortaba:
+   cuerpo menor y menos margen junto a la regla, para que quepa lo más posible. */
+[data-estilo="juez"] .cartelera-activa{font-size:14px}
+[data-estilo="juez"] .reloj-caja{font-size:12.5px}
+[data-estilo="juez"] .cartelera-caja{padding-left:10px}
 [data-estilo="juez"] .pie{border-top:5px double var(--forma)}
 
 /* --- botones y campos --- */
