@@ -18,6 +18,10 @@ from fastapi import HTTPException
 import config as C
 from src import corte as CT
 from tests.util import card_aislado, peleador, predecir
+from tests.util import aislar_base
+
+# Base propia del módulo: nunca abrir data/ufc.db (ver tests/util.aislar_base).
+setUpModule, tearDownModule = aislar_base()
 
 # Como en UFCStats: el ganador SIEMPRE en fighter_a.
 PELEAS = pd.DataFrame([

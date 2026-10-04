@@ -9,6 +9,10 @@ import pandas as pd
 from src import card
 from tests.util import card_aislado, predecir
 from webui import engine
+from tests.util import aislar_base
+
+# Base propia del módulo: nunca abrir data/ufc.db (ver tests/util.aislar_base).
+setUpModule, tearDownModule = aislar_base()
 
 
 class TituloCSV(unittest.TestCase):

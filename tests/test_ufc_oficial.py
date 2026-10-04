@@ -15,6 +15,10 @@ import pandas as pd
 
 import config as C
 from src import ufc_oficial as U
+from tests.util import aislar_base
+
+# Base propia del módulo: nunca abrir data/ufc.db (ver tests/util.aislar_base).
+setUpModule, tearDownModule = aislar_base()
 
 RSS = b"""<?xml version="1.0" encoding="utf-8"?>
 <rss xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0"><channel>

@@ -38,8 +38,10 @@ class EloALaFecha(unittest.TestCase):
         final = KI.tabla_elo(df=df).set_index("fighter")["elo"]
         self.assertLess(final["Ana"], medio["Ana"])
 
-    @unittest.skipUnless(DB.exists(C.DATA_RAW / "kaggle_ufc.csv") and DB.exists(C.ELO_TABLE),
-                         "hace falta la base construida")
+    # Lee la base real a propósito (si existe). Se mira primero que el archivo
+    # exista: DB.exists() solo, al definir la clase, creaba data/ufc.db vacía.
+    @unittest.skipUnless(DB.db_path().exists() and DB.exists(C.DATA_RAW / "kaggle_ufc.csv")
+                         and DB.exists(C.ELO_TABLE), "hace falta la base construida")
     def test_sin_corte_reproduce_la_tabla_de_produccion(self):
         # Misma regla que kaggle_ingest.build_all: si alguien cambia una y no la
         # otra, el backtest dejaría de medir el ELO que se usa al predecir.

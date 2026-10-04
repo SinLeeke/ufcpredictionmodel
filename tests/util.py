@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import tempfile
 from pathlib import Path
 from unittest import mock
@@ -62,3 +63,28 @@ def predecir(card, csv: Path, **kw):
     """predict_card callado: devuelve el dict completo."""
     with contextlib.redirect_stdout(io.StringIO()):
         return card.predict_card(csv, reports=False, devolver_todo=True, **kw)
+
+
+def aislar_base():
+    """(setUpModule, tearDownModule) que dan al módulo su propia base SQLite.
+
+    Sin esto, cualquier DB.exists() de una prueba abre data/ufc.db de verdad:
+    la crea vacía si no existe y, si existe, la prueba depende de los datos
+    del PC donde se corre. Se usa a nivel de módulo; las pruebas que ya
+    apuntan UFC_DB a su carpeta temporal siguen haciéndolo encima de esto.
+    """
+    estado = {}
+
+    def setUpModule():
+        estado["tmp"] = tempfile.TemporaryDirectory()
+        estado["antes"] = os.environ.get("UFC_DB")
+        os.environ["UFC_DB"] = str(Path(estado["tmp"].name) / "ufc.db")
+
+    def tearDownModule():
+        if estado.get("antes") is None:
+            os.environ.pop("UFC_DB", None)
+        else:
+            os.environ["UFC_DB"] = estado["antes"]
+        estado.pop("tmp").cleanup()
+
+    return setUpModule, tearDownModule

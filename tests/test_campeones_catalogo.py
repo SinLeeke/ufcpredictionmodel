@@ -3,6 +3,10 @@ import unittest
 from unittest import mock
 
 from webui import catalogo as K
+from tests.util import aislar_base
+
+# Base propia del módulo: nunca abrir data/ufc.db (ver tests/util.aislar_base).
+setUpModule, tearDownModule = aislar_base()
 
 
 def _division(nombre, filas, p4p=False):

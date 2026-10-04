@@ -20,3 +20,20 @@ def _sin_red(*args, **kwargs):
 
 requests.get = requests.post = requests.request = _sin_red
 requests.Session.request = _sin_red
+
+
+# La base real (data/ufc.db) no se toca: se anota cómo estaba al empezar y
+# tests/test_zz_base_real.py, que corre al final, comprueba que siga igual.
+import hashlib as _hashlib
+from pathlib import Path as _Path
+
+BASE_REAL = _Path(__file__).resolve().parent.parent / "data" / "ufc.db"
+
+
+def huella_base_real():
+    if not BASE_REAL.exists():
+        return None
+    return _hashlib.sha256(BASE_REAL.read_bytes()).hexdigest()
+
+
+HUELLA_INICIAL = huella_base_real()
