@@ -546,6 +546,12 @@ async function abrirPeleaHistorial(perfil, h) {
     EXP.pedidoHistorial++;                 // una respuesta tardía ya no pinta nada
   }});
   raizDoc.dataset.historialAbierto = '';
+  // Si no hay un modelo guardado para esa fecha, el servidor lo entrena en
+  // este clic: pasado un momento se dice qué está haciendo.
+  const aviso = setTimeout(() => {
+    const p = pedido === EXP.pedidoHistorial && $('#modal-cuerpo .hist-cargando p');
+    if (p) p.textContent = 'Entrenando un modelo solo con las peleas anteriores a esa fecha. La primera vez tarda unos segundos; después queda guardado.';
+  }, 2500);
   try {
     const d = await api(`/api/peleadores/${encodeURIComponent(perfil.id)}/pelea?fecha=${encodeURIComponent(String(h.fecha).slice(0, 10))}&rival=${encodeURIComponent(h.rival)}`);
     if (pedido !== EXP.pedidoHistorial || !cuerpoHistorial()) return;
@@ -565,6 +571,8 @@ async function abrirPeleaHistorial(perfil, h) {
     if (pedido !== EXP.pedidoHistorial || !cuerpoHistorial()) return;
     cuerpoHistorial().setAttribute('aria-busy', 'false');
     cuerpoHistorial().innerHTML = `<div class="hist-aviso">${ico('alerta')}<p>${esc(e.message || 'No pude abrir esta pelea.')}</p></div>`;
+  } finally {
+    clearTimeout(aviso);
   }
 }
 

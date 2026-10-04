@@ -141,8 +141,10 @@ def mercado_historial(pelea_id: str, desde: str | None = None, a: str | None = N
 
 @app.get("/api/mercado/vivo")
 def mercado_vivo(desde: str | None = None, pelea_id: str | None = None,
-                 terminadas: str | None = None, evento_id: str | None = None):
-    # Sección "Mercado en vivo" de Inicio (webui/vivo.py). Sin evento en curso: {"activo": false}.
+                 terminadas: str | None = None, evento_id: str | None = None,
+                 elegida: str | None = None):
+    # Sección "Mercado en vivo" de Inicio (webui/vivo.py). Sin evento en curso:
+    # "activo": false, con las peleas para elegir y la `elegida`, si hay.
     from webui import vivo
     marcas = None
     if terminadas is not None:
@@ -160,7 +162,7 @@ def mercado_vivo(desde: str | None = None, pelea_id: str | None = None,
     if evento_id is not None and len(evento_id) > 300:
         raise HTTPException(400, "Identificador de evento demasiado largo.")
     return vivo.vivo((desde or "")[:40] or None, (pelea_id or "")[:300] or None,
-                     terminadas=marcas, evento_id=evento_id)
+                     terminadas=marcas, evento_id=evento_id, elegida=(elegida or "")[:300] or None)
 
 
 class CargaCuotas(BaseModel):

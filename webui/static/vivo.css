@@ -19,11 +19,22 @@
 .vivo-cab h2{margin:0;font:800 30px/1.05 var(--display);text-transform:uppercase;letter-spacing:.01em}
 .vivo-sello{padding:5px 8px;background:var(--marca);color:var(--sobre-marca);font:800 13px/1 var(--display);letter-spacing:.07em;text-transform:uppercase}
 .vivo-sello.simulado{background:var(--alerta-sup);color:var(--alerta);border:2px solid var(--alerta);padding:3px 6px}
+.vivo-sello.apagado{background:transparent;color:var(--txt2);border:1.5px solid var(--linea);padding:3.5px 6.5px}
 .vivo-evento{font:700 16px/1.2 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
 .vivo-refrescar{margin-left:auto;padding:10px 14px;min-height:44px;border:1.5px solid var(--txt);border-radius:0;background:transparent;color:var(--txt);font:800 14px/1 var(--display);text-transform:uppercase;cursor:pointer}
 .vivo-refrescar:focus-visible,.vivo-tiempo:focus-visible,.vivo-programa summary:focus-visible{outline:2px solid var(--marca);outline-offset:3px}
 .vivo-refrescar:disabled{color:var(--tenue);border-color:var(--linea);cursor:wait}
 .vivo #vivo-contenido{padding:22px;min-width:0}
+/* Modo manual: sin evento en curso se elige la pelea a mirar. */
+.vivo-elegir{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}
+.vivo-elegir[hidden],.vivo-ayuda[hidden],.vivo-cuotas[hidden],.vivo-programa[hidden],.vivo-marca-controles[hidden]{display:none}
+.vivo-elegir label{font:800 14px/1 var(--display);letter-spacing:.07em;text-transform:uppercase}
+.vivo-elegir select{flex:1 1 280px;max-width:520px;min-height:44px;padding:8px 12px;border:1.5px solid var(--txt);border-radius:0;background:var(--sup);color:var(--txt);font:600 15px/1.2 var(--texto);box-shadow:none}
+.vivo-elegir select:focus-visible{outline:2px solid var(--marca);outline-offset:3px}
+.vivo-elegir select:disabled{color:var(--tenue);border-color:var(--linea)}
+.vivo-elegir option,.vivo-elegir optgroup{background:var(--sup);color:var(--txt)}
+.vivo-ayuda{margin:10px 0 18px;color:var(--txt2);font-size:14px;max-width:75ch}
+.vivo-sin-datos{fill:var(--tenue);font:700 16px var(--display);text-transform:uppercase;letter-spacing:.06em}
 .vivo-cara{display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr);align-items:center;gap:16px}
 .vivo-esquina{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:center;gap:16px;min-width:0}
 .vivo-esquina.b{grid-template-columns:minmax(0,1fr) 100px;text-align:right}

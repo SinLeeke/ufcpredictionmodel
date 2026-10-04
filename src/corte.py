@@ -352,9 +352,8 @@ def modelos_a_fecha(fecha, avisar: Callable[[str], None] | None = None,
     models/corte/ para no repetirlo. La firma de features.csv invalida esa copia
     cuando la base se actualiza.
 
-    entrenar=False devuelve None en vez de entrenar: lo usa el detalle de una
-    pelea del historial, que no puede dejar al usuario esperando minutos por
-    un clic. Nunca cae en el de producción si ese vio peleas desde el corte.
+    entrenar=False devuelve None en vez de entrenar (solo lo ya guardado).
+    Nunca cae en el de producción si ese vio peleas desde el corte.
     """
     fecha = pd.Timestamp(fecha).normalize()
     avisar = avisar or (lambda _txt: None)

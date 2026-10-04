@@ -1,10 +1,16 @@
 /* Mercado en vivo: una lectura de nuestra caché, nunca de las casas.
    Las series conservan las cuotas recibidas: una línea escalonada muestra
-   el valor que rigió hasta el siguiente cambio, sin inventar puntos. */
+   el valor que rigió hasta el siguiente cambio, sin inventar puntos.
+   Sin evento en curso la sección no se va: queda en modo manual, con un
+   selector de peleas y el gráfico vacío hasta que eliges una; con EN VIVO
+   encendido la línea de esa pelea avanza con cada lectura de Betano. */
 (() => {
   'use strict';
 
   const INTERVALO = 12000;
+  // Siguiendo una pelea con EN VIVO encendido, Betano confirma cada 10 s:
+  // leer la caché cada 5 s deja ver cada confirmación sin esperar un ciclo.
+  const INTERVALO_SIGUIENDO = 5000;
   const escapar = texto => String(texto ?? '').replace(/[&<>"']/g, letra =>
     ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[letra]));
   const numero = (valor, decimales = 0) => Number(valor).toLocaleString('es-CL',
@@ -26,7 +32,7 @@
   const claveSerie = serie => JSON.stringify([serie.tipo || 'casa', serie.casa || serie.etiqueta || '']);
 
   function crearEstado() {
-    return {visible:false, paquete:null, pelea_id:null, evento_clave:null,
+    return {visible:false, manual:false, paquete:null, pelea_id:null, evento_clave:null,
       series:new Map(), ultimo:null, error:null, ultimo_ok:null};
   }
 
@@ -44,9 +50,12 @@
 
   function recibirPaquete(anterior, paquete) {
     if (!paquete || typeof paquete.activo !== 'boolean') throw new Error('Respuesta de mercado incompleta');
-    if (!paquete.activo) return crearEstado();
-    const actual = paquete.actual;
-    const eventoClave = JSON.stringify([paquete.evento?.id || paquete.evento?.nombre || '', !!paquete.simulado]);
+    const manual = !paquete.activo;
+    const actual = paquete.actual || null;
+    // El modo manual es su propio "evento": volver a un evento real nunca
+    // mezcla sus series con las de la pelea elegida a mano, ni al revés.
+    const eventoClave = manual ? JSON.stringify(['manual'])
+      : JSON.stringify([paquete.evento?.id || paquete.evento?.nombre || '', !!paquete.simulado]);
     const mismaPelea = anterior.pelea_id === actual?.pelea_id && anterior.evento_clave === eventoClave;
     const series = actual?.incremental && mismaPelea ? new Map(anterior.series) : new Map();
     for (const serie of actual?.series || []) {
@@ -61,7 +70,7 @@
       const t = serie.puntos.at(-1)?.t;
       if (t && (!ultimo || instante(t) > instante(ultimo))) ultimo = t;
     }
-    return {visible:true, paquete, pelea_id:actual?.pelea_id || null, evento_clave:eventoClave,
+    return {visible:true, manual, paquete, pelea_id:actual?.pelea_id || null, evento_clave:eventoClave,
       series, ultimo, error:null, ultimo_ok:paquete.consultado || anterior.ultimo_ok};
   }
 
@@ -71,11 +80,13 @@
       : 'No pude comprobar si hay un evento en vivo. Reintentaré automáticamente.'};
   }
 
-  function urlConsulta(estado, terminadas = []) {
+  function urlConsulta(estado, terminadas = [], elegida = null) {
     const parametros = new URLSearchParams();
     if (estado.pelea_id && estado.ultimo) {
       parametros.set('desde', estado.ultimo); parametros.set('pelea_id', estado.pelea_id);
     }
+    // Durante un evento el servidor la ignora: manda la pelea en curso.
+    if (elegida) parametros.set('elegida', elegida);
     if (terminadas.length && estado.paquete?.evento?.id) {
       parametros.set('terminadas', JSON.stringify(terminadas));
       parametros.set('evento_id', estado.paquete.evento.id);
@@ -85,11 +96,27 @@
 
   function avisoMercado(estado) {
     if (estado.error) return estado.error;
+    if (estado.manual) {
+      const actual = estado.paquete?.actual;
+      return actual && !actual.cotizaciones?.length ? 'Todavía no hay cuotas guardadas para esta pelea.' : '';
+    }
     const mercado = estado.paquete?.mercado || {};
     if (mercado.todas_caidas) return 'Sin cuotas en vivo: ninguna fuente confirma datos recientes. Las últimas cuotas se conservan con su hora.';
     if (!mercado.hay_cuotas) return 'Todavía no hay cuotas publicadas para esta pelea.';
     if (mercado.con_error?.length) return `Fuentes con aviso: ${mercado.con_error.join(', ')}. Revisa la hora de cada cuota.`;
     return '';
+  }
+
+  // Qué hace falta para que la línea se vaya llenando. EN VIVO solo existe
+  // con una cartelera de Betano: su refresco de 10 s es el que confirma cuotas.
+  function ayudaManual(estado, vivo = {}) {
+    if (!estado.manual) return '';
+    if (!estado.paquete?.actual) return estado.paquete?.opciones?.length
+      ? 'Elige una pelea para ver cómo se mueve su línea. Con EN VIVO encendido se va llenando cada 10 s.'
+      : 'No hay peleas con cuotas guardadas. Analiza una cartelera desde Betano para empezar a guardarlas.';
+    if (vivo.encendido) return 'EN VIVO encendido: la cuota de Betano se confirma cada 10 s y la línea avanza con cada lectura.';
+    if (vivo.disponible) return 'EN VIVO está apagado: la línea solo avanza con el refresco completo (cada 10 min) y las otras fuentes. Enciéndelo arriba para una lectura cada 10 s.';
+    return 'La línea avanza con lo que guardan las fuentes. Para una lectura cada 10 s, analiza esta cartelera desde Betano y enciende EN VIVO.';
   }
 
   function prepararGrafico(series) {
@@ -161,7 +188,7 @@
 
   // Las pruebas usan las mismas funciones del navegador sin iniciar el polling.
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {crearEstado, recibirPaquete, registrarFallo, urlConsulta, unirPuntos,
+    module.exports = {crearEstado, recibirPaquete, registrarFallo, urlConsulta, unirPuntos, ayudaManual,
       claveSerie, americana, porcentaje, probAmericana, prepararGrafico, trazoEscalones,
       valoresEn, tablaCuotas, avisoMercado, resolucionMercado, hora, fechaHora};
   }
@@ -171,7 +198,12 @@
 
   let estado = crearEstado(), enPeticion = false, temporizador = null, peticion = null;
   let grafico = null, inspeccion = null, firmaGrafico = '', colores = new Map();
-  let estadoAnunciado = '', entrada = null, marcas = new Set();
+  let estadoAnunciado = '', entrada = null, marcas = new Set(), firmaOpciones = '';
+  let elegida = null, pendiente = false;
+  try { elegida = localStorage.getItem('ufc-mercado-elegida') || null; } catch { elegida = null; }
+  // EN VIVO vive en app.js (S): se lee en cada pintada, sin copiarlo.
+  const vivoCab = () => ({encendido:typeof S !== 'undefined' && !!S.vivo && !S.corte,
+    disponible:typeof S !== 'undefined' && S.origen === 'betano' && !S.corte});
   const coordenadas = {ancho:920, alto:310, izquierda:88, derecha:150, arriba:20, abajo:44};
   const nombresEstado = {en_curso:'En curso · estimado', terminada:'Terminada', por_pelear:'Por pelear'};
   const tituloEstado = pelea => pelea?.motivo_clave === 'manual' ? 'Terminada · marcada por ti' :
@@ -180,8 +212,11 @@
   contenedor.innerHTML = `<div class="vivo-cab"><h2 id="vivo-titulo">Mercado en vivo</h2>
     <span class="vivo-sello" id="vivo-sello">En vivo</span><span class="vivo-evento" id="vivo-evento"></span>
     <button type="button" class="vivo-refrescar" id="vivo-refrescar">Actualizar</button></div>
-    <div id="vivo-contenido"><div id="vivo-actual"></div><p id="vivo-motivo" class="vivo-motivo"></p>
-      <div class="vivo-marca-controles"><button type="button" id="vivo-marcar" class="vivo-marcar">Marcar terminada</button>
+    <div id="vivo-contenido"><div id="vivo-elegir-caja" class="vivo-elegir" hidden>
+        <label for="vivo-elegir">Pelea</label><select id="vivo-elegir" aria-describedby="vivo-ayuda"></select></div>
+      <p id="vivo-ayuda" class="vivo-ayuda" hidden></p>
+      <div id="vivo-actual"></div><p id="vivo-motivo" class="vivo-motivo"></p>
+      <div class="vivo-marca-controles" id="vivo-marca-controles"><button type="button" id="vivo-marcar" class="vivo-marcar">Marcar terminada</button>
         <button type="button" id="vivo-deshacer" class="vivo-marcar" hidden>Deshacer última marca</button>
         <p>La marca queda en este navegador para este evento. No agrega un resultado ni cambia el modelo.</p></div>
       <p id="vivo-aviso" class="vivo-aviso" hidden></p>
@@ -193,8 +228,8 @@
           <p id="vivo-inspector-ayuda">Arrastra sobre el gráfico o usa las flechas del control. Inicio y Fin van al primer y al último cambio.</p>
           <div id="vivo-lectura" class="vivo-lectura"></div></div>
       </figure>
-      <div class="vivo-cuotas"><div id="vivo-casas"></div><div class="vivo-prediccion" id="vivo-prediccion"></div></div>
-      <details class="vivo-programa"><summary>Estado de las peleas <span id="vivo-total"></span></summary><ol id="vivo-peleas"></ol></details>
+      <div class="vivo-cuotas" id="vivo-cuotas"><div id="vivo-casas"></div><div class="vivo-prediccion" id="vivo-prediccion"></div></div>
+      <details class="vivo-programa" id="vivo-programa"><summary>Estado de las peleas <span id="vivo-total"></span></summary><ol id="vivo-peleas"></ol></details>
       <p class="vivo-nota" id="vivo-nota"></p><p class="vivo-refresco" id="vivo-refresco"></p></div>
     <p class="vivo-anuncio" id="vivo-anuncio" role="status" aria-live="polite" aria-atomic="true"></p>`;
   const buscar = id => document.getElementById(id);
@@ -235,9 +270,11 @@
 
   function anunciar() {
     const paquete = estado.paquete;
-    const texto = estado.visible ? [paquete.simulado ? 'Datos simulados.' : '',
+    const texto = !estado.visible ? '' : estado.manual
+      ? (paquete.actual ? `${paquete.actual.a?.nombre} frente a ${paquete.actual.b?.nombre}. ${avisoMercado(estado)}` : 'Sin pelea elegida.')
+      : [paquete.simulado ? 'Datos simulados.' : '',
       `${paquete.actual?.a?.nombre || ''} frente a ${paquete.actual?.b?.nombre || ''}.`,
-      paquete.actual ? tituloEstado(paquete.actual) : 'Sin pelea identificada.', avisoMercado(estado)].filter(Boolean).join(' ') : '';
+      paquete.actual ? tituloEstado(paquete.actual) : 'Sin pelea identificada.', avisoMercado(estado)].filter(Boolean).join(' ');
     if (texto !== estadoAnunciado) { buscar('vivo-anuncio').textContent = texto; estadoAnunciado = texto; }
   }
 
@@ -249,11 +286,29 @@
     }
     const aparecio = contenedor.classList.contains('oculto');
     contenedor.classList.remove('oculto');
-    const paquete = estado.paquete, actual = paquete.actual;
-    poner('vivo-evento', escapar(paquete.evento?.nombre || 'Evento en curso'));
-    poner('vivo-sello', paquete.simulado ? 'Datos simulados' : 'En vivo');
-    buscar('vivo-sello').classList.toggle('simulado', !!paquete.simulado);
-    if (actual) {
+    const paquete = estado.paquete, actual = paquete.actual, manual = estado.manual, cab = vivoCab();
+    poner('vivo-titulo', manual ? 'Movimiento de cuotas' : 'Mercado en vivo');
+    poner('vivo-evento', escapar(manual
+      ? (actual ? [actual.evento, actual.fecha && fechaCorta(actual.fecha)].filter(Boolean).join(' · ') : 'Sin evento en curso')
+      : paquete.evento?.nombre || 'Evento en curso'));
+    poner('vivo-sello', manual ? (cab.encendido ? 'En vivo' : 'En vivo apagado') : paquete.simulado ? 'Datos simulados' : 'En vivo');
+    buscar('vivo-sello').classList.toggle('simulado', !manual && !!paquete.simulado);
+    buscar('vivo-sello').classList.toggle('apagado', manual && !cab.encendido);
+    buscar('vivo-elegir-caja').hidden = !manual;
+    if (manual) pintarOpciones(paquete.opciones || []);
+    const ayuda = ayudaManual(estado, cab);
+    poner('vivo-ayuda', escapar(ayuda));
+    buscar('vivo-ayuda').hidden = !ayuda;
+    buscar('vivo-marca-controles').hidden = manual;
+    buscar('vivo-programa').hidden = manual;
+    buscar('vivo-cuotas').hidden = manual && !actual;
+    if (manual) {
+      poner('vivo-actual', actual ? `<div class="vivo-cara">${identidad(actual.a, 'a')}<div class="vivo-versus" aria-hidden="true">VS</div>${identidad(actual.b, 'b')}</div>` : '');
+      poner('vivo-motivo', '');
+      poner('vivo-casas', actual ? tablaCuotas(actual.cotizaciones, actual, 'casa') : '');
+      poner('vivo-prediccion', actual ? tablaCuotas(actual.cotizaciones, actual, 'mercado_prediccion') +
+        '<p>Polymarket es un mercado de predicción. Su precio es una referencia; no es una cuota de casa ni un precio comprable garantizado.</p>' : '');
+    } else if (actual) {
       poner('vivo-actual', `<div class="vivo-cara">${identidad(actual.a, 'a')}<div class="vivo-versus" aria-hidden="true">VS</div>${identidad(actual.b, 'b')}</div>
         <div class="vivo-estado"><span>${escapar(tituloEstado(actual))}</span>${actual.peso ? `<span>${escapar(actual.peso)}</span>` : ''}</div>${resolucionMercado(actual)}`);
       poner('vivo-motivo', escapar(actual.motivo || 'Sin señal para precisar el estado de esta pelea.'));
@@ -284,7 +339,7 @@
         ? `<button type="button" class="vivo-marcar" data-deshacer="${escapar(pelea.pelea_id)}">Deshacer marca de ${escapar(pelea.a?.nombre)} vs ${escapar(pelea.b?.nombre)}</button>`
         : pelea.estado !== 'terminada' ? `<button type="button" class="vivo-marcar" data-marcar="${escapar(pelea.pelea_id)}" aria-label="Marcar terminada: ${escapar(pelea.a?.nombre)} vs ${escapar(pelea.b?.nombre)}">Marcar terminada</button>` : ''}</li>`).join(''));
     poner('vivo-nota', escapar(paquete.nota || 'Cuotas del mercado; no son una predicción del modelo ni una recomendación.'));
-    poner('vivo-refresco', `Última lectura local: ${hora(estado.ultimo_ok)} · se consulta la caché cada 12 s.`);
+    poner('vivo-refresco', `Última lectura local: ${hora(estado.ultimo_ok)} · se consulta la caché cada ${intervalo() / 1000} s.`);
     if (typeof cargarFotos === 'function') cargarFotos(contenedor);
     anunciar();
     if (aparecio && typeof contenedor.animate === 'function' && !(typeof porTeclado !== 'undefined' && porTeclado)) {
@@ -292,6 +347,58 @@
       entrada = contenedor.animate([{opacity:0}, {opacity:1}],
         {duration:menos ? 120 : 180, easing:typeof EASE_OUT !== 'undefined' ? EASE_OUT : 'cubic-bezier(0.23, 1, 0.32, 1)'});
     }
+  }
+
+  const fechaCorta = fecha => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(fecha || ''));
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
+  };
+
+  function pintarOpciones(opciones) {
+    const firma = JSON.stringify([opciones, elegida]);
+    if (firma === firmaOpciones) return;
+    firmaOpciones = firma;
+    const grupos = new Map();
+    for (const o of opciones) {
+      const clave = [o.evento || 'Sin evento', fechaCorta(o.fecha)].filter(Boolean).join(' · ');
+      if (!grupos.has(clave)) grupos.set(clave, []);
+      grupos.get(clave).push(o);
+    }
+    const select = buscar('vivo-elegir');
+    select.innerHTML = `<option value="">${opciones.length ? 'Ninguna' : 'Sin peleas con cuotas'}</option>` +
+      [...grupos].map(([grupo, lista]) => `<optgroup label="${escapar(grupo)}">${lista.map(o =>
+        `<option value="${escapar(o.pelea_id)}"${o.pelea_id === elegida ? ' selected' : ''}>${escapar(o.a)} vs ${escapar(o.b)}</option>`).join('')}</optgroup>`).join('');
+    select.disabled = !opciones.length;
+    if (!opciones.some(o => o.pelea_id === elegida)) select.value = '';
+  }
+
+  function elegir(id) {
+    elegida = id || null;
+    try { elegida ? localStorage.setItem('ufc-mercado-elegida', elegida) : localStorage.removeItem('ufc-mercado-elegida'); }
+    catch { /* Sin almacenamiento, la elección dura esta visita. */ }
+    // Otra pelea: nada de la anterior se mezcla en su línea.
+    estado = {...estado, series:new Map(), pelea_id:null, ultimo:null};
+    colores = new Map(); inspeccion = null; firmaGrafico = '';
+    consultar();
+  }
+
+  // El marco del gráfico sin líneas: misma grilla y mismas medidas, para que
+  // elegir una pelea no haga saltar la página. No inventa una hora ni un valor.
+  function graficoVacio(mensaje) {
+    const c = coordenadas;
+    c.ancho = Math.max(300, Math.round(buscar('vivo-trazo').clientWidth || 920));
+    c.alto = c.ancho < 540 ? 280 : 310;
+    c.izquierda = c.ancho < 540 ? 68 : 88;
+    c.derecha = c.ancho < 540 ? 16 : 150;
+    const alto = c.alto - c.arriba - c.abajo;
+    let svg = `<svg viewBox="0 0 ${c.ancho} ${c.alto}" role="img" aria-label="${escapar(mensaje)}">`;
+    for (let i = 0; i <= 4; i++) {
+      const marca = .7 - i * .1, altura = c.arriba + alto * i / 4;
+      svg += `<g class="vivo-eje"><line x1="${c.izquierda}" x2="${c.ancho - c.derecha}" y1="${altura}" y2="${altura}"/>
+        <text x="${c.izquierda - 10}" y="${altura - 2}" text-anchor="end">${numero(marca * 100)} %</text></g>`;
+    }
+    svg += `<text class="vivo-sin-datos" x="${(c.izquierda + c.ancho - c.derecha) / 2}" y="${c.arriba + alto / 2 + 5}" text-anchor="middle">${escapar(mensaje)}</text></svg>`;
+    return svg;
   }
 
   function escalas() {
@@ -304,7 +411,8 @@
     grafico = prepararGrafico(estado.series);
     buscar('vivo-inspector').hidden = !grafico;
     if (!grafico) {
-      poner('vivo-trazo', '<p class="vivo-vacio">Sin historial de cuotas para dibujar la línea.</p>');
+      poner('vivo-trazo', graficoVacio(estado.manual && !estado.paquete?.actual ? 'Sin pelea elegida'
+        : estado.manual ? 'Esperando la primera cuota guardada' : 'Sin historial de cuotas para dibujar la línea'));
       poner('vivo-leyenda', ''); return;
     }
     const c = coordenadas;
@@ -395,14 +503,21 @@
   trazo.addEventListener('pointerdown', evento => { trazo.setPointerCapture?.(evento.pointerId); inspeccionarPuntero(evento); });
   trazo.addEventListener('pointermove', evento => { if (evento.pointerType === 'mouse' || evento.buttons) inspeccionarPuntero(evento); });
 
+  function intervalo() {
+    return estado.manual && elegida && vivoCab().encendido ? INTERVALO_SIGUIENDO : INTERVALO;
+  }
+
   function programar() {
     clearTimeout(temporizador);
-    temporizador = document.hidden ? null : setTimeout(consultar, INTERVALO);
+    temporizador = document.hidden ? null : setTimeout(consultar, intervalo());
   }
 
   async function consultar() {
-    if (document.hidden || enPeticion) return;
+    if (document.hidden) return;
+    // Elegir otra pelea a mitad de un pedido no se pierde: se pide al terminar.
+    if (enPeticion) { pendiente = true; return; }
     clearTimeout(temporizador);
+    const pedidaPara = elegida;
     enPeticion = true;
     buscar('vivo-refrescar').disabled = true;
     buscar('vivo-marcar').disabled = true;
@@ -416,14 +531,16 @@
         return respuesta.json();
       };
       const anteriorPelea = estado.pelea_id, anteriorEvento = estado.evento_clave;
-      let siguiente = recibirPaquete(estado, await pedir(urlConsulta(estado, [...marcas])));
+      let siguiente = recibirPaquete(estado, await pedir(urlConsulta(estado, [...marcas], elegida)));
       if (siguiente.visible && siguiente.evento_clave !== anteriorEvento) {
         marcas = cargarMarcas(siguiente);
         // Después de recargar el navegador, la primera respuesta descubre el
         // evento; la segunda aplica sus marcas antes de mostrar una pelea vieja.
-        if (marcas.size) siguiente = recibirPaquete(siguiente,
-          await pedir(urlConsulta(siguiente, [...marcas])));
+        if (marcas.size && !siguiente.manual) siguiente = recibirPaquete(siguiente,
+          await pedir(urlConsulta(siguiente, [...marcas], elegida)));
       }
+      // Una respuesta de la pelea anterior no se pinta sobre la recién elegida.
+      if (pedidaPara !== elegida) return;
       estado = siguiente;
       if (estado.pelea_id !== anteriorPelea || estado.evento_clave !== anteriorEvento) {
         colores = new Map(); inspeccion = null; firmaGrafico = '';
@@ -438,10 +555,15 @@
       buscar('vivo-refrescar').disabled = false;
       buscar('vivo-marcar').disabled = false;
       buscar('vivo-deshacer').disabled = false;
-      programar();
+      if (pendiente) { pendiente = false; setTimeout(consultar, 0); }
+      else programar();
     }
   }
   buscar('vivo-refrescar').addEventListener('click', consultar);
+  buscar('vivo-elegir').addEventListener('change', evento => elegir(evento.target.value));
+  // Encender o apagar EN VIVO cambia la cadencia y la ayuda: se relee al rato,
+  // cuando el servidor ya tomó el cambio.
+  document.getElementById('chk-vivo')?.addEventListener('change', () => setTimeout(consultar, 800));
   function marcar(id) {
     if (!id || enPeticion || !estado.paquete?.peleas?.some(pelea => pelea.pelea_id === id)) return;
     marcas.add(id); guardarMarcas(); consultar();

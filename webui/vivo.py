@@ -1,7 +1,9 @@
 """Sección "Mercado en vivo" de Inicio: arma la respuesta de GET /api/mercado/vivo.
 
 Contrato: docs/contrato-datos.md, sección 2.4. Sin evento en curso la
-respuesta es solo {"activo": false} y la UI no dibuja nada.
+respuesta lleva "activo": false y la sección queda en modo manual: la lista
+de peleas con cuotas guardadas ("opciones") y, si el usuario eligió una
+("elegida"), su línea y su tabla con la misma forma que la pelea actual.
 
 Como el resto de /api/mercado/*, NUNCA espera a la red: lee la caché de UFC.com
 (calendario), el SQLite de la capa de cuotas y la caché de Polymarket que los
@@ -504,14 +506,59 @@ def _marcas_manual(base: dict, ev: dict, terminadas: list[str] | None,
     return {**base, "peleas": peleas, "actual": actual}
 
 
+def _manual(elegida: str | None, desde_iso: str | None, pelea_id: str | None, t: float) -> dict:
+    """Sin evento en curso: la pelea que eligió el usuario, de lo que la capa ya guardó.
+
+    Nada de red: con EN VIVO encendido el ciclo de Betano confirma la cuota
+    cada 10 s (una cuota igual adelanta su `visto`), y la línea llega hasta
+    esa confirmación. Sin elegir, solo la lista para el selector.
+    """
+    salida = {"activo": False, "opciones": [], "actual": None, "nota": NOTA, "consultado": a_iso(t)}
+    try:
+        from src.cuotas import capa as capa_mod
+        capa = capa_mod.capa()
+        peleas = capa.peleas()["peleas"]
+    except Exception:                                      # noqa: BLE001
+        return salida
+    salida["opciones"] = [{k: p[k] for k in ("pelea_id", "a", "b", "evento", "fecha")} for p in peleas]
+    p = next((x for x in peleas if x["pelea_id"] == elegida), None) if elegida else None
+    if p is None:
+        return salida
+    nombres = {f.clave: f.nombre for f in capa.fuentes}
+    filas = _filas(p["cotizaciones"], nombres)
+    vistos = {(c["fuente"], c["casa"]): c.get("visto") for c in p["cotizaciones"]}
+    crudas = capa.historial(p["pelea_id"], None, p["a"])["series"]
+    incremental = bool(desde_iso) and pelea_id == p["pelea_id"]
+    if incremental:
+        crudas = [{**s, "puntos": [q for q in s["puntos"] if q["t"] > desde_iso]} for s in crudas]
+    else:
+        crudas = _recortar(crudas, a_iso(t - VENTANA_PREVIA))
+    campeones = _campeones()
+    salida["actual"] = {"pelea_id": p["pelea_id"], "evento": p["evento"], "fecha": p["fecha"],
+                        "a": peleador(p["a"], p.get("a_id"), None, campeones),
+                        "b": peleador(p["b"], p.get("b_id"), None, campeones),
+                        "mejor": p.get("mejor"), "cotizaciones": filas,
+                        "series": _unir_series(crudas, vistos, nombres), "incremental": incremental,
+                        "actualizado": max((f["visto"] for f in filas if f["visto"]), default=None)}
+    return salida
+
+
 def vivo(desde: str | None = None, pelea_id: str | None = None, ahora: float | None = None,
-         terminadas: list[str] | None = None, evento_id: str | None = None) -> dict:
-    """La respuesta de /api/mercado/vivo. `desde`/`pelea_id`: el cliente ya tiene la serie hasta ahí."""
+         terminadas: list[str] | None = None, evento_id: str | None = None,
+         elegida: str | None = None) -> dict:
+    """La respuesta de /api/mercado/vivo. `desde`/`pelea_id`: el cliente ya tiene la serie hasta ahí.
+
+    `elegida` solo cuenta sin evento en curso (modo manual, ver _manual).
+    """
     global _memo
     ev = calendario.evento_en_vivo(ahora)
-    if ev is None:
-        return {"activo": False}
     t = time.time() if ahora is None else ahora
+    if ev is None:
+        try:
+            desde_iso = a_iso(desde) if desde else None
+        except (TypeError, ValueError):
+            desde_iso = None
+        return _manual(elegida, desde_iso, pelea_id, t)
     clave = (ev.get("id"), bool(ev.get("simulado")))
     with _lock:
         if ahora is None and _memo and _memo[1] == clave and time.monotonic() - _memo[0] < TTL_BASE:

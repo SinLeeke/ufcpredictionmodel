@@ -89,27 +89,44 @@ class PeleaDelHistorial(unittest.TestCase):
         self.assertFalse(self.salidas.exists(), "el detalle no deja tablas en outputs/")
 
     def test_el_resultado_viaja_aparte_y_sin_modelo_no_hay_probabilidades_inventadas(self):
-        d = self.pedir().json()
+        # Sin features.csv no hay modelo ciego posible y tampoco se cae en el
+        # de producción: la heurística de predict_card no se muestra como modelo.
+        with mock.patch.object(CT, "modelos_a_fecha", side_effect=AssertionError("caería en producción")):
+            d = self.pedir().json()
         self.assertNotIn("resultado", d["pelea"])
         self.assertEqual((d["resultado"]["ganador"], d["resultado"]["lado"]), ("Bia Bravo", "b"))
-        # Sin un modelo ciego a esa fecha no se entrena en el clic: la
-        # heurística de predict_card no se muestra como si fuera el modelo.
+        self.assertIn("features.csv", d["corte"]["motivo"])
         for campo in ("p_a", "p_b", "ci_a", "metodo", "probabilidades_metodo", "ganador", "confianza"):
             self.assertIsNone(d["pelea"][campo], campo)
         self.assertIsNone(d["resultado"]["acierto"])
         self.assertIsNone(d["corte"]["modelo"])
         self.assertIn("modelo", d["corte"]["motivo"])
 
-    def test_con_modelo_guardado_lo_usa_sin_entrenar(self):
+    def features(self):
+        import config as C
+        DB.to_csv(pd.DataFrame([{"date": "2024-01-20", "y": 1}]), C.FEATURES_CSV, index=False)
+
+    def test_calcula_el_modelo_con_solo_lo_anterior_a_la_pelea(self):
+        self.features()
         modelos = {"ganador": object(), "metodo": None, "metodo6": None, "origen": "reentrenado",
                    "entrenado_hasta": "2024-06-14", "peleas": 2100}
         with mock.patch.object(CT, "modelos_a_fecha", return_value=modelos) as m, \
                 mock.patch("src.card.probabilidad_ganador", return_value=[0.61]):
             d = self.pedir().json()
-        self.assertEqual(m.call_args.kwargs.get("entrenar"), False)
+        # Entrena si no hay uno guardado (el valor por defecto) y con el corte de ese día.
+        self.assertNotIn("entrenar", m.call_args.kwargs)
+        self.assertEqual(pd.Timestamp(m.call_args.args[0]), pd.Timestamp("2024-06-15"))
+        self.assertEqual(d["corte"]["motivo"], "")
         self.assertAlmostEqual(d["pelea"]["p_a"] + d["pelea"]["p_b"], 1.0, places=6)
         self.assertEqual(d["corte"]["modelo"], "reentrenado")
         self.assertIn(d["resultado"]["acierto"], (True, False))
+
+    def test_con_muy_pocas_peleas_antes_lo_dice_y_no_inventa_probabilidades(self):
+        self.features()
+        with mock.patch.object(CT, "modelos_a_fecha", side_effect=ValueError("Antes del 15-06-2024 hay muy pocas peleas para entrenar (3).")):
+            d = self.pedir().json()
+        self.assertIsNone(d["pelea"]["p_a"])
+        self.assertIn("muy pocas peleas", d["corte"]["motivo"])
 
     def test_desde_el_otro_lado_la_esquina_del_perfil_es_b(self):
         d = self.pedir("Bia Bravo", rival="Ana Arco").json()

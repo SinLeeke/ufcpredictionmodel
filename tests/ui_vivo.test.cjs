@@ -56,12 +56,39 @@ test('cambiar de evento o de simulación tampoco mezcla cuotas de la misma parej
   }
 });
 
-test('sin evento oculta la sección y elimina el cursor incremental anterior', () => {
+test('sin evento la sección queda en modo manual y elimina el cursor incremental anterior', () => {
   const inicial = vista.recibirPaquete(vista.crearEstado(), paquete([serie([punto(0)])]));
-  const fin = vista.recibirPaquete(inicial, {activo:false});
-  assert.equal(fin.visible, false);
+  const fin = vista.recibirPaquete(inicial, {activo:false, opciones:[]});
+  assert.equal(fin.visible, true);
+  assert.equal(fin.manual, true);
   assert.equal(fin.series.size, 0);
   assert.equal(vista.urlConsulta(fin), '/api/mercado/vivo');
+  assert.match(vista.ayudaManual(fin), /No hay peleas con cuotas guardadas/);
+  assert.equal(vista.prepararGrafico(fin.series), null);
+});
+
+test('la pelea elegida a mano se va llenando sin mezclarse con un evento real', () => {
+  const manual = (series, incremental = false) => ({activo:false, opciones:[{pelea_id:'a|b', a:'Alpha', b:'Beta'}],
+    actual:{pelea_id:'a|b', a:{nombre:'Alpha'}, b:{nombre:'Beta'}, cotizaciones:[{}], series, incremental},
+    consultado:'2026-10-04T00:00:30+00:00'});
+  const sinElegir = vista.recibirPaquete(vista.crearEstado(), {activo:false, opciones:[{pelea_id:'a|b', a:'Alpha', b:'Beta'}]});
+  assert.match(vista.ayudaManual(sinElegir), /Elige una pelea/);
+  const url = new URL(vista.urlConsulta(sinElegir, [], 'a|b'), 'http://127.0.0.1');
+  assert.equal(url.searchParams.get('elegida'), 'a|b');
+  assert.equal(url.searchParams.get('desde'), null);
+  const uno = vista.recibirPaquete(sinElegir, manual([serie([punto(0)], {hasta:punto(0).t})]));
+  const dos = vista.recibirPaquete(uno, manual([serie([], {hasta:punto(10).t})], true));
+  assert.equal(dos.series.get(vista.claveSerie(serie([]))).puntos.length, 1);
+  assert.equal(vista.prepararGrafico(dos.series).hasta, Date.parse(punto(10).t));
+  const tres = vista.recibirPaquete(dos, manual([serie([punto(20, .65)])], true));
+  assert.equal(tres.series.get(vista.claveSerie(serie([]))).puntos.length, 2);
+  assert.equal(new URL(vista.urlConsulta(tres, [], 'a|b'), 'http://127.0.0.1').searchParams.get('desde'), punto(20).t);
+  assert.match(vista.ayudaManual(tres, {encendido:false, disponible:true}), /EN VIVO está apagado/);
+  assert.match(vista.ayudaManual(tres, {encendido:true, disponible:true}), /cada 10 s/);
+  assert.match(vista.ayudaManual(tres, {}), /desde Betano/);
+  // El mismo par durante un evento real arranca de cero.
+  const real = vista.recibirPaquete(tres, {...paquete([serie([punto(5)])]), actual:{...pelea('a|b'), series:[serie([punto(5)])], incremental:true}});
+  assert.equal(real.series.get(vista.claveSerie(serie([]))).puntos.length, 1);
 });
 
 test('un fallo conserva el paquete y las cifras con un aviso honesto y recuperación posterior', () => {
@@ -162,7 +189,7 @@ test('una marca manual no inventa ganador y una resolución exige 1/0 exacto', (
 });
 
 // DOM mínimo para medir el ciclo real: no scrapea ni escribe en una base.
-function navegador(responder, {oculto = false, guardadas = {}} = {}) {
+function navegador(responder, {oculto = false, guardadas = {}, S} = {}) {
   const nodos = new Map(), eventos = new Map(), consultas = [], tiempos = new Map();
   let idTemporizador = 0;
   function nodo(id) {
@@ -177,8 +204,9 @@ function navegador(responder, {oculto = false, guardadas = {}} = {}) {
     return nodos.get(id);
   }
   const document = {hidden:oculto, getElementById:nodo, addEventListener(tipo, fn) { eventos.set(tipo, fn); }};
-  const contexto = vm.createContext({document, URLSearchParams, AbortController,
-    localStorage:{getItem:clave => guardadas[clave] || null, setItem:(clave, valor) => { guardadas[clave] = valor; }},
+  const contexto = vm.createContext({document, URLSearchParams, AbortController, ...(S ? {S} : {}),
+    localStorage:{getItem:clave => guardadas[clave] || null, setItem:(clave, valor) => { guardadas[clave] = valor; },
+      removeItem:clave => { delete guardadas[clave]; }},
     setTimeout:(fn, ms) => { tiempos.set(++idTemporizador, {fn, ms}); return idTemporizador; },
     clearTimeout:id => tiempos.delete(id),
     fetch:async url => { consultas.push(url); return responder(url); },
@@ -195,11 +223,38 @@ test('el polling real no inicia con pestaña oculta y se reanuda con cadencia de
   dom.eventos.get('visibilitychange')();
   await completar();
   assert.equal(dom.consultas.length, 1);
-  assert.ok(dom.nodo('vivo').classList.contains('oculto'));
+  // Sin evento la sección se queda, con el gráfico vacío y el selector.
+  assert.ok(!dom.nodo('vivo').classList.contains('oculto'));
+  assert.equal(dom.nodo('vivo-elegir-caja').hidden, false);
+  assert.match(dom.nodo('vivo-trazo').innerHTML, /Sin pelea elegida/);
   assert.deepEqual([...dom.tiempos.values()].map(t => t.ms), [12000]);
   dom.document.hidden = true;
   dom.eventos.get('visibilitychange')();
   assert.equal(dom.tiempos.size, 0);
+});
+
+test('elegir una pelea sin evento pide su línea y con EN VIVO se lee cada 5 segundos', async () => {
+  const S = {vivo:false, origen:'betano'};
+  const opciones = [{pelea_id:'a|b', a:'Alpha', b:'Beta', evento:'UFC de prueba', fecha:'2026-10-04'}];
+  const dom = navegador(url => ({ok:true, json:async () => new URL(url, 'http://x').searchParams.get('elegida')
+    ? {activo:false, opciones, actual:{pelea_id:'a|b', a:{nombre:'Alpha'}, b:{nombre:'Beta'}, evento:'UFC de prueba',
+      cotizaciones:[], series:[serie([punto(0)], {hasta:punto(10).t})], incremental:false}}
+    : {activo:false, opciones}}), {S});
+  await completar();
+  assert.match(dom.nodo('vivo-elegir').innerHTML, /Alpha vs Beta/);
+  assert.match(dom.nodo('vivo-ayuda').innerHTML, /Elige una pelea/);
+  dom.eventos.get('vivo-elegir:change')({target:{value:'a|b'}});
+  await completar();
+  assert.equal(new URL(dom.consultas.at(-1), 'http://x').searchParams.get('elegida'), 'a|b');
+  assert.equal(dom.guardadas['ufc-mercado-elegida'], 'a|b');
+  assert.match(dom.nodo('vivo-trazo').innerHTML, /vivo-linea/);
+  assert.match(dom.nodo('vivo-ayuda').innerHTML, /EN VIVO está apagado/);
+  assert.deepEqual([...dom.tiempos.values()].map(t => t.ms), [12000]);
+  S.vivo = true;
+  dom.eventos.get('vivo-refrescar:click')();
+  await completar();
+  assert.deepEqual([...dom.tiempos.values()].map(t => t.ms), [5000]);
+  assert.match(dom.nodo('vivo-sello').innerHTML, /En vivo/);
 });
 
 test('el DOM muestra simulación inequívoca y conserva el cuerpo al fallar el siguiente pedido', async () => {

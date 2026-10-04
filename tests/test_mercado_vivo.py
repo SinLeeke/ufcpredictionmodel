@@ -90,11 +90,12 @@ class BaseVivo(unittest.TestCase):
         calendario.olvidar()
         vivo.olvidar()
 
-    def ingerir(self, a="Alex Pereira", b="Magomed Ankalaev", am_a=-150, am_b=125):
+    def ingerir(self, a="Alex Pereira", b="Magomed Ankalaev", am_a=-150, am_b=125, t=None):
+        t = self.ahora if t is None else t
         self.capa.ingerir(self.fuente, [{"fuente": self.fuente.clave, "casa": "Casa prueba",
             "evento": "UFC prueba", "a_texto": a, "b_texto": b,
-            "a_americana": am_a, "b_americana": am_b, "timestamp": a_iso(self.ahora)}])
-        self.fuente.marcar_ok(self.ahora)
+            "a_americana": am_a, "b_americana": am_b, "timestamp": a_iso(t)}])
+        self.fuente.marcar_ok(t)
 
     def simular(self, ahora=None, **consulta):
         with mock.patch.object(C, "MERCADO_SIMULADO", True):
@@ -138,8 +139,49 @@ class EstadosVivo(unittest.TestCase):
 
 class ContratoVivo(BaseVivo):
 
-    def test_sin_evento_devuelve_solo_activo_false(self):
-        self.assertEqual(vivo.vivo(ahora=self.ahora), {"activo": False})
+    def test_sin_evento_queda_en_modo_manual_sin_pelea_elegida(self):
+        d = vivo.vivo(ahora=self.ahora)
+        self.assertFalse(d["activo"])
+        self.assertEqual((d["opciones"], d["actual"]), ([], None))
+        self.ingerir()
+        d = vivo.vivo(ahora=self.ahora, elegida="no|existe")
+        self.assertEqual([(o["a"], o["b"]) for o in d["opciones"]], [("Alex Pereira", "Magomed Ankalaev")])
+        self.assertIsNone(d["actual"])
+
+    def test_modo_manual_la_pelea_elegida_se_va_llenando(self):
+        self.ingerir()
+        pid = vivo.vivo(ahora=self.ahora)["opciones"][0]["pelea_id"]
+        primera = vivo.vivo(ahora=self.ahora, elegida=pid)["actual"]
+        self.assertEqual(primera["pelea_id"], pid)
+        self.assertFalse(primera["incremental"])
+        self.assertEqual(primera["a"]["nombre"], "Alex Pereira")
+        self.assertEqual(len(primera["cotizaciones"]), 1)
+        [serie] = primera["series"]
+        self.assertEqual(len(serie["puntos"]), 1)
+        self.assertEqual(serie["hasta"], a_iso(self.ahora))
+        ultimo = serie["puntos"][-1]["t"]
+        # La misma cuota confirmada 10 s después: sin punto nuevo, pero la línea llega más lejos.
+        self.ingerir(t=self.ahora + 10)
+        igual = vivo.vivo(ahora=self.ahora + 10, elegida=pid, desde=ultimo, pelea_id=pid)["actual"]
+        self.assertTrue(igual["incremental"])
+        self.assertEqual(igual["series"][0]["puntos"], [])
+        self.assertEqual(igual["series"][0]["hasta"], a_iso(self.ahora + 10))
+        # Una cuota que cambia: llega solo el punto nuevo.
+        self.ingerir(am_a=-170, am_b=140, t=self.ahora + 20)
+        nueva = vivo.vivo(ahora=self.ahora + 20, elegida=pid, desde=ultimo, pelea_id=pid)["actual"]
+        self.assertEqual([q["a"] for q in nueva["series"][0]["puntos"]], [-170])
+        # Con otra pelea en el cursor, la serie llega completa.
+        completa = vivo.vivo(ahora=self.ahora + 20, elegida=pid, desde=ultimo, pelea_id="otra|pelea")["actual"]
+        self.assertFalse(completa["incremental"])
+        self.assertEqual(len(completa["series"][0]["puntos"]), 2)
+        json.dumps(completa, allow_nan=False)
+
+    def test_durante_un_evento_la_elegida_no_cambia_la_pelea_actual(self):
+        self.evento_real()
+        self.ingerir()
+        d = vivo.vivo(ahora=self.ahora, elegida="otra|pelea")
+        self.assertTrue(d["activo"])
+        self.assertNotEqual(d["actual"]["pelea_id"], "otra|pelea")
 
     def test_simulado_cumple_contrato_y_numeros_validos(self):
         d = self.simular()
@@ -249,7 +291,9 @@ class ContratoVivo(BaseVivo):
             self.assertEqual(self.capa.peleas(), reales)
         self.assertEqual(self.foto_base(), antes)
         self.assertEqual(self.capa.peleas(), reales)
-        self.assertEqual(vivo.vivo(ahora=self.ahora), {"activo": False})
+        manual = vivo.vivo(ahora=self.ahora)
+        self.assertFalse(manual["activo"])
+        self.assertEqual([o["pelea_id"] for o in manual["opciones"]], [p["pelea_id"] for p in reales["peleas"]])
 
     def test_reorienta_series_y_cotizaciones_hacia_la_esquina_oficial(self):
         self.evento_real([{"a": "Magomed Ankalaev", "b": "Alex Pereira", "seccion": "estelar"}])
