@@ -64,6 +64,10 @@ class _Base(unittest.TestCase):
         # sherdog.DELAY es un sleep de cortesía: en pruebas no hace falta esperar.
         self.p_delay = mock.patch.object(fotos.sherdog, "DELAY", 0)
         self.p_delay.start()
+        # La cortesía con UFC (DEMORA_UFC_SEG) se prueba aparte, sin esperar.
+        self.p_demora = mock.patch.object(fotos, "DEMORA_UFC_SEG", 0)
+        self.p_demora.start()
+        self.addCleanup(self.p_demora.stop)
         # Las pruebas de respaldos aíslan ESPN; su consulta se verifica aparte.
         self.p_espn = None if self.consultar_espn else mock.patch.object(fotos, "url_espn", return_value=None)
         if self.p_espn:
@@ -414,6 +418,101 @@ class Sherdog(_Base):
                 self.assertIsNone(fotos.url_sherdog("Lucas Armand"))
 
 
+def _png(tipo_color=6, trns=False):
+    """Cabecera PNG mínima: firma, IHDR (con su tipo de color) y opcional tRNS."""
+    ihdr = (13).to_bytes(4, "big") + b"IHDR" + (8).to_bytes(4, "big") * 2 + bytes([8, tipo_color, 0, 0, 0]) + b"\0" * 4
+    extra = (2).to_bytes(4, "big") + b"tRNS" + b"\0\0" + b"\0" * 4 if trns else b""
+    return b"\x89PNG\r\n\x1a\n" + ihdr + extra + (0).to_bytes(4, "big") + b"IDAT" + b"\0" * 4
+
+
+ESTILO = "https://ufc.com/images/styles/event_results_athlete_headshot/s3/2025-01/MAKHACHEV_ISLAM_L_BELT_01-18.png?itok=a1"
+ORIGINAL = "https://ufc.com/images/2025-01/MAKHACHEV_ISLAM_L_BELT_01-18.png"
+
+
+class AltaResolucion(_Base):
+    """Retrato de estudio de UFC a resolución completa para perfil, listado y Rankings."""
+
+    def test_original_sin_estilo_y_marcas_de_estudio_tras_el_nombre_completo(self):
+        self.assertEqual(fotos.original_ufc(ESTILO), ORIGINAL)
+        self.assertTrue(fotos._retrato_ufc(ORIGINAL, "Islam Makhachev"))
+        self.assertTrue(fotos._retrato_ufc(ESTILO, "Islam Makhachev"))
+        # Las marcas no reemplazan una palabra del nombre ni lo completan.
+        self.assertFalse(fotos._retrato_ufc("https://ufc.com/images/2025-01/MAKHACHEV_L_BELT_01-18.png", "Islam Makhachev"))
+        self.assertFalse(fotos._retrato_ufc("https://ufc.com/images/2025-01/MAKHACHEV_BELT_ISLAM_01-18.png", "Islam Makhachev"))
+        self.assertFalse(fotos._retrato_ufc(ORIGINAL, "Islam Makhachev Jr"))
+
+    def test_baja_el_original_con_el_user_agent_propio_y_despues_no_vuelve_a_pedirlo(self):
+        alta = _Resp(content=_png(6), tipo="image/png")
+        with mock.patch.object(fotos, "url_ufc", return_value=ESTILO) as ufc, \
+                mock.patch.object(fotos.requests, "get", return_value=alta) as get:
+            ruta = fotos.foto_alta("Islam Makhachev")
+            self.assertEqual(fotos.foto_alta("Islam Makhachev"), ruta)
+        self.assertEqual(ruta.name, "alta_islam_makhachev.png")
+        urls = [c.args[0] for c in get.call_args_list]
+        self.assertEqual(urls.count(ORIGINAL), 1)
+        self.assertTrue(all(c.kwargs["headers"]["User-Agent"] == "UFCFightPredictor/1.0"
+                            for c in get.call_args_list if c.args[0] == ORIGINAL))
+        self.assertEqual(fotos.fondo(ruta), "transparente")
+        self.assertLessEqual(ufc.call_count, 2)      # foto() y foto_alta(), nunca por repintado
+
+    def test_si_foto_ya_eligio_un_retrato_de_ufc_no_pide_otra_vez_la_ficha(self):
+        with mock.patch.object(fotos, "url_ufc", return_value=ESTILO) as ufc, \
+                mock.patch.object(fotos.requests, "get", return_value=_Resp(content=_png(6), tipo="image/png")):
+            fotos.foto("Islam Makhachev")
+            self.assertEqual(fotos._indice()["islam makhachev"]["fuente"], "ufc")
+            fotos.foto_alta("Islam Makhachev")
+        self.assertEqual(ufc.call_count, 1)
+
+    def test_un_nombre_ambiguo_queda_en_silueta_y_no_consulta_ufc(self):
+        with mock.patch.object(fotos, "url_espn", return_value=fotos.AMBIGUO), \
+                mock.patch.object(fotos, "url_ufc", side_effect=AssertionError("no se consulta")), \
+                mock.patch.object(fotos.requests, "get", side_effect=AssertionError("red")):
+            self.assertIsNone(fotos.foto_alta("Mike Davis"))
+            self.assertIsNone(fotos.foto_alta("Mike Davis"))
+
+    def test_sin_original_usa_el_derivado_y_sin_ficha_el_retrato_normal(self):
+        with mock.patch.object(fotos, "url_ufc", return_value=ESTILO), \
+                mock.patch.object(fotos.requests, "get",
+                                  side_effect=lambda url, **k: _Resp(status=404) if url == ORIGINAL
+                                  else _Resp(content=_png(2), tipo="image/png")):
+            ruta = fotos.foto_alta("Islam Makhachev")
+        self.assertEqual(fotos._indice()["alta:islam makhachev"]["url"], ESTILO)
+        self.assertEqual(fotos.fondo(ruta), "opaco")
+        with mock.patch.object(fotos, "url_ufc", return_value=None), \
+                mock.patch.object(fotos, "url_sherdog", return_value="https://www.sherdog.com/_images/fighter/x.jpg"), \
+                mock.patch.object(fotos.requests, "get", return_value=JPG):
+            ruta = fotos.foto_alta("Uros Medic")
+        self.assertEqual(ruta.suffix, ".jpg")        # el retrato normal, que el navegador disimula
+        self.assertEqual(fotos.fondo(ruta), "opaco")
+
+    def test_red_caida_devuelve_el_retrato_normal_y_no_insiste(self):
+        with mock.patch.object(fotos, "url_ufc", side_effect=fotos.SinRed("sin red")) as ufc:
+            self.assertIsNone(fotos.foto_alta("Islam Makhachev"))
+            self.assertIsNone(fotos.foto_alta("Islam Makhachev"))
+        self.assertLessEqual(ufc.call_count, 2)
+        self.assertNotIn("alta:islam makhachev", fotos._indice())
+
+    def test_transparencia_por_la_cabecera(self):
+        self.assertTrue(fotos.transparente(_png(6)))
+        self.assertTrue(fotos.transparente(_png(4)))
+        self.assertTrue(fotos.transparente(_png(2, trns=True)))
+        self.assertFalse(fotos.transparente(_png(2)))
+        self.assertFalse(fotos.transparente(JPG.content))
+        self.assertFalse(fotos.transparente(b""))
+
+    def test_cortesia_entre_peticiones_a_ufc(self):
+        esperas = []
+        with mock.patch.object(fotos, "DEMORA_UFC_SEG", 1.5), \
+                mock.patch.object(fotos, "_ultima_ufc", 0.0), \
+                mock.patch.object(fotos.time, "monotonic", side_effect=[100.0, 100.2, 100.4, 100.6]), \
+                mock.patch.object(fotos.time, "sleep", side_effect=esperas.append), \
+                mock.patch.object(fotos.requests, "get", return_value=PNG):
+            fotos._get_ufc("https://www.ufc.com/athlete/a")
+            fotos._get_ufc("https://www.ufc.com/athlete/b")
+        self.assertEqual(len(esperas), 1)
+        self.assertAlmostEqual(esperas[0], 1.3, places=6)
+
+
 class Endpoint(_Base):
 
     def test_sin_foto_responde_204_para_que_la_ui_ponga_la_silueta(self):
@@ -422,6 +521,14 @@ class Endpoint(_Base):
         with mock.patch.object(fotos, "foto", lambda n: None):
             r = server.foto_peleador("Guilherme Pat")
         self.assertEqual(r.status_code, 204)
+
+    def test_x_fondo_dice_si_el_retrato_es_transparente_y_alta_pide_foto_alta(self):
+        recorte, opaca = fotos.CARPETA / "a.png", fotos.CARPETA / "b.jpg"
+        recorte.write_bytes(_png(6))
+        opaca.write_bytes(JPG.content)
+        with mock.patch.object(fotos, "foto_alta", lambda n: recorte), mock.patch.object(fotos, "foto", lambda n: opaca):
+            self.assertEqual(server.foto_peleador("Islam Makhachev", calidad="alta").headers["X-Fondo"], "transparente")
+            self.assertEqual(server.foto_peleador("Islam Makhachev").headers["X-Fondo"], "opaco")
 
     def test_un_nombre_que_intenta_salir_de_la_carpeta_no_se_consulta(self):
         with mock.patch.object(fotos.requests, "get") as get:

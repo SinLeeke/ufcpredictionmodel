@@ -506,20 +506,25 @@ def salud():
 # Fotos de peleadores
 # --------------------------------------------------------------------------- #
 @app.get("/api/foto/{nombre}")
-def foto_peleador(nombre: str):
+def foto_peleador(nombre: str, calidad: str = ""):
     """
     La foto del peleador, de ESPN (o Wikipedia/Sherdog como respaldo), bajada y servida desde
     disco. 204 si no hay (o si no se puede saber con certeza cuál es): la UI
     muestra entonces una silueta. Es 204 y no 404 porque "no hay foto" es una
     respuesta normal, no un error, y el navegador anota cada 404 en la consola
     como si algo se hubiera roto. No toca /api/estado ni el contrato JSON.
+
+    calidad=alta: el retrato de estudio de UFC a resolución completa (perfil,
+    listado y Rankings), con las mismas reglas de identidad. X-Fondo dice si
+    el archivo trae fondo transparente, para que la UI disimule el que no.
     """
-    ruta = fotos.foto(nombre)
+    ruta = fotos.foto_alta(nombre) if calidad == "alta" else fotos.foto(nombre)
     if ruta is None:
         return Response(status_code=204)
     # A diferencia del resto de /api/, una foto no cambia: que el navegador la
     # guarde y no la pida en cada repintado de la cartelera.
-    return FileResponse(ruta, headers={"Cache-Control": "private, max-age=86400"})
+    return FileResponse(ruta, headers={"Cache-Control": "private, max-age=86400",
+                                       "X-Fondo": fotos.fondo(ruta)})
 
 
 # --------------------------------------------------------------------------- #

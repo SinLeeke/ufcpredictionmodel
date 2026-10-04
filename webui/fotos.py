@@ -167,24 +167,64 @@ def url_espn(nombre: str) -> str | None:
 # --------------------------------------------------------------------------- #
 # UFC
 # --------------------------------------------------------------------------- #
+# Marcas de estudio que UFC agrega al final del nombre del archivo
+# (MAKHACHEV_ISLAM_L_BELT_01-18.png): lado de la pose y el cinturón. Es una
+# lista cerrada y solo se aceptan DESPUÉS del nombre completo: nunca sustituyen
+# una palabra del nombre ni permiten un nombre parcial.
+SUFIJOS_UFC = ("l", "r", "belt")
+
+
 def _retrato_ufc(url: str, nombre: str) -> bool:
     p = urlsplit(url)
     # El nombre está en el archivo de estudio (APELLIDO_NOMBRE_fecha.png).
     # Se permiten los dos órdenes, pero se exige el nombre completo.
     archivo = Path(p.path).name
     prefijo = re.split(r"_\d", archivo)[0].removesuffix(".png")
-    tokens = _tokens(prefijo.replace("_", " "))
+    partes = _norm(prefijo.replace("_", " ")).split()
+    while partes and partes[-1] in SUFIJOS_UFC and set(partes[:-1]) >= _tokens(nombre):
+        partes.pop()
     return (p.scheme == "https" and p.hostname in ("ufc.com", "www.ufc.com")
             and p.path.startswith("/images/") and archivo.lower().endswith(".png")
-            and tokens == _tokens(nombre) and not p.fragment)
+            and set(partes) == _tokens(nombre) and not p.fragment)
+
+
+def original_ufc(url: str) -> str:
+    """La imagen original de un retrato de UFC, sin el estilo de recorte.
+
+    Las fichas sirven derivados chicos (/images/styles/<estilo>/s3/AAAA-MM/
+    ARCHIVO.png?itok=…); el mismo ARCHIVO sin el estilo es el PNG de estudio a
+    resolución completa y con el fondo transparente. Es el mismo archivo, así
+    que no hay identidad nueva que comprobar: _retrato_ufc vuelve a validarlo.
+    """
+    p = urlsplit(url)
+    ruta = re.sub(r"^/images/styles/[^/]+/(?:s3|public)/", "/images/", p.path)
+    return f"https://{p.hostname}{ruta}"
+
+
+# Cortesía con UFC: una petición a la vez y al menos este intervalo entre una y
+# otra (fichas e imágenes). La UI pide fotos de a muchas al abrir un listado.
+DEMORA_UFC_SEG = 1.5
+_cortesia = threading.Lock()
+_ultima_ufc = 0.0
+
+
+def _get_ufc(url: str, **kw) -> requests.Response:
+    global _ultima_ufc
+    with _cortesia:
+        espera = DEMORA_UFC_SEG - (time.monotonic() - _ultima_ufc)
+        if espera > 0:
+            time.sleep(espera)
+        try:
+            return requests.get(url, headers=HEADERS_UFC, timeout=min(8, C.REQUEST_TIMEOUT_SEC), **kw)
+        finally:
+            _ultima_ufc = time.monotonic()
 
 
 def url_ufc(nombre: str) -> str | None:
     """Retrato de estudio de una ficha UFC con nombre completo comprobado."""
     slug, identidad = PERFILES_UFC.get(_norm(nombre), (_norm(nombre).replace(" ", "-"), nombre))
     try:
-        r = requests.get(f"{UFC_BASE}/athlete/{slug}", headers=HEADERS_UFC,
-                         timeout=min(8, C.REQUEST_TIMEOUT_SEC))
+        r = _get_ufc(f"{UFC_BASE}/athlete/{slug}")
     except requests.RequestException as e:
         raise SinRed(str(e)) from e
     if r.status_code == 404:
@@ -325,9 +365,12 @@ def _guardar_indice(idx: dict) -> None:
                                          encoding="utf-8")
 
 
-def _bajar(url: str, clave: str, headers: dict) -> Path:
+def _bajar(url: str, clave: str, headers: dict, prefijo: str = "") -> Path:
     try:
-        r = requests.get(url, headers=headers, timeout=C.REQUEST_TIMEOUT_SEC)
+        if urlsplit(url).hostname in ("ufc.com", "www.ufc.com"):
+            r = _get_ufc(url)
+        else:
+            r = requests.get(url, headers=headers, timeout=C.REQUEST_TIMEOUT_SEC)
     except requests.RequestException as e:
         raise SinRed(str(e)) from e
     tipo = r.headers.get("content-type", "")
@@ -335,7 +378,7 @@ def _bajar(url: str, clave: str, headers: dict) -> Path:
         raise SinRed(f"HTTP {r.status_code} {tipo}")
     ext = {"image/png": ".png", "image/webp": ".webp"}.get(tipo.split(";")[0], ".jpg")
     CARPETA.mkdir(parents=True, exist_ok=True)
-    ruta = CARPETA / f"{clave.replace(' ', '_')}{ext}"
+    ruta = CARPETA / f"{prefijo}{clave.replace(' ', '_')}{ext}"
     DB.write_bytes(ruta, r.content)
     return ruta
 
@@ -405,6 +448,108 @@ def foto(nombre: str) -> Path | None:
                       "fuente": fuente, "url": url, "consultado": ahora,
                       "espn_revisado": espn_revisado,
                       "version_retratos": VERSION_RETRATOS, "prioridad_revisada": not fallo,
-                      "identidad_verificada": identidad}
+                      "identidad_verificada": identidad, "ambiguo": ambiguo}
+        _guardar_indice(idx)
+        return ruta
+
+
+# --------------------------------------------------------------------------- #
+# Retrato de alta resolución (perfil, listado de Peleadores y Rankings)
+# --------------------------------------------------------------------------- #
+VERSION_ALTA = 1
+
+
+def transparente(contenido: bytes) -> bool:
+    """¿La imagen trae canal alfa? Se lee de la cabecera, sin decodificarla.
+
+    PNG: tipo de color 4 o 6 (con alfa) o un bloque tRNS antes de los datos.
+    WebP: el bit de alfa de VP8X o de VP8L. JPEG nunca. Es "puede tener fondo
+    transparente", no "lo tiene": un PNG con alfa y fondo blanco pasaría, pero
+    los retratos de estudio de UFC y ESPN que lo traen vienen recortados.
+    """
+    if contenido[:8] == b"\x89PNG\r\n\x1a\n" and len(contenido) >= 26:
+        if contenido[25] in (4, 6):
+            return True
+        i = 8
+        while i + 8 <= len(contenido):
+            largo = int.from_bytes(contenido[i:i + 4], "big")
+            tipo = contenido[i + 4:i + 8]
+            if tipo == b"tRNS":
+                return True
+            if tipo in (b"IDAT", b"IEND"):
+                return False
+            i += 12 + largo
+        return False
+    if contenido[:4] == b"RIFF" and contenido[8:12] == b"WEBP":
+        trozo = contenido[12:16]
+        if trozo == b"VP8X":
+            return bool(contenido[20] & 0x10) if len(contenido) > 20 else False
+        if trozo == b"VP8L":
+            return bool(contenido[24] & 0x10) if len(contenido) > 24 else False
+    return False
+
+
+_transparencia: dict[tuple, bool] = {}
+
+
+def fondo(ruta: Path) -> str:
+    """"transparente" u "opaco", recordado por archivo y firma."""
+    clave = (str(ruta), DB.stat(ruta).st_mtime_ns if DB.exists(ruta) else 0)
+    if clave not in _transparencia:
+        _transparencia[clave] = transparente(DB.read_bytes(ruta)) if DB.exists(ruta) else False
+    return "transparente" if _transparencia[clave] else "opaco"
+
+
+def foto_alta(nombre: str) -> Path | None:
+    """El retrato de estudio de UFC a resolución completa, o el de foto() si no hay.
+
+    La identidad no se resuelve de nuevo con otro criterio: primero corre foto()
+    con todas sus reglas (ESPN ambiguo, fichas verificadas, alias). Si ahí el
+    nombre quedó ambiguo, silueta también acá. Si foto() ya eligió un retrato de
+    UFC, se pide el original de ESE archivo sin pedir otra vez la ficha; si no,
+    se lee la ficha oficial con el mismo nombre exacto que exige url_ufc. Ante
+    cualquier duda o fallo de red, el retrato normal: nunca la foto de otro.
+    """
+    base = foto(nombre)
+    if not nombre_valido(nombre):
+        return None
+    clave = _norm(nombre)
+    identidad = PERFILES_UFC.get(clave, (None, nombre))[1]
+    with _lock:
+        idx = _indice()
+        e = idx.get(clave) or {}
+        if e.get("ambiguo"):
+            return None
+        a = idx.get("alta:" + clave)
+        ahora = time.time()
+        if a and a.get("version") == VERSION_ALTA:
+            ruta = CARPETA / a["archivo"] if a.get("archivo") else None
+            if ruta is not None and DB.exists(ruta) and _retrato_ufc(a.get("url") or "", identidad):
+                return ruta
+            if not a.get("archivo") and ahora - a.get("consultado", 0) < REINTENTO_SIN_FOTO_SEG:
+                return base
+        if ahora - _fallo_red.get("alta:" + clave, 0) < ESPERA_TRAS_FALLO_RED_SEG:
+            return base
+        try:
+            fuente = e.get("url") if e.get("fuente") == "ufc" and _retrato_ufc(e.get("url") or "", identidad) else None
+            fuente = fuente or url_ufc(nombre)
+            if not fuente or fuente == AMBIGUO:
+                idx["alta:" + clave] = {"archivo": None, "url": None, "consultado": ahora, "version": VERSION_ALTA}
+                _guardar_indice(idx)
+                return base
+            original = original_ufc(fuente)
+            if not _retrato_ufc(original, identidad):
+                original = fuente
+            try:
+                ruta = _bajar(original, clave, HEADERS_UFC, prefijo="alta_")
+            except SinRed:
+                if original == fuente:
+                    raise
+                ruta, original = _bajar(fuente, clave, HEADERS_UFC, prefijo="alta_"), fuente
+        except SinRed:
+            _fallo_red["alta:" + clave] = ahora
+            return base
+        idx["alta:" + clave] = {"archivo": ruta.name, "url": original, "consultado": ahora,
+                                "version": VERSION_ALTA}
         _guardar_indice(idx)
         return ruta
