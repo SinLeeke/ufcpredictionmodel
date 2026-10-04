@@ -51,6 +51,7 @@ warnings.filterwarnings("ignore")
 import pickle
 
 import config as C
+from src import storage as DB
 from src import corte
 from src.control_stats import MIN_PELEAS_FIABLE
 from src.features import columnas_disponibles, probabilidad_ganador
@@ -72,9 +73,9 @@ def _cuotas_lookup() -> dict:
     par de peleadores puede aparecer en dos eventos distintos.
     """
     ruta = C.DATA_RAW / "kaggle_ufc.csv"
-    if not ruta.exists():
+    if not DB.exists(ruta):
         return {}
-    k = pd.read_csv(ruta, low_memory=False)
+    k = DB.read_csv(ruta, low_memory=False)
     k["date"] = pd.to_datetime(k["date"], errors="coerce")
     k = k.dropna(subset=["date", "R_fighter", "B_fighter"])
     out = {}
@@ -119,7 +120,7 @@ def _modelo_para(fecha: pd.Timestamp, fin_produccion: pd.Timestamp) -> str | Non
 
 def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
              evento: str | None = None):
-    res = pd.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
+    res = DB.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
     res["date"] = pd.to_datetime(res["date"])
     res = res[res["winner"].astype(str).str.len() > 0]
     fechas = res.groupby("event")["date"].first().sort_values(ascending=False)
@@ -154,10 +155,10 @@ def backtest(n_carteleras: int = 4, con_cuotas: bool = False,
             raise SystemExit("Ninguna cartelera reciente tiene cuotas en el dataset.")
 
     # Solo eventos que algún modelo NO vio (fuga 3).
-    fin_prod = pd.read_csv(C.FEATURES_CSV, usecols=["date"], parse_dates=["date"])["date"].max()
+    fin_prod = DB.read_csv(C.FEATURES_CSV, usecols=["date"], parse_dates=["date"])["date"].max()
     modelos = {"produccion": load_models()[0]}
-    if C.WINNER_MODEL_SPLIT.exists():
-        with open(C.WINNER_MODEL_SPLIT, "rb") as fh:
+    if DB.exists(C.WINNER_MODEL_SPLIT):
+        with DB.open_file(C.WINNER_MODEL_SPLIT, "rb") as fh:
             modelos["medicion"] = pickle.load(fh)
     usable = [_modelo_para(f, fin_prod) in modelos for f in fechas.values]
     if not all(usable):

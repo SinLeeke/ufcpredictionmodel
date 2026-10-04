@@ -27,6 +27,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src import ufcstats as U
 
 EVENTS_CACHE = C.DATA_RAW / "ufcstats_events.json"
@@ -154,7 +155,7 @@ def _sin_detalle(fights: list) -> bool:
 
 
 def build(limit: int | None = None, refrescar_incompletos: bool = True) -> pd.DataFrame:
-    cache = json.loads(EVENTS_CACHE.read_text(encoding="utf-8")) if EVENTS_CACHE.exists() else {}
+    cache = DB.read_json(EVENTS_CACHE) if DB.exists(EVENTS_CACHE) else {}
     events = list_events()
     if not events:
         raise SystemExit("No pude listar eventos (¿sin internet o cambió UFCStats?).")
@@ -178,9 +179,11 @@ def build(limit: int | None = None, refrescar_incompletos: bool = True) -> pd.Da
         def guardar(url, soup):
             e = meta[url]
             cache[url] = parse_event_soup(soup, e["name"], e["date"])
+            if DB.key(EVENTS_CACHE) is not None:
+                DB.put_json_entry(EVENTS_CACHE, url, cache[url])
 
         fetch_many([e["url"] for e in pendientes], guardar, label="eventos")
-        EVENTS_CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        DB.write_text(EVENTS_CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
     rows = [f for fights in cache.values() for f in fights]
     df = pd.DataFrame(rows)
@@ -188,7 +191,7 @@ def build(limit: int | None = None, refrescar_incompletos: bool = True) -> pd.Da
         raise SystemExit("No se extrajo ninguna pelea; revisa los selectores.")
     df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
     df = df.dropna(subset=["date"]).sort_values("date")
-    df.to_csv(FIGHTS_CSV, index=False)
+    DB.to_csv(df, FIGHTS_CSV, index=False)
     print(f"[ok] {len(df)} peleas -> {FIGHTS_CSV}")
     print(f"     rango: {df.date.min():%Y-%m-%d} a {df.date.max():%Y-%m-%d}")
     print(f"     métodos: {df.method.value_counts().to_dict()}")
@@ -203,7 +206,7 @@ if __name__ == "__main__":
     if "--limit" in sys.argv:
         lim = int(sys.argv[sys.argv.index("--limit") + 1])
     # --todo fuerza re-bajar TODO (útil si cambian los selectores del sitio).
-    if "--todo" in sys.argv and EVENTS_CACHE.exists():
-        EVENTS_CACHE.unlink()
+    if "--todo" in sys.argv and DB.exists(EVENTS_CACHE):
+        DB.unlink(EVENTS_CACHE)
         print("[eventos] caché borrado: se rebaja todo")
     build(limit=lim)

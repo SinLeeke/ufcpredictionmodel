@@ -19,6 +19,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key
 
 BASE = "https://www.ufc.com"
@@ -144,7 +145,7 @@ def parsear_evento(html: str) -> dict | None:
 
 def _leer_cache() -> dict:
     try:
-        datos = json.loads(CACHE.read_text(encoding="utf-8"))
+        datos = DB.read_json(CACHE)
         if isinstance(datos, dict) and datos.get("version") == VERSION and isinstance(datos.get("paginas"), dict):
             return datos
     except (OSError, ValueError):
@@ -153,10 +154,13 @@ def _leer_cache() -> dict:
 
 
 def _guardar_cache(datos: dict) -> None:
+    if DB.key(CACHE) is not None:
+        DB.write_text(CACHE, json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+        return
     temporal = CACHE.with_name(f".{CACHE.name}.{uuid.uuid4().hex}.tmp")
     try:
         CACHE.parent.mkdir(parents=True, exist_ok=True)
-        temporal.write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+        DB.write_text(temporal, json.dumps(datos, ensure_ascii=False), encoding="utf-8")
         temporal.replace(CACHE)
     except OSError:
         # La metadata encontrada sigue siendo útil aunque el disco no permita
@@ -164,8 +168,8 @@ def _guardar_cache(datos: dict) -> None:
         pass
     finally:
         try:
-            if temporal.exists():
-                temporal.unlink()
+            if DB.exists(temporal):
+                DB.unlink(temporal)
         except OSError:
             pass
 

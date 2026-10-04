@@ -29,6 +29,10 @@ DATA_PROCESSED = ROOT / "data" / "processed"
 OUTPUTS = ROOT / "outputs"
 MODELS = ROOT / "models"
 
+# Persistencia operativa. Los nombres CSV/JSON/PKL de abajo son claves lógicas
+# en SQLite; se mantienen para conservar los mensajes y contratos existentes.
+SQLITE_DB = ROOT / "data" / "ufc.db"
+
 for _p in (DATA_RAW, DATA_PROCESSED, OUTPUTS, MODELS):
     _p.mkdir(parents=True, exist_ok=True)
 

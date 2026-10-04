@@ -42,6 +42,7 @@ from sklearn.metrics import accuracy_score, log_loss, roc_auc_score, brier_score
 from xgboost import XGBClassifier
 
 import config as C
+from src import storage as DB
 from src.features import FEATURE_COLUMNS, columnas_disponibles, probabilidades_metodo
 
 
@@ -49,12 +50,12 @@ from src.features import FEATURE_COLUMNS, columnas_disponibles, probabilidades_m
 # Carga y split temporal
 # --------------------------------------------------------------------------- #
 def load_features() -> pd.DataFrame:
-    if not C.FEATURES_CSV.exists():
+    if not DB.exists(C.FEATURES_CSV):
         raise SystemExit(
             f"No existe {C.FEATURES_CSV}.\n"
             "Genera las features primero:  python -m src.scraper"
         )
-    df = pd.read_csv(C.FEATURES_CSV)
+    df = DB.read_csv(C.FEATURES_CSV)
     df["date"] = pd.to_datetime(df["date"])
     return df
 
@@ -167,7 +168,7 @@ def train_winner(train: pd.DataFrame, test: pd.DataFrame) -> XGBClassifier:
     # es el único con el que se puede evaluar sobre 2025+ sin medir dentro de
     # muestra. Se guarda aparte para que evaluar_modelo.py lo use sin tener que
     # reentrenar. El .pkl de producción lo escribe entrenar_produccion().
-    with open(C.WINNER_MODEL_SPLIT, "wb") as fh:
+    with DB.open_file(C.WINNER_MODEL_SPLIT, "wb") as fh:
         pickle.dump(model, fh)
     print(f"  -> modelo de medición guardado en {C.WINNER_MODEL_SPLIT.name} "
           f"(lo usa evaluar_modelo.py)")
@@ -248,7 +249,7 @@ def train_method(train: pd.DataFrame, test: pd.DataFrame) -> XGBClassifier | Non
     else:
         print("  (sin test set para evaluar)")
 
-    with open(C.METHOD_MODEL, "wb") as fh:
+    with DB.open_file(C.METHOD_MODEL, "wb") as fh:
         pickle.dump(model, fh)
     print(f"  -> guardado en {C.METHOD_MODEL}")
     return model
@@ -287,9 +288,9 @@ def entrenar_produccion(df: pd.DataFrame) -> None:
     print(f"  +{len(full) - len(ventana(df, C.TRAIN_END_DATE))} filas más que el modelo de medición")
 
     w, m = ajustar_modelos(full)
-    with open(C.WINNER_MODEL, "wb") as fh:
+    with DB.open_file(C.WINNER_MODEL, "wb") as fh:
         pickle.dump(w, fh)
-    with open(C.METHOD_MODEL, "wb") as fh:
+    with DB.open_file(C.METHOD_MODEL, "wb") as fh:
         pickle.dump(m, fh)
 
     print(f"  -> {C.WINNER_MODEL.name} y {C.METHOD_MODEL.name} reescritos")

@@ -42,6 +42,7 @@ from scipy.optimize import minimize
 from xgboost import XGBClassifier
 
 import config as C
+from src import storage as DB
 from src.features import columnas_disponibles
 
 CACHE = C.DATA_PROCESSED / "walkforward_metodo.csv"
@@ -62,7 +63,7 @@ IDX_METODO = {"KO/TKO": 0, "Submission": 1, "Decision": 2}
 # Datos
 # --------------------------------------------------------------------------- #
 def cargar() -> pd.DataFrame:
-    df = pd.read_csv(C.FEATURES_CSV)
+    df = DB.read_csv(C.FEATURES_CSV)
     df["date"] = pd.to_datetime(df["date"])
     if "odds_a_ko" not in df.columns:
         raise SystemExit(
@@ -292,13 +293,13 @@ def main():
     print("  BACKTEST DEL MERCADO DE MÉTODO — ¿gana quién, y cómo?")
     print("=" * 84)
 
-    if CACHE.exists() and not args.refit:
-        d = pd.read_csv(CACHE, parse_dates=["date"])
+    if DB.exists(CACHE) and not args.refit:
+        d = DB.read_csv(CACHE, parse_dates=["date"])
         print(f"\n  Usando predicciones cacheadas ({CACHE.name}). --refit para recalcular.")
     else:
         print("\n  Reentrenando año a año (modelo de 6 clases):")
         d = predicciones_walk_forward(cargar(), args.desde)
-        d.to_csv(CACHE, index=False)
+        DB.to_csv(d, CACHE, index=False)
         print(f"  [ok] cacheado -> {CACHE}")
 
     d = d[d[COL_ODDS].notna().all(axis=1)].reset_index(drop=True)
@@ -443,7 +444,7 @@ def main():
 
     # --- guardar calibrador ---
     cal = ajustar_pool(Q[hay], P[hay], y6[hay])
-    with open(CALIBRADOR, "wb") as fh:
+    with DB.open_file(CALIBRADOR, "wb") as fh:
         pickle.dump(cal, fh)
     print(f"\n  [ok] calibrador de método guardado (mercado {cal['peso_mercado']:.2f}, "
           f"modelo {cal['peso_modelo']:.2f}, n={cal['n']})")
@@ -452,7 +453,7 @@ def main():
     # walk-forward de arriba mide; este predice.
     try:
         m, cols, n = entrenar_modelo6(cargar())
-        with open(MODELO6, "wb") as fh:
+        with DB.open_file(MODELO6, "wb") as fh:
             pickle.dump({"modelo": m, "cols": cols}, fh)
         print(f"  [ok] modelo de 6 clases guardado -> {MODELO6.name} "
               f"({n} filas, todo el historial)")

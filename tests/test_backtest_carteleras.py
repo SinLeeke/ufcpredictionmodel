@@ -15,6 +15,7 @@ import pandas as pd
 import config as C
 from modelado import backtest_carteleras as BT
 from src import kaggle_ingest as KI
+from src import storage as DB
 
 
 def _kaggle(*peleas):
@@ -37,13 +38,13 @@ class EloALaFecha(unittest.TestCase):
         final = KI.tabla_elo(df=df).set_index("fighter")["elo"]
         self.assertLess(final["Ana"], medio["Ana"])
 
-    @unittest.skipUnless((C.DATA_RAW / "kaggle_ufc.csv").exists() and C.ELO_TABLE.exists(),
+    @unittest.skipUnless(DB.exists(C.DATA_RAW / "kaggle_ufc.csv") and DB.exists(C.ELO_TABLE),
                          "hace falta la base construida")
     def test_sin_corte_reproduce_la_tabla_de_produccion(self):
         # Misma regla que kaggle_ingest.build_all: si alguien cambia una y no la
         # otra, el backtest dejaría de medir el ELO que se usa al predecir.
         nueva = KI.tabla_elo().set_index(["weight_class", "fighter"])["elo"]
-        prod = pd.read_csv(C.ELO_TABLE).set_index(["weight_class", "fighter"])["elo"]
+        prod = DB.read_csv(C.ELO_TABLE).set_index(["weight_class", "fighter"])["elo"]
         self.assertEqual(len(nueva), len(prod))
         self.assertLess((nueva - prod.reindex(nueva.index)).abs().max(), 1e-6)
 

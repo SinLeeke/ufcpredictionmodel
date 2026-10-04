@@ -37,6 +37,7 @@ import pandas as pd
 from xgboost import XGBClassifier
 
 import config as C
+from src import storage as DB
 from modelado.train_model import ventana
 from src.features import columnas_disponibles
 from src.value import (analizar_lote, vig, ajustar_calibrador, combinar,
@@ -51,7 +52,7 @@ CACHE = C.DATA_PROCESSED / "walkforward_valor.csv"   # predicciones ya calculada
 # Datos y predicciones fuera de muestra
 # --------------------------------------------------------------------------- #
 def cargar() -> pd.DataFrame:
-    df = pd.read_csv(C.FEATURES_CSV)
+    df = DB.read_csv(C.FEATURES_CSV)
     df["date"] = pd.to_datetime(df["date"])
     if "odds_a" not in df.columns:
         raise SystemExit(
@@ -217,15 +218,15 @@ def main():
     # Los 11 reentrenamientos tardan ~2 min; las predicciones no cambian salvo
     # que cambien el dataset o el modelo. Se cachean para poder probar umbrales
     # al instante (usa --refit para forzar el recálculo).
-    if CACHE.exists() and not args.refit:
-        d = pd.read_csv(CACHE, parse_dates=["date"])
+    if DB.exists(CACHE) and not args.refit:
+        d = DB.read_csv(CACHE, parse_dates=["date"])
         d = d[d["anio"] >= args.desde].reset_index(drop=True)
         print(f"\n  Usando predicciones cacheadas ({CACHE.name}). --refit para recalcular.")
     else:
         df = cargar()
         print("\n  Reentrenando año a año (cada pelea la predice un modelo que solo vio el pasado):")
         d = predicciones_walk_forward(df, args.desde)
-        d.to_csv(CACHE, index=False)
+        DB.to_csv(d, CACHE, index=False)
         print(f"  [ok] predicciones cacheadas -> {CACHE}")
 
     con_cuota = d[d["odds_a"].notna() & d["odds_b"].notna()].reset_index(drop=True)

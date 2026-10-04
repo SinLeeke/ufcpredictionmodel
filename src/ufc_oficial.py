@@ -36,6 +36,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key
 
 BASE = "https://www.ufc.com"
@@ -80,7 +81,7 @@ def _get(url: str) -> requests.Response | None:
 
 def _leer() -> dict:
     try:
-        datos = json.loads(CACHE.read_text(encoding="utf-8"))
+        datos = DB.read_json(CACHE)
         if isinstance(datos, dict) and datos.get("version") == VERSION:
             return datos
     except (OSError, ValueError):
@@ -89,17 +90,20 @@ def _leer() -> dict:
 
 
 def _guardar(datos: dict) -> None:
+    if DB.key(CACHE) is not None:
+        DB.write_text(CACHE, json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+        return
     temporal = CACHE.with_name(f".{CACHE.name}.{uuid.uuid4().hex}.tmp")
     try:
         CACHE.parent.mkdir(parents=True, exist_ok=True)
-        temporal.write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+        DB.write_text(temporal, json.dumps(datos, ensure_ascii=False), encoding="utf-8")
         temporal.replace(CACHE)
     except OSError:
         pass                  # sin disco igual se muestra lo que se bajó
     finally:
-        if temporal.exists():
+        if DB.exists(temporal):
             try:
-                temporal.unlink()
+                DB.unlink(temporal)
             except OSError:
                 pass
 
@@ -387,5 +391,5 @@ def imagen(id_nota: str) -> Path | None:
     ext = {"image/png": ".png", "image/webp": ".webp"}.get(tipo.split(";")[0], ".jpg")
     IMAGENES.mkdir(parents=True, exist_ok=True)
     ruta = IMAGENES / f"{id_nota}{ext}"
-    ruta.write_bytes(r.content)
+    DB.write_bytes(ruta, r.content)
     return ruta

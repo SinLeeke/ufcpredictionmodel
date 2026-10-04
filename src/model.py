@@ -38,6 +38,7 @@ except ImportError:
 import sys
 sys.path.append(str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.features import FEATURE_COLUMNS
 
 
@@ -89,7 +90,7 @@ def train_winner_model(df: pd.DataFrame):
         print("[!] xgboost no instalado -> uso el baseline como modelo final.")
         best = baseline
 
-    with open(C.WINNER_MODEL, "wb") as fh:
+    with DB.open_file(C.WINNER_MODEL, "wb") as fh:
         pickle.dump(best, fh)
     print(f"[ok] modelo de ganador -> {C.WINNER_MODEL}")
     return best
@@ -151,7 +152,7 @@ def train_method_model(df: pd.DataFrame):
                       labels=list(range(len(C.METHOD_CLASSES))))
         print(f"[method model] log-loss (test) = {ll:.3f}")
 
-    with open(C.METHOD_MODEL, "wb") as fh:
+    with DB.open_file(C.METHOD_MODEL, "wb") as fh:
         pickle.dump(method_model, fh)
     print(f"[ok] modelo de método -> {C.METHOD_MODEL}")
     return method_model
@@ -159,22 +160,22 @@ def train_method_model(df: pd.DataFrame):
 
 def load_models():
     """Carga (winner, method) desde disco. method puede ser None."""
-    with open(C.WINNER_MODEL, "rb") as fh:
+    with DB.open_file(C.WINNER_MODEL, "rb") as fh:
         winner = pickle.load(fh)
     method = None
-    if C.METHOD_MODEL.exists():
-        with open(C.METHOD_MODEL, "rb") as fh:
+    if DB.exists(C.METHOD_MODEL):
+        with DB.open_file(C.METHOD_MODEL, "rb") as fh:
             method = pickle.load(fh)
     return winner, method
 
 
 if __name__ == "__main__":
-    if not C.FEATURES_CSV.exists():
+    if not DB.exists(C.FEATURES_CSV):
         raise SystemExit(
             "No existe features.csv. Primero corre la ingesta:\n"
             "    python -m src.kaggle_ingest\n"
             "(genera data/processed/features.csv y fighters.csv)"
         )
-    feats = pd.read_csv(C.FEATURES_CSV)
+    feats = DB.read_csv(C.FEATURES_CSV)
     train_winner_model(feats)
     train_method_model(feats)

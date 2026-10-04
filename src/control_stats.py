@@ -22,6 +22,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key
 
 STATS_CSV = C.DATA_PROCESSED / "ufcstats_fight_stats.csv"
@@ -53,10 +54,10 @@ def _normalizar(s: str) -> str:
 
 def _construir_indice() -> dict[str, dict]:
     """Por peleador: fechas ordenadas + sumas acumuladas de cada métrica."""
-    if not STATS_CSV.exists():
+    if not DB.exists(STATS_CSV):
         print("[control] falta ufcstats_fight_stats.csv -> sin métricas de control")
         return {}
-    df = pd.read_csv(STATS_CSV)
+    df = DB.read_csv(STATS_CSV)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date", "fighter", "fight_url"])
     # Un cambio de nombre no crea una segunda carrera. También protege de
@@ -75,8 +76,8 @@ def _construir_indice() -> dict[str, dict]:
 
     # duración aproximada por pelea (para las tasas por minuto)
     ev = C.DATA_PROCESSED / "ufcstats_fights.csv"
-    if ev.exists():
-        e = pd.read_csv(ev)
+    if DB.exists(ev):
+        e = DB.read_csv(ev)
         cols = [c for c in ("fight_url", "round", "time") if c in e.columns]
         if "fight_url" in cols:
             par = par.merge(e[cols].drop_duplicates("fight_url"), on="fight_url", how="left")

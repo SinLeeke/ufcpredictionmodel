@@ -40,7 +40,7 @@ call "%~dp0ejecutar_python.bat" -m modelado.train_model
 if errorlevel 1 goto error
 echo.
 echo ==================================================
-echo   Listo. Modelo y BD actualizados en models\ y data\
+echo   Listo. Datos y modelos actualizados en data\ufc.db
 echo ==================================================
 goto fin
 

@@ -30,6 +30,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.features import EloSystem, differential_features
 
 STATS_CSV = C.DATA_PROCESSED / "ufcstats_fight_stats.csv"
@@ -51,19 +52,19 @@ def _dur_min(row) -> float:
 
 
 def cargar() -> pd.DataFrame:
-    if not STATS_CSV.exists():
+    if not DB.exists(STATS_CSV):
         raise SystemExit(
             "Falta el dataset de estadísticas. Corre primero:\n"
             "    python -m src.ufcstats_events\n"
             "    python -m src.ufcstats_fightstats")
-    df = pd.read_csv(STATS_CSV)
+    df = DB.read_csv(STATS_CSV)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date", "fighter", "fight_url"]).sort_values("date")
 
     # duración: viene del CSV de eventos si está, si no se estima
     ev = C.DATA_PROCESSED / "ufcstats_fights.csv"
-    if ev.exists():
-        e = pd.read_csv(ev)
+    if DB.exists(ev):
+        e = DB.read_csv(ev)
         if "fight_url" in e.columns:
             cols = [c for c in ("fight_url", "round", "time") if c in e.columns]
             df = df.merge(e[cols].drop_duplicates("fight_url"), on="fight_url", how="left")
@@ -153,11 +154,11 @@ def _cargar_bio() -> dict:
     variable más importante del modelo, así que su ausencia cuesta ~0.07 de AUC.
     """
     bio_csv = C.DATA_PROCESSED / "ufcstats_bio.csv"
-    if not bio_csv.exists():
+    if not DB.exists(bio_csv):
         print("[!] falta ufcstats_bio.csv -> edad/alcance/altura irán en 0. "
               "Corre: python -m src.ufcstats_fighters")
         return {}
-    b = pd.read_csv(bio_csv)
+    b = DB.read_csv(bio_csv)
     b["dob"] = pd.to_datetime(b["dob"], errors="coerce")
     out = {}
     for r in b.itertuples():
@@ -301,8 +302,8 @@ def build(min_peleas: int = MIN_PELEAS, desde: str | None = None,
     if feats.empty:
         raise SystemExit("No se generaron features (¿pocas peleas descargadas?).")
     if guardar:
-        feats.to_csv(C.FEATURES_CSV, index=False)
-        elo.to_frame().to_csv(C.ELO_TABLE, index=False)
+        DB.to_csv(feats, C.FEATURES_CSV, index=False)
+        DB.to_csv(elo.to_frame(), C.ELO_TABLE, index=False)
     print(f"[ok] features.csv -> {feats.shape[0]} filas, {feats.shape[1]} columnas")
     print(f"[ok] elo_ratings.csv -> {C.ELO_TABLE}")
     print(f"     rango: {feats.date.min():%Y-%m-%d} a {feats.date.max():%Y-%m-%d}")

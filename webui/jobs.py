@@ -9,11 +9,11 @@ Por qué SUBPROCESO y no llamar a las funciones directamente:
     a stdout y algunos terminan con `SystemExit`. Importarlos y llamarlos dentro
     del servidor haría que un fallo se lleve puesta la UI.
   * Corren minutos. En un hilo del servidor bloquearían las peticiones.
-  * Recargan modelos y CSVs desde disco. Un subproceso arranca limpio, así que
+  * Recargan modelos y tablas desde SQLite. Un subproceso arranca limpio, así que
     no hay estado viejo cacheado en memoria entre corridas.
 
 Solo se permite UN trabajo pesado a la vez, a propósito: casi todos escriben en
-`data/processed/` y dos a la vez se pisarían los archivos.
+la base SQLite y dos a la vez competirían por actualizar el mismo dataset.
 """
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
     Receta(
         id="entrenar",
         nombre="Solo reentrenar el modelo",
-        descripcion=("Reentrena ganador y método con los datos que ya hay en disco, sin "
+        descripcion=("Reentrena ganador y método con los datos que ya hay en SQLite, sin "
                      "bajar nada. Útil si tocaste config.py."),
         pasos=[[sys.executable, "-m", "modelado.train_model"]],
         minutos="~1 min",
@@ -137,12 +137,12 @@ RECETAS: dict[str, Receta] = {r.id: r for r in [
     Receta(
         id="limpiar_cache",
         nombre="Refrescar fichas de peleadores",
-        descripcion=("Borra data/raw/ufcstats_cache.json para que la próxima predicción "
+        descripcion=("Vacía la caché de fichas en SQLite para que la próxima predicción "
                      "vuelva a bajar las fichas. Hazlo si alguien peleó hace poco y sus "
                      "stats se ven viejos."),
         pasos=[[sys.executable, "-c",
-                "import pathlib,config as C; p=C.DATA_RAW/'ufcstats_cache.json'; "
-                "p.unlink(missing_ok=True); print('[ok] cache de fichas borrado')"]],
+                "import config as C; from src import storage as DB; p=C.DATA_RAW/'ufcstats_cache.json'; "
+                "DB.unlink(p, missing_ok=True); print('[ok] cache de fichas borrado')"]],
         minutos="instantáneo",
     ),
 ]}

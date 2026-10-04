@@ -40,6 +40,7 @@ import requests
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key
 
 CACHE = C.DATA_RAW / "reemplazos_wiki.json"
@@ -98,10 +99,10 @@ def _texto_evento(nombre: str) -> str | None:
 def construir(limite: int | None = None, refrescar: bool = False) -> dict:
     """Recorre los eventos de ufcstats_fights.csv y cachea los reemplazos."""
     cache = {}
-    if CACHE.exists() and not refrescar:
-        cache = json.loads(CACHE.read_text(encoding="utf-8"))
+    if DB.exists(CACHE) and not refrescar:
+        cache = DB.read_json(CACHE)
 
-    h = pd.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
+    h = DB.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
     eventos = h.groupby("event")["date"].first().sort_values(ascending=False)
     if limite:
         eventos = eventos.head(limite)
@@ -113,11 +114,13 @@ def construir(limite: int | None = None, refrescar: bool = False) -> dict:
         # Se guarda incluso la lista vacía: así no se vuelve a consultar un
         # evento que simplemente no tuvo reemplazos.
         cache[ev] = sorted({_norm(m.group(1)) for m in _RE_REPL.finditer(tx)}) if tx else []
+        if DB.key(CACHE) is not None:
+            DB.put_json_entry(CACHE, ev, cache[ev])
         if i % 25 == 0:
             print(f"    {i}/{len(pendientes)}...")
-            CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+            DB.write_text(CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
         time.sleep(0.15)
-    CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    DB.write_text(CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
     n = sum(len(v) for v in cache.values())
     print(f"[reemplazos] {len(cache)} eventos, {n} reemplazos detectados -> {CACHE}")
     return cache
@@ -127,11 +130,11 @@ def _indice() -> dict:
     """{(evento_normalizado, peleador_normalizado)} de los que entraron de reemplazo."""
     global _IDX
     if _IDX is None:
-        if not CACHE.exists():
+        if not DB.exists(CACHE):
             print("[reemplazos] sin caché -> corre 'python -m src.reemplazos'")
             _IDX = set()
         else:
-            d = json.loads(CACHE.read_text(encoding="utf-8"))
+            d = DB.read_json(CACHE)
             _IDX = {(_norm(ev), _norm(n)) for ev, nombres in d.items() for n in nombres}
     return _IDX
 
@@ -154,11 +157,11 @@ def _indice_por_fecha() -> set:
     global _POR_FECHA
     if _POR_FECHA is not None:
         return _POR_FECHA
-    if not CACHE.exists():
+    if not DB.exists(CACHE):
         _POR_FECHA = set()
         return _POR_FECHA
-    d = json.loads(CACHE.read_text(encoding="utf-8"))
-    h = pd.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
+    d = DB.read_json(CACHE)
+    h = DB.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
     h["date"] = pd.to_datetime(h["date"], errors="coerce")
     fecha_de = h.groupby("event")["date"].first().to_dict()
     _POR_FECHA = {
@@ -198,7 +201,7 @@ def features(nombre_a: str, nombre_b: str, fecha) -> dict:
 def revisar() -> None:
     """Mide la tasa de victoria de los reemplazos contra los resultados reales."""
     import math
-    h = pd.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
+    h = DB.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
     idx = _indice()
     g = p = 0
     for r in h.itertuples(index=False):

@@ -42,6 +42,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.features import (differential_features, FEATURE_COLUMNS,
                           columnas_disponibles, probabilidad_ganador,
                           probabilidades_metodo)
@@ -168,9 +169,9 @@ def completar_titulos(cartelera: pd.DataFrame, csv_path: str | Path | None = Non
 # --------------------------------------------------------------------------- #
 def _from_fighters_csv(name: str) -> dict | None:
     """Fallback: busca el peleador en fighters.csv (dataset Kaggle)."""
-    if not C.FIGHTERS_CSV.exists():
+    if not DB.exists(C.FIGHTERS_CSV):
         return None
-    df = pd.read_csv(C.FIGHTERS_CSV)
+    df = DB.read_csv(C.FIGHTERS_CSV)
     identidades = df["name"].map(canonical_key)
     hit = df[identidades == canonical_key(name)]
     if hit.empty:
@@ -288,8 +289,8 @@ def _elo(stats: dict) -> float:
     Nada hardcodeado: el proxy sale de wins/losses que trajo el scraper.
     """
     name = stats["name"]
-    if C.ELO_TABLE.exists():
-        elo = elo_de_tabla(pd.read_csv(C.ELO_TABLE), name, oposicion.ultima_division(name))
+    if DB.exists(C.ELO_TABLE):
+        elo = elo_de_tabla(DB.read_csv(C.ELO_TABLE), name, oposicion.ultima_division(name))
         if elo is not None:
             return elo
     # proxy: winrate centrado en .5 + bonus por experiencia
@@ -768,7 +769,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
                       "completadas": completadas, "total": total})
 
     avisar("preparando", "Leyendo la cartelera y cargando los modelos…")
-    card = pd.read_csv(card_csv)
+    card = DB.read_csv(card_csv)
     avisar("preparando", "Consultando la confirmación de títulos en UFC…")
     completar_titulos(card, card_csv)
     avisar("preparando", "Cargando los modelos de predicción…")
@@ -1120,7 +1121,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     out_dir = C.OUTPUTS / event
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "tabla_predicciones.csv"
-    pd.DataFrame(rows).to_csv(out, index=False)
+    DB.to_csv(pd.DataFrame(rows), out, index=False)
     avisar("informes", "Reporte de la cartelera guardado.")
     print(f"\n[ok] tabla -> {out}")
     print(f"[ok] todo el reporte de esta cartelera -> {out_dir}")

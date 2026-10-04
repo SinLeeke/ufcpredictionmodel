@@ -34,11 +34,12 @@ import numpy as np
 import pandas as pd
 
 import config as C
+from src import storage as DB
 from src.features import columnas_disponibles
 
 
 def cargar():
-    df = pd.read_csv(C.FEATURES_CSV)
+    df = DB.read_csv(C.FEATURES_CSV)
     df["date"] = pd.to_datetime(df["date"])
     filas = df[df["date"] >= C.TEST_START_DATE].reset_index(drop=True)
     if filas.empty:
@@ -54,13 +55,13 @@ def cargar():
             "Regenera el dataset:  python -m src.scraper"
         )
 
-    if not C.WINNER_MODEL_SPLIT.exists():
+    if not DB.exists(C.WINNER_MODEL_SPLIT):
         raise SystemExit(
             f"No existe {C.WINNER_MODEL_SPLIT}.\n"
             "Es el modelo de medición (entrenado solo hasta "
             f"{C.TRAIN_END_DATE}). Genéralo:  python -m modelado.train_model"
         )
-    with open(C.WINNER_MODEL_SPLIT, "rb") as fh:
+    with DB.open_file(C.WINNER_MODEL_SPLIT, "rb") as fh:
         modelo = pickle.load(fh)
     return filas, modelo
 

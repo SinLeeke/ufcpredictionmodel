@@ -27,7 +27,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import config as C                                    # noqa: E402
+import config as C
+from src import storage as DB                                    # noqa: E402
 from webui import parlay as P                          # noqa: E402
 
 CARDS_DIR = C.ROOT / "cards"
@@ -1017,7 +1018,7 @@ _METODOS = ("KO/TKO", "Submission", "Decision")
 def _firma_resultados() -> str:
     rutas = (C.DATA_PROCESSED / "ufcstats_fights.csv", C.FEATURES_CSV,
              C.WINNER_MODEL, C.METHOD_MODEL)
-    return ":".join(str(r.stat().st_mtime_ns if r.exists() else 0) for r in rutas)
+    return ":".join(DB.signature(r) for r in rutas)
 
 
 def _ultimos_eventos(n: int) -> list[dict]:
@@ -1036,7 +1037,7 @@ def _leer_resultados(firma: str) -> dict:
     """{clave: cartelera} guardadas con esta firma; con otra, nada sirve."""
     import json
     try:
-        d = json.loads(RESULTADOS_JSON.read_text(encoding="utf-8"))
+        d = DB.read_json(RESULTADOS_JSON)
     except (OSError, ValueError):
         return {}
     return d.get("eventos", {}) if d.get("firma") == firma else {}
@@ -1044,8 +1045,12 @@ def _leer_resultados(firma: str) -> dict:
 
 def _guardar_resultados(firma: str, eventos: dict) -> None:
     import json
+    if DB.key(RESULTADOS_JSON) is not None:
+        DB.write_text(RESULTADOS_JSON, json.dumps({"firma": firma, "eventos": eventos}, ensure_ascii=False),
+                      encoding="utf-8")
+        return
     tmp = RESULTADOS_JSON.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"firma": firma, "eventos": eventos}, ensure_ascii=False),
+    DB.write_text(tmp, json.dumps({"firma": firma, "eventos": eventos}, ensure_ascii=False),
                    encoding="utf-8")
     tmp.replace(RESULTADOS_JSON)          # la UI nunca lee un archivo a medias
 
@@ -1148,7 +1153,7 @@ def cargar_demo(ruta: Path) -> None:
     """Deja en ESTADO una cartelera de webui/demo/ como si se acabara de predecir."""
     import json
     from dataclasses import fields
-    d = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    d = DB.read_json(Path(ruta))
     for pelea in d["datos"]["peleas"]:
         _ampliar_pelea(pelea)
     campos = {f.name for f in fields(P.Pata)}

@@ -47,6 +47,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key
 
 _SESSION = requests.Session()
@@ -331,10 +332,10 @@ def _conservar_titulos(df: pd.DataFrame, destino: Path) -> None:
     Betano identifica el combate como domingo. Nunca se arrastra a una revancha
     ni se busca otra pelea por apellido, fama o parecido.
     """
-    if not destino.exists():
+    if not DB.exists(destino):
         return
     try:
-        anterior = pd.read_csv(destino)
+        anterior = DB.read_csv(destino)
     except (OSError, ValueError):
         return
     if not {"fighter_a", "fighter_b", "fecha_evento_utc"}.issubset(anterior.columns):
@@ -451,7 +452,7 @@ def scrape_card(query: str, out_path: Optional[str] = None,
     avisar("preparando", "Consultando la confirmación de títulos en UFC…")
     completar_titulos(df, out_path)
     avisar("guardando", "Guardando el archivo de cuotas de Betano…")
-    df.to_csv(out_path, index=False)
+    DB.to_csv(df, out_path, index=False)
     avisar("guardando", "Archivo de cuotas guardado.")
 
     con_ganador = (df["odds_a"] != "").sum()

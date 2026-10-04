@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key, normalize_name
 
 # Kaggle empieza en 2010. Antes de 2013 la ventana de entrenamiento tendría 2-3
@@ -98,7 +99,7 @@ def _al_dia() -> None:
     """
     global _FIRMA, _HIST, _PELEAS, _BIO, _HOMONIMOS, _NOMBRES
     from src.ufcstats_ingest import STATS_CSV
-    firma = tuple(r.stat().st_mtime_ns if r.exists() else 0
+    firma = tuple(DB.signature(r)
                   for r in (PELEAS_CSV, STATS_CSV, C.DATA_PROCESSED / "ufcstats_bio.csv"))
     if firma != _FIRMA:
         _FIRMA = firma
@@ -120,10 +121,10 @@ def _peleas() -> pd.DataFrame:
     global _PELEAS
     _al_dia()
     if _PELEAS is None:
-        if not PELEAS_CSV.exists():
+        if not DB.exists(PELEAS_CSV):
             raise FileNotFoundError("Falta ufcstats_fights.csv: corre 'Resultados de UFCStats' "
                                     "en Mantenimiento.")
-        p = pd.read_csv(PELEAS_CSV)
+        p = DB.read_csv(PELEAS_CSV)
         p["date"] = pd.to_datetime(p["date"], errors="coerce")
         p = p.dropna(subset=["date", "fighter_a", "fighter_b", "event"])
         p["par"] = [_clave_par(a, b) for a, b in zip(p["fighter_a"], p["fighter_b"])]
@@ -155,8 +156,8 @@ def _bio() -> tuple[dict, set]:
         from src.ufcstats_ingest import _cargar_bio
         _BIO = _cargar_bio()
         ruta = C.DATA_PROCESSED / "ufcstats_bio.csv"
-        nombres = (pd.read_csv(ruta, usecols=["name"])["name"].dropna().astype(str)
-                   .str.strip().str.lower() if ruta.exists() else pd.Series(dtype=str))
+        nombres = (DB.read_csv(ruta, usecols=["name"])["name"].dropna().astype(str)
+                   .str.strip().str.lower() if DB.exists(ruta) else pd.Series(dtype=str))
         cuenta = nombres.value_counts()
         _HOMONIMOS = set(cuenta[cuenta > 1].index)
     return _BIO, _HOMONIMOS
@@ -180,8 +181,8 @@ def nombre_local(nombre: str) -> str | None:
         for n in pd.concat([p["fighter_a"], p["fighter_b"]]).dropna().unique():
             indice.setdefault(canonical_key(n), str(n))
         ruta = C.DATA_PROCESSED / "ufcstats_bio.csv"
-        if ruta.exists():
-            for n in pd.read_csv(ruta, usecols=["name"])["name"].dropna().astype(str):
+        if DB.exists(ruta):
+            for n in DB.read_csv(ruta, usecols=["name"])["name"].dropna().astype(str):
                 indice.setdefault(canonical_key(n), n.strip())
         _NOMBRES = indice
     return _NOMBRES.get(canonical_key(nombre))
@@ -298,11 +299,11 @@ def elo_a_fecha(nombre: str, fecha) -> float:
     from src.card import elo_de_tabla
     fecha = pd.Timestamp(fecha)
     if fecha not in _ELO_POR_FECHA:
-        if (C.DATA_RAW / "kaggle_ufc.csv").exists():
+        if DB.exists(C.DATA_RAW / "kaggle_ufc.csv"):
             from src.kaggle_ingest import tabla_elo
             _ELO_POR_FECHA[fecha] = tabla_elo(hasta=fecha)
-        elif C.ELO_TABLE.exists():
-            _ELO_POR_FECHA[fecha] = pd.read_csv(C.ELO_TABLE)
+        elif DB.exists(C.ELO_TABLE):
+            _ELO_POR_FECHA[fecha] = DB.read_csv(C.ELO_TABLE)
         else:
             _ELO_POR_FECHA[fecha] = pd.DataFrame(columns=["weight_class", "fighter", "elo"])
     elo = elo_de_tabla(_ELO_POR_FECHA[fecha], nombre, oposicion.ultima_division(nombre, fecha))
@@ -352,19 +353,19 @@ def modelos_a_fecha(fecha, avisar: Callable[[str], None] | None = None) -> dict:
     """
     fecha = pd.Timestamp(fecha).normalize()
     avisar = avisar or (lambda _txt: None)
-    if not C.FEATURES_CSV.exists():
+    if not DB.exists(C.FEATURES_CSV):
         return _modelos_produccion(None)
-    df = pd.read_csv(C.FEATURES_CSV)
+    df = DB.read_csv(C.FEATURES_CSV)
     df["date"] = pd.to_datetime(df["date"])
     fin = df["date"].max()
     if fecha > fin:
         return _modelos_produccion(fin)
 
     ruta = CARPETA_MODELOS / f"{fecha:%Y-%m-%d}.pkl"
-    firma = f"{C.FEATURES_CSV.stat().st_mtime_ns}:{len(df)}"
-    if ruta.exists():
+    firma = f"{DB.signature(C.FEATURES_CSV)}:{len(df)}"
+    if DB.exists(ruta):
         try:
-            with open(ruta, "rb") as fh:
+            with DB.open_file(ruta, "rb") as fh:
                 guardado = pickle.load(fh)
             if guardado.get("firma") == firma:
                 return guardado["modelos"]
@@ -396,7 +397,7 @@ def modelos_a_fecha(fecha, avisar: Callable[[str], None] | None = None) -> dict:
                "origen": "reentrenado", "entrenado_hasta": previo["date"].max().strftime("%Y-%m-%d"),
                "peleas": len(full) // 2}
     CARPETA_MODELOS.mkdir(parents=True, exist_ok=True)
-    with open(ruta, "wb") as fh:
+    with DB.open_file(ruta, "wb") as fh:
         pickle.dump({"firma": firma, "modelos": modelos}, fh)
     return modelos
 
@@ -476,8 +477,8 @@ def _kaggle() -> dict:
     if _KAGGLE is None:
         ruta = C.DATA_RAW / "kaggle_ufc.csv"
         _KAGGLE = {}
-        if ruta.exists():
-            k = pd.read_csv(ruta, low_memory=False)
+        if DB.exists(ruta):
+            k = DB.read_csv(ruta, low_memory=False)
             k["date"] = pd.to_datetime(k["date"], errors="coerce")
             k = k.dropna(subset=["date", "R_fighter", "B_fighter"])
             for fila in k.to_dict("records"):
@@ -631,5 +632,5 @@ def cartelera_de_evento(evento: str, fecha: str) -> Path:
     filas.sort(key=lambda f: f["segment"] == "Estelar")
     destino = C.ROOT / "cards" / f"historico_{dia:%Y-%m-%d}_{_slug(evento)}.csv"
     destino.parent.mkdir(exist_ok=True)
-    pd.DataFrame(filas).to_csv(destino, index=False)
+    DB.to_csv(pd.DataFrame(filas), destino, index=False)
     return destino

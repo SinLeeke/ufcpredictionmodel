@@ -37,6 +37,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key
 
 FIGHTS_CSV = C.DATA_PROCESSED / "ufcstats_fights.csv"
@@ -134,11 +135,11 @@ def _construir_indice() -> dict:
     guardando por peleador la lista de sus combates con el ELO PRE-PELEA del
     rival. Un solo pase = imposible mirar el futuro por construcción.
     """
-    if not FIGHTS_CSV.exists():
+    if not DB.exists(FIGHTS_CSV):
         print("[oposicion] falta ufcstats_fights.csv -> sin calidad de oposición")
         return {}
 
-    df = pd.read_csv(FIGHTS_CSV)
+    df = DB.read_csv(FIGHTS_CSV)
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date", "fighter_a", "fighter_b"]).sort_values("date")
 

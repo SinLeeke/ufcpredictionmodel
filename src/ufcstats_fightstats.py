@@ -31,6 +31,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.ufcstats_events import EVENTS_CACHE
 
 STATS_CACHE = C.DATA_RAW / "ufcstats_fightstats.json"
@@ -137,10 +138,10 @@ def parse_fight(soup, url: str) -> list[dict]:
 
 
 def build(limit: int | None = None) -> pd.DataFrame:
-    if not EVENTS_CACHE.exists():
+    if not DB.exists(EVENTS_CACHE):
         raise SystemExit("Falta el historial de eventos. Corre primero:\n"
                          "    python -m src.ufcstats_events")
-    eventos = json.loads(EVENTS_CACHE.read_text(encoding="utf-8"))
+    eventos = DB.read_json(EVENTS_CACHE)
 
     urls, meta = [], {}
     for fights in eventos.values():
@@ -157,7 +158,7 @@ def build(limit: int | None = None) -> pd.DataFrame:
             "    del data\\raw\\ufcstats_events.json\n"
             "    python -m src.ufcstats_events")
 
-    cache = json.loads(STATS_CACHE.read_text(encoding="utf-8")) if STATS_CACHE.exists() else {}
+    cache = DB.read_json(STATS_CACHE) if DB.exists(STATS_CACHE) else {}
     pendientes = [u for u in urls if u not in cache]
     if limit:
         pendientes = pendientes[:limit]
@@ -168,9 +169,11 @@ def build(limit: int | None = None) -> pd.DataFrame:
 
         def guardar(url, soup):
             cache[url] = parse_fight(soup, url)
+            if DB.key(STATS_CACHE) is not None:
+                DB.put_json_entry(STATS_CACHE, url, cache[url])
 
         fetch_many(pendientes, guardar, label="peleas")
-        STATS_CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        DB.write_text(STATS_CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
     filas = []
     for u, fs in cache.items():
@@ -185,7 +188,7 @@ def build(limit: int | None = None) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
     df["won"] = (df["fighter"] == df["winner"]).astype(int)
     df = df.sort_values("date")
-    df.to_csv(STATS_CSV, index=False)
+    DB.to_csv(df, STATS_CSV, index=False)
 
     print(f"[ok] {len(df)} filas peleador-pelea -> {STATS_CSV}")
     print(f"     peleas: {df.fight_url.nunique()} | rango: {df.date.min():%Y-%m-%d} a {df.date.max():%Y-%m-%d}")

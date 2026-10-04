@@ -33,6 +33,7 @@ from bs4 import BeautifulSoup
 import sys
 sys.path.append(str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 
 
 # --------------------------------------------------------------------------- #
@@ -293,8 +294,8 @@ def load_from_kaggle() -> pd.DataFrame:
         # El dataset trae varios CSV; 'data.csv' es el consolidado por pelea.
         csv = next(p for p in __import__("pathlib").Path(path).glob("*.csv")
                    if p.name in ("data.csv", "ufc-master.csv"))
-        df = pd.read_csv(csv)
-        df.to_csv(C.DATA_RAW / "kaggle_ufc.csv", index=False)
+        df = DB.read_csv(csv)
+        DB.to_csv(df, C.DATA_RAW / "kaggle_ufc.csv", index=False)
         print(f"[ok] Kaggle -> {len(df)} peleas cargadas en {C.DATA_RAW/'kaggle_ufc.csv'}")
         return df
     except Exception as e:
@@ -324,11 +325,11 @@ def build_fighters_table(source: str = "kaggle", refrescar: bool = False) -> pd.
     """
     if source == "kaggle":
         raw_path = C.DATA_RAW / "kaggle_ufc.csv"
-        if refrescar or not raw_path.exists():
+        if refrescar or not DB.exists(raw_path):
             try:
                 load_from_kaggle()
             except Exception as e:                      # noqa: BLE001
-                if not raw_path.exists():
+                if not DB.exists(raw_path):
                     raise
                 print(f"[!] no pude bajar la versión nueva de Kaggle; sigo con la copia "
                       f"local.\n    Detalle: {e}")

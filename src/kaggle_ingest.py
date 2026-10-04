@@ -27,6 +27,7 @@ import pandas as pd
 import sys
 sys.path.append(str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.features import (differential_features, EloSystem, _normalize_method,
                           valor_resultado)
 from src.control_stats import enriquecer as _enriquecer_control
@@ -144,15 +145,15 @@ DEFENSE_TABLE = C.DATA_PROCESSED / "defense_stats.csv"
 
 def build_defense_lookup() -> dict[str, dict]:
     """{nombre_lower: {'str_def':.., 'td_def':..}} desde rajeevw. Cachea a CSV."""
-    if DEFENSE_TABLE.exists():
-        d = pd.read_csv(DEFENSE_TABLE)
+    if DB.exists(DEFENSE_TABLE):
+        d = DB.read_csv(DEFENSE_TABLE)
         return {r["name"].lower(): {"str_def": r["str_def"], "td_def": r["td_def"]}
                 for _, r in d.iterrows()}
     try:
         import kagglehub
         from pathlib import Path
         path = kagglehub.dataset_download("rajeevw/ufcdata")
-        raj = pd.read_csv(next(Path(path).glob("data.csv")), low_memory=False)
+        raj = DB.read_csv(next(Path(path).glob("data.csv")), low_memory=False)
     except Exception as e:
         print(f"[!] no pude cargar rajeevw para stats defensivos ({e}); uso defaults.")
         return {}
@@ -172,14 +173,14 @@ def build_defense_lookup() -> dict[str, dict]:
     latest["str_def"] = (1.0 - latest["osp"]).clip(0, 1).round(4)
     latest["td_def"] = (1.0 - latest["otp"]).clip(0, 1).round(4)
     out = latest[["str_def", "td_def"]].reset_index()
-    out.to_csv(DEFENSE_TABLE, index=False)
+    DB.to_csv(out, DEFENSE_TABLE, index=False)
     print(f"[ok] defense_stats.csv -> {len(out)} peleadores con Str.Def/TD.Def reales")
     return {r["name"].lower(): {"str_def": r["str_def"], "td_def": r["td_def"]}
             for _, r in out.iterrows()}
 
 
 def load() -> pd.DataFrame:
-    df = pd.read_csv(C.DATA_RAW / "kaggle_ufc.csv")
+    df = DB.read_csv(C.DATA_RAW / "kaggle_ufc.csv")
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df = df.dropna(subset=["date", "R_fighter", "B_fighter", "Winner"])
     print(f"[ingest] {len(df)} peleas válidas | columnas: {len(df.columns)}")
@@ -207,7 +208,7 @@ def tabla_elo(hasta=None, df: pd.DataFrame | None = None) -> pd.DataFrame:
     global _KAGGLE
     if df is None:
         if _KAGGLE is None:
-            k = pd.read_csv(C.DATA_RAW / "kaggle_ufc.csv", low_memory=False)
+            k = DB.read_csv(C.DATA_RAW / "kaggle_ufc.csv", low_memory=False)
             k["date"] = pd.to_datetime(k["date"], errors="coerce")
             _KAGGLE = k.dropna(subset=["date", "R_fighter", "B_fighter", "Winner"])
         df = _KAGGLE
@@ -342,7 +343,7 @@ def build_all():
 
     # ratings FINALES -> para el fallback de predicción en vivo (card.py._elo).
     # Ahí sí queremos la fuerza ACTUAL del peleador, no la pre-pelea histórica.
-    elo.to_frame().to_csv(C.ELO_TABLE, index=False)
+    DB.to_csv(elo.to_frame(), C.ELO_TABLE, index=False)
     print(f"[ok] elo_ratings.csv -> {C.ELO_TABLE}")
 
     n_slots = len(rows)  # ~2 lados por pelea contada
@@ -379,13 +380,13 @@ def build_all():
     print(f"[ok] corto aviso marcado en {n_corto}/{len(feats)} filas "
           f"({100*n_corto/max(len(feats),1):.1f}%)")
 
-    feats.to_csv(C.FEATURES_CSV, index=False)
+    DB.to_csv(feats, C.FEATURES_CSV, index=False)
     print(f"[ok] features.csv -> {feats.shape[0]} filas ({feats.shape[1]} cols)")
 
     # ---- fighters.csv: stats más recientes por peleador ----
     fdf = pd.DataFrame(fighter_rows).sort_values("date")
     latest = fdf.groupby("name", as_index=False).last().drop(columns=["date"])
-    latest.to_csv(C.FIGHTERS_CSV, index=False)
+    DB.to_csv(latest, C.FIGHTERS_CSV, index=False)
     print(f"[ok] fighters.csv -> {len(latest)} peleadores")
 
     return feats, latest

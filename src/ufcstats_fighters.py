@@ -24,6 +24,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src import ufcstats as U
 
 FIGHTERS_CACHE = C.DATA_RAW / "ufcstats_fighters.json"
@@ -62,7 +63,7 @@ def parse_ficha(soup, url: str) -> dict:
 
 
 def build() -> pd.DataFrame:
-    cache = json.loads(FIGHTERS_CACHE.read_text(encoding="utf-8")) if FIGHTERS_CACHE.exists() else {}
+    cache = DB.read_json(FIGHTERS_CACHE) if DB.exists(FIGHTERS_CACHE) else {}
     urls = listar_urls()
     print(f"[fichas] {len(urls)} peleadores | en caché: {len(cache)}")
 
@@ -72,14 +73,16 @@ def build() -> pd.DataFrame:
 
         def guardar(url, soup):
             cache[url] = parse_ficha(soup, url)
+            if DB.key(FIGHTERS_CACHE) is not None:
+                DB.put_json_entry(FIGHTERS_CACHE, url, cache[url])
 
         fetch_many(pendientes, guardar, label="fichas")
-        FIGHTERS_CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        DB.write_text(FIGHTERS_CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
     df = pd.DataFrame(list(cache.values()))
     df = df[df["name"].astype(str).str.len() > 0].copy()
     df["dob"] = pd.to_datetime(df["dob"], format="mixed", errors="coerce")
-    df.to_csv(BIO_CSV, index=False)
+    DB.to_csv(df, BIO_CSV, index=False)
 
     print(f"[ok] {len(df)} peleadores -> {BIO_CSV}")
     print(f"     con fecha de nacimiento: {df.dob.notna().sum()} "

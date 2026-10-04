@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles                             # noqa: 
 from pydantic import BaseModel                                          # noqa: E402
 
 import config as C                                                      # noqa: E402
+from src import storage as DB                                           # noqa: E402
 from webui import engine, fotos, parlay as P                            # noqa: E402
 from webui.jobs import GESTOR, RECETAS                                  # noqa: E402
 
@@ -82,10 +83,10 @@ def _corte_valido(corte: str | None) -> str | None:
 def listar_csvs():
     d = C.ROOT / "cards"
     d.mkdir(exist_ok=True)
-    archivos = sorted(d.glob("*.csv"), key=lambda p: -p.stat().st_mtime)
+    archivos = sorted(d.glob("*.csv"), key=lambda p: -DB.stat(p).st_mtime)
     return {"cards": [{"nombre": p.name,
-                       "modificado": p.stat().st_mtime,
-                       "kb": round(p.stat().st_size / 1024, 1)} for p in archivos]}
+                       "modificado": DB.stat(p).st_mtime,
+                       "kb": round(DB.stat(p).st_size / 1024, 1)} for p in archivos]}
 
 
 def _dentro_de(ruta: Path, carpeta: Path) -> bool:
@@ -101,7 +102,7 @@ def _dentro_de(ruta: Path, carpeta: Path) -> bool:
 def cargar_csv(body: CargaCSV):
     ruta = (C.ROOT / "cards" / body.nombre).resolve()
     # El nombre viene del navegador: hay que verificar que no se salga de cards/.
-    if not _dentro_de(ruta, C.ROOT / "cards") or not ruta.exists():
+    if not _dentro_de(ruta, C.ROOT / "cards") or not DB.exists(ruta):
         raise HTTPException(404, f"No existe cards/{body.nombre}")
     corte = _corte_valido(body.corte)
     if engine.ESTADO.cargando:
@@ -191,7 +192,7 @@ async def subir_csv(archivo: UploadFile = File(...)):
         raise HTTPException(409, "Ya hay una carga en curso.")
     destino = C.ROOT / "cards" / nombre
     destino.parent.mkdir(exist_ok=True)
-    destino.write_bytes(await archivo.read())
+    DB.write_bytes(destino, await archivo.read())
     engine.cargar("csv", nombre, destino)
     return {"ok": True, "nombre": nombre}
 
@@ -309,8 +310,8 @@ def cancelar(job_id: str):
 def salud():
     """Qué hay y qué falta. Es lo primero que ve la UI al abrirse."""
     def _existe(p: Path) -> dict:
-        return {"existe": p.exists(),
-                "modificado": p.stat().st_mtime if p.exists() else None}
+        return {"existe": DB.exists(p),
+                "modificado": DB.stat(p).st_mtime if DB.exists(p) else None}
     return {
         "modelo_ganador": _existe(C.WINNER_MODEL),
         "modelo_metodo": _existe(C.METHOD_MODEL),
@@ -349,7 +350,7 @@ def foto_peleador(nombre: str):
 @app.get("/reportes/{evento}/{archivo}")
 def reporte(evento: str, archivo: str):
     ruta = (C.OUTPUTS / evento / archivo).resolve()
-    if not _dentro_de(ruta, C.OUTPUTS) or not ruta.exists():
+    if not _dentro_de(ruta, C.OUTPUTS) or not DB.exists(ruta):
         raise HTTPException(404, "No existe ese reporte.")
     return FileResponse(ruta)
 

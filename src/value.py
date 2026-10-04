@@ -36,6 +36,7 @@ import pickle
 import numpy as np
 
 import config as C
+from src import storage as DB
 from src.odds import prob_bruta, prob_sin_vig, pago_por_unidad
 
 CALIBRADOR = C.MODELS / "calibrador_mercado.pkl"
@@ -183,17 +184,17 @@ def ajustar_calibrador(p_mercado, p_modelo, y, guardar: bool = True) -> dict:
            "n": int(len(y))}
     if guardar:
         C.MODELS.mkdir(parents=True, exist_ok=True)
-        with open(CALIBRADOR, "wb") as fh:
+        with DB.open_file(CALIBRADOR, "wb") as fh:
             pickle.dump(cal, fh)
     return cal
 
 
 def cargar_calibrador() -> dict | None:
     """Devuelve los pesos guardados, o None si nunca se corrió el backtest."""
-    if not Path(CALIBRADOR).exists():
+    if not DB.exists(Path(CALIBRADOR)):
         return None
     try:
-        with open(CALIBRADOR, "rb") as fh:
+        with DB.open_file(CALIBRADOR, "rb") as fh:
             return pickle.load(fh)
     except Exception:
         return None
@@ -352,10 +353,10 @@ SOBRERREDONDEO_SOSPECHOSO = 1.18
 
 def cargar_modelo_metodo():
     """(modelo, columnas) del clasificador de 6 clases, o (None, None)."""
-    if not Path(MODELO_METODO).exists():
+    if not DB.exists(Path(MODELO_METODO)):
         return None, None
     try:
-        with open(MODELO_METODO, "rb") as fh:
+        with DB.open_file(MODELO_METODO, "rb") as fh:
             d = pickle.load(fh)
         return d["modelo"], d["cols"]
     except Exception:
@@ -363,10 +364,10 @@ def cargar_modelo_metodo():
 
 
 def cargar_calibrador_metodo() -> dict | None:
-    if not Path(CALIBRADOR_METODO).exists():
+    if not DB.exists(Path(CALIBRADOR_METODO)):
         return None
     try:
-        with open(CALIBRADOR_METODO, "rb") as fh:
+        with DB.open_file(CALIBRADOR_METODO, "rb") as fh:
             return pickle.load(fh)
     except Exception:
         return None

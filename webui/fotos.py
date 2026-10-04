@@ -34,6 +34,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config as C
+from src import storage as DB
 from src import reemplazos, sherdog
 
 CARPETA = C.DATA_RAW / "fotos"
@@ -312,12 +313,12 @@ def _retrato_sherdog(url: str) -> bool:
 # --------------------------------------------------------------------------- #
 def _indice() -> dict:
     f = CARPETA / "indice.json"
-    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    return DB.read_json(f) if DB.exists(f) else {}
 
 
 def _guardar_indice(idx: dict) -> None:
     CARPETA.mkdir(parents=True, exist_ok=True)
-    (CARPETA / "indice.json").write_text(json.dumps(idx, ensure_ascii=False, indent=1),
+    DB.write_text(CARPETA / "indice.json", json.dumps(idx, ensure_ascii=False, indent=1),
                                          encoding="utf-8")
 
 
@@ -332,7 +333,7 @@ def _bajar(url: str, clave: str, headers: dict) -> Path:
     ext = {"image/png": ".png", "image/webp": ".webp"}.get(tipo.split(";")[0], ".jpg")
     CARPETA.mkdir(parents=True, exist_ok=True)
     ruta = CARPETA / f"{clave.replace(' ', '_')}{ext}"
-    ruta.write_bytes(r.content)
+    DB.write_bytes(ruta, r.content)
     return ruta
 
 

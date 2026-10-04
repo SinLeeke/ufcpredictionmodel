@@ -25,7 +25,7 @@ call "%~dp0ejecutar_python.bat" -m src.ufcstats_fightstats
 if errorlevel 1 goto error
 echo.
 echo ==================================================
-echo   Listo. Datos en data\processed\
+echo   Listo. Datos en data\ufc.db
 echo ==================================================
 goto fin
 

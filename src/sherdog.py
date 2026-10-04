@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key, name_variants, normalize_name
 
 BASE = "https://www.sherdog.com"
@@ -95,7 +96,7 @@ def historial(nombre: str, usar_cache: bool = True) -> dict | None:
     Claves: wins, losses, racha, tasas de victoria y de ser finalizado,
     peleas_ufc / peleas_no_ufc.
     """
-    cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
+    cache = DB.read_json(CACHE) if DB.exists(CACHE) else {}
     k = _norm(nombre)
     if usar_cache:
         for clave in dict.fromkeys([k, *(normalize_name(n) for n in name_variants(nombre))]):
@@ -175,7 +176,7 @@ def historial(nombre: str, usar_cache: bool = True) -> dict | None:
         "lost_by_finish_rate": round(1.0 - tasa(perdidas, "Decision"), 4) if perdidas else 0.0,
     }
     cache[k] = datos
-    CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    DB.write_text(CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
     return datos
 
 

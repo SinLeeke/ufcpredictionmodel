@@ -24,6 +24,7 @@ import pandas as pd
 import sys
 sys.path.append(str(__import__("pathlib").Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 
 
 # --------------------------------------------------------------------------- #
@@ -91,7 +92,7 @@ def build_elo_table(fights: pd.DataFrame) -> tuple[EloSystem, pd.DataFrame]:
     for _, row in fights_sorted.iterrows():
         elo.update(row["winner"], row["loser"], row["weight_class"], bool(row["by_finish"]))
     table = elo.to_frame()
-    table.to_csv(C.ELO_TABLE, index=False)
+    DB.to_csv(table, C.ELO_TABLE, index=False)
     return elo, table
 
 
@@ -235,7 +236,7 @@ def make_training_matrix(fights: pd.DataFrame, fighters: pd.DataFrame,
         rows.append({**mirror, "date": fight["date"], "y": 1 - y, "method": method})
 
     df = pd.DataFrame(rows)
-    df.to_csv(C.FEATURES_CSV, index=False)
+    DB.to_csv(df, C.FEATURES_CSV, index=False)
     print(f"[ok] matriz de features: {df.shape[0]} filas -> {C.FEATURES_CSV}")
     return df
 

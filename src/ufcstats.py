@@ -36,6 +36,7 @@ from bs4 import BeautifulSoup
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 from src.fighter_names import canonical_key, name_variants, normalize_name
 from src.ufc_history import HISTORY_METADATA_VERSION, is_ufc_event
 
@@ -117,13 +118,13 @@ def _get(url: str) -> Optional[BeautifulSoup]:
 
 
 def _load_cache() -> dict:
-    if CACHE_PATH.exists():
-        return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+    if DB.exists(CACHE_PATH):
+        return DB.read_json(CACHE_PATH)
     return {}
 
 
 def _save_cache(cache: dict):
-    CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
+    DB.write_text(CACHE_PATH, json.dumps(cache, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _norm(s: str) -> str:

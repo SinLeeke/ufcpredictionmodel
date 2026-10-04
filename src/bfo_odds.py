@@ -42,6 +42,7 @@ from bs4 import BeautifulSoup
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config as C
+from src import storage as DB
 
 BASE = "https://www.bestfightodds.com"
 CACHE = C.DATA_RAW / "bfo_odds.json"
@@ -140,12 +141,12 @@ def historial(url: str) -> list[dict]:
 
 def _hueco() -> pd.DataFrame:
     """Peleas de UFCStats posteriores al último dato con cuotas de Kaggle."""
-    h = pd.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
+    h = DB.read_csv(C.DATA_PROCESSED / "ufcstats_fights.csv")
     h["date"] = pd.to_datetime(h["date"])
     k_path = C.DATA_RAW / "kaggle_ufc.csv"
-    if not k_path.exists():
+    if not DB.exists(k_path):
         raise SystemExit("Falta data/raw/kaggle_ufc.csv (corre 'python -m src.scraper').")
-    k = pd.read_csv(k_path, low_memory=False)
+    k = DB.read_csv(k_path, low_memory=False)
     corte = pd.to_datetime(k["date"]).max()
     return h[h["date"] > corte].copy()
 
@@ -176,7 +177,7 @@ def _pendientes(gap: pd.DataFrame, cache: dict) -> list[str]:
 
 
 def construir(limite: int | None = None) -> dict:
-    cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
+    cache = DB.read_json(CACHE) if DB.exists(CACHE) else {}
     gap = _hueco()
     peleadores = sorted(set(gap["fighter_a"]) | set(gap["fighter_b"]))
     pendientes = _pendientes(gap, cache)
@@ -192,8 +193,8 @@ def construir(limite: int | None = None) -> dict:
         time.sleep(PAUSA)
         if i % 20 == 0:
             print(f"    {i}/{len(pendientes)}...")
-            CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
-    CACHE.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+            DB.write_text(CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    DB.write_text(CACHE, json.dumps(cache, ensure_ascii=False), encoding="utf-8")
     con = sum(1 for v in cache.values() if v)
     print(f"[bfo] {len(cache)} peleadores en caché ({con} con historial) -> {CACHE}")
     return cache
@@ -201,9 +202,9 @@ def construir(limite: int | None = None) -> dict:
 
 def cuotas_de(fighter_a: str, fighter_b: str, fecha) -> tuple[float, float] | None:
     """(cuota_a, cuota_b) americanas de esa pelea, o None si no está."""
-    if not CACHE.exists():
+    if not DB.exists(CACHE):
         return None
-    cache = json.loads(CACHE.read_text(encoding="utf-8"))
+    cache = DB.read_json(CACHE)
     a, b = _norm(fighter_a), _norm(fighter_b)
     f = pd.Timestamp(fecha).normalize()
     # ±1 día: BFO fecha en hora de EE.UU. y los eventos en Abu Dhabi o
