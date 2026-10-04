@@ -11,6 +11,9 @@ kagglehub>=0.3
 fastapi>=0.110
 uvicorn>=0.27
 python-multipart>=0.0.9
+# Lee el .env de la raíz (ODDS_API_KEY y compañía). Opcional: sin él solo se
+# leen las variables de entorno ya definidas.
+python-dotenv>=1.0
 # Opcionales:
 # lightgbm>=4.0        # alternativa a XGBoost
 # kaleido>=0.2         # exportar los gráficos Plotly a PNG

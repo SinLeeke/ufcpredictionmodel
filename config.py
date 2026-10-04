@@ -135,3 +135,31 @@ METHOD_BASE_RATES = {"KO/TKO": 0.308, "Submission": 0.177, "Decision": 0.515}
 
 # Nº de simulaciones Monte Carlo
 N_SIMULATIONS = 10_000
+
+# --------------------------------------------------------------------------- #
+# Mercado: capa común de cuotas (src/cuotas/)
+# --------------------------------------------------------------------------- #
+# Las claves viven en un .env en la raíz (ver .env.example), nunca en el código
+# ni en el repo. python-dotenv es opcional: sin él se leen solo las variables
+# de entorno ya definidas, y la app arranca igual.
+import os as _os
+
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    # override=False: una variable ya puesta en la consola manda sobre el .env.
+    _load_dotenv(ROOT / ".env", override=False)
+except ImportError:
+    pass
+
+# The Odds API (plan gratis: 500 créditos al mes). THE_ODDS_API_KEY es el nombre
+# que usaba src/cuotas_fuentes.py antes de la capa; se conserva como respaldo
+# para no romper a quien ya lo tenía configurado. NUNCA se imprime.
+ODDS_API_KEY = (_os.environ.get("ODDS_API_KEY") or _os.environ.get("THE_ODDS_API_KEY") or "").strip()
+# Región de casas de The Odds API (us, us2, uk, eu, au). Cada región extra cuesta
+# un crédito más por llamada: por eso es una sola.
+ODDS_API_REGION = (_os.environ.get("ODDS_API_REGION") or "us").strip() or "us"
+
+# Modo simulado del mercado en vivo: UFC_MERCADO_SIMULADO=1 agrega una fuente
+# `simulada` y un evento en vivo falso para probar la UI sin pelea real.
+# Apagado (lo normal) no deja rastro en la capa ni en los endpoints.
+MERCADO_SIMULADO = _os.environ.get("UFC_MERCADO_SIMULADO", "").strip() == "1"

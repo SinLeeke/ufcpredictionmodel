@@ -53,6 +53,8 @@ kaggle.json
 # Variables de entorno con tokens o keys
 .env
 .env.*
+# La plantilla vacía sí se versiona: documenta las variables sin ningún valor.
+!.env.example
 *.pem
 *.key
 secrets.json
