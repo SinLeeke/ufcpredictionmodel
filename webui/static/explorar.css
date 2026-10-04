@@ -1,0 +1,274 @@
+/* Exploración: listas de aspirantes y fichas, con la tinta de la transmisión. */
+.metas-nombre{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;margin-left:7px;white-space:nowrap}
+.nombre-bandera{width:24px!important;height:18px!important;object-fit:cover;border:1px solid #777;flex:none}
+.insignia-ranking{display:inline-flex;align-items:center;justify-content:center;min-width:23px;height:23px;padding:0 4px;box-sizing:border-box;background:#5c5c5c;color:#fff!important;font:800 16px/1 var(--display);letter-spacing:0;text-shadow:none}
+.insignia-campeon{background:#cfb05a;color:#17130a!important}
+.j-nombre .metas-nombre{gap:3px;margin-left:4px}.j-nombre .nombre-bandera{width:18px!important;height:14px!important}.j-nombre .insignia-ranking{min-width:18px;height:18px;font-size:13px}
+#cuotas-lista>label{display:block;margin:20px 0 6px;font-weight:600}
+#evento-cuotas{width:100%;max-width:100%;padding:12px;background:var(--sup);color:var(--txt);border:1px solid var(--linea);font:inherit}
+.perfil-cab:not(:has(.perfil-retrato)){grid-template-columns:minmax(0,1fr)}
+.explorar-cab{margin:8px 0 30px;max-width:75ch}
+.explorar-cab h1,.perfil-cab h1{font:800 clamp(34px,5vw,58px)/1 var(--display);margin:0 0 12px;text-transform:uppercase;text-wrap:balance}
+.explorar-cab p{margin:8px 0;color:var(--txt2)}
+.enlace-peleador{font:700 22px/1.1 var(--display);color:var(--txt);text-decoration:none;overflow-wrap:anywhere}
+.enlace-peleador:hover{text-decoration:underline;text-decoration-color:var(--marca);text-underline-offset:4px;color:var(--marca)}
+
+/* --------------------------------- Rankings --------------------------------- */
+/* Un cartel por división: el campeón arriba, en dorado y con su foto dentro del
+   octágono; debajo los aspirantes como zócalos. El dorado es el de toda la app:
+   el sello de campeón (#cfb05a, igual que .insignia-campeon), la tinta dorada
+   del texto (--titulo-tinta) y el metal de los títulos (--titulo-metal) en el
+   marco y la regla. El gris de los puestos es el de .insignia-ranking. */
+.ranking-layout{--rk-sesgo:6px;--rk-oct:polygon(29.29% 0,70.71% 0,100% 29.29%,100% 70.71%,70.71% 100%,29.29% 100%,0 70.71%,0 29.29%);
+  display:grid;grid-template-columns:220px minmax(0,780px);gap:44px}
+[data-estilo="juez"] .ranking-layout{--rk-sesgo:0px}   /* el papel no se inclina */
+.ranking-pesos{position:sticky;top:145px;align-self:start;min-width:0}
+.rk-grupo+.rk-grupo{margin-top:26px}
+.rk-grupo-titulo{margin:0;padding:10px 0 9px;border-top:3px solid var(--txt);font:800 13px/1 var(--display);
+  letter-spacing:.08em;text-transform:uppercase;color:var(--txt)}
+.rk-menu button{display:flex;width:100%;justify-content:flex-start;border:0;border-bottom:1px solid var(--linea);padding:12px 14px;
+  text-align:left;font:700 18px/1.15 var(--display);letter-spacing:.02em;text-transform:uppercase;background:transparent;color:var(--txt2)}
+.rk-menu button.activo{color:var(--txt)}
+@media(hover:hover) and (pointer:fine){.rk-menu button:hover:not(.activo){color:var(--txt);background:var(--sup)}}
+/* La copia en tinta invertida, encima y recortada al botón activo (ver
+   marcarDivision en explorar.js). Arranca sin recorte visible hasta que el JS
+   mide; el viaje entre pesos dura 300 ms con --ease-in-out, como la etiqueta
+   de las pestañas de la cabecera. */
+.rk-copia{position:absolute;inset:0;pointer-events:none;clip-path:polygon(0 0,0 0,0 0,0 0);
+  transition:clip-path 300ms var(--ease-in-out)}
+.rk-copia .rk-grupo-titulo{visibility:hidden}
+.rk-copia button{background:var(--txt);color:var(--sup);border-bottom-color:var(--txt)}
+
+.rk-cab{display:flex;align-items:center;flex-wrap:wrap;gap:10px 16px;margin:0 0 16px}
+.rk-cab h2{font:800 clamp(30px,4vw,44px)/1 var(--display);letter-spacing:-.005em;text-wrap:balance}
+.rk-genero{padding:6px 15px 5px;font:800 13px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;
+  background:var(--txt);color:var(--sup);clip-path:polygon(var(--rk-sesgo) 0,100% 0,calc(100% - var(--rk-sesgo)) 100%,0 100%)}
+.ranking-aspirantes{list-style:none;margin:0;padding:0;background:var(--sup);border-top:3px solid var(--txt)}
+.rk-fila{position:relative;display:grid;grid-template-columns:48px minmax(0,1fr) 24px;gap:16px;align-items:center;
+  padding:14px 22px;border-bottom:1px solid var(--linea);transition:background-color 160ms ease}
+.rk-num{display:grid;place-items:center;width:44px;height:32px;font:800 21px/1 var(--display);font-variant-numeric:tabular-nums;
+  color:#fff;background:#5c5c5c;clip-path:polygon(var(--rk-sesgo) 0,100% 0,calc(100% - var(--rk-sesgo)) 100%,0 100%)}
+.rk-oro .rk-num{color:#17130a;background:#cfb05a}
+.rk-txt{min-width:0}
+.rk-identidad{display:flex;flex-wrap:wrap;align-items:center;gap:7px 12px;min-width:0}
+.rk-identidad .rk-nombre{min-width:0}
+.rk-categoria{display:inline-block;max-width:100%;padding:4px 7px;background:var(--sup2);color:var(--txt2);
+  font:600 13px/1.25 var(--display);letter-spacing:.04em;text-transform:uppercase;overflow-wrap:anywhere}
+.rk-nombre{font:700 22px/1.08 var(--display);letter-spacing:.01em;text-transform:uppercase;color:var(--txt);text-decoration:none;overflow-wrap:anywhere}
+/* Toda la fila lleva a la ficha: el enlace se estira sobre ella. La bandera
+   queda encima del velo para que su title (el país) se vea al pasar el mouse. */
+.rk-nombre::after{content:"";position:absolute;inset:0}
+.rk-nombre:focus-visible{outline:none}
+.rk-fila:has(.rk-nombre:focus-visible){outline:2px solid var(--marca);outline-offset:-2px}
+.rk-bandera{position:relative;z-index:1;display:inline-block;width:24px;height:18px;margin-left:9px;vertical-align:-1px;
+  object-fit:cover;border:1px solid color-mix(in srgb,var(--txt) 22%,transparent)}
+.rk-rotulo{display:block;margin-top:6px;font:800 12.5px/1.2 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--titulo-tinta)}
+.ranking-ir{display:flex;color:var(--tenue);transition:transform 160ms var(--ease-out),color 160ms ease}
+/* Realce al pasar: la fila se entinta apenas, el nombre se subraya en tinta
+   (el rojo es caro: queda para el foco) y la flecha avanza 5 px. Solo con un
+   puntero fino: en pantalla táctil el hover se queda pegado tras tocar. */
+@media(hover:hover) and (pointer:fine){
+  .rk-fila:hover{background:color-mix(in srgb,var(--txt) 4%,var(--sup))}
+  .rk-fila:hover .rk-nombre-txt{text-decoration:underline 2px;text-underline-offset:5px}
+  .rk-fila:hover .ranking-ir{transform:translateX(5px);color:var(--txt)}
+  .rk-estrella:hover{background:color-mix(in srgb,var(--titulo-tinta) 13%,var(--sup))}
+}
+
+/* La estrella: el campeón de la división o el número uno del libra por libra.
+   Fondo con un toque de dorado y la regla de metal de los títulos. */
+.rk-estrella{grid-template-columns:52px 112px minmax(0,1fr) 24px;gap:20px;padding:20px 22px;
+  background:color-mix(in srgb,var(--titulo-tinta) 8%,var(--sup));border-bottom:3px solid var(--titulo-tinta);border-image:var(--titulo-metal) 1}
+.rk-estrella .rk-num{width:52px;height:40px;font-size:30px}
+.rk-estrella .rk-nombre{font-weight:800;font-size:clamp(26px,3vw,34px);line-height:1}
+.rk-estrella .rk-rotulo{font-size:13.5px;margin-top:8px}
+/* El marco: octágono regular (el de la jaula) en metal dorado; adentro la
+   lona, otro octágono 4 px más chico, con lo que el filete mide lo mismo en
+   los ocho lados. La foto va en una capa aparte para poder descubrirla con
+   clip-path sin perder la forma del marco. */
+.rk-oct{position:relative;display:block;width:112px;aspect-ratio:1;background:var(--titulo-metal);clip-path:var(--rk-oct)}
+.rk-lona{position:absolute;inset:4px;overflow:hidden;clip-path:var(--rk-oct);
+  background:color-mix(in srgb,var(--titulo-tinta) 14%,var(--sil-fondo))}
+.rk-foto{position:absolute;inset:0;background:transparent}
+.rk-foto img{object-fit:cover;object-position:50% 12%}
+
+/* Cargando y error. */
+.rk-cargando .rk-num,.rk-cargando .rk-oct{background:var(--sup2)}
+.rk-cargando .rk-txt i{display:block;width:55%;height:18px;background:var(--sup2)}
+.rk-cargando .rk-estrella{border-image:none;border-bottom-color:var(--linea);background:var(--sup)}
+.rk-cargando{position:relative;overflow:hidden}
+.rk-cargando::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--sup) 70%,transparent) 50%,transparent 70%);
+  translate:-100% 0;animation:brillo 1.3s var(--ease-in-out) infinite}
+.rk-error{padding:20px 22px;background:var(--sup);border-top:3px solid var(--marca)}
+.rk-error p{margin:0 0 14px}
+.rk-vacio{padding:20px 22px;background:var(--sup);border-top:3px solid var(--txt)}
+.rk-vacio p{margin:10px 0 0;color:var(--txt2)}
+
+[data-estilo="juez"] .rk-nombre,[data-estilo="juez"] .rk-cab h2{font-family:var(--maquina);letter-spacing:-.05em}
+@media(prefers-reduced-motion:reduce){
+  .rk-copia{transition:none}
+  .rk-fila:hover .ranking-ir{transform:none}
+  .rk-cargando::after{animation:none;translate:none;background:none}
+}
+@media(forced-colors:active){.rk-estrella{border-image:none}}
+.buscar-peleador{max-width:760px;margin:0 0 22px}
+.buscar-peleador label{display:block;font:700 14px/1.2 var(--display);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.buscar-peleador input{min-width:0;flex:1}
+#catalogo-total{padding-top:14px;border-top:1px solid var(--linea);margin:0 0 12px;color:var(--txt2)}
+.catalogo-lista{list-style:none;margin:0 0 20px;padding:0;border-top:3px solid var(--txt);background:var(--sup)}
+.catalogo-fila{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto 20px;gap:22px;align-items:center;
+  min-height:88px;padding:17px 22px;border-bottom:1px solid var(--linea);transition:background-color 160ms ease}
+.catalogo-identidad{min-width:0}
+.catalogo-identidad .enlace-peleador{font:800 25px/1.1 var(--display);text-transform:uppercase;letter-spacing:.01em}
+.catalogo-identidad .enlace-peleador::after{content:"";position:absolute;inset:0}
+.catalogo-identidad .enlace-peleador:focus-visible{outline:none}
+.catalogo-fila:has(.enlace-peleador:focus-visible){outline:2px solid var(--marca);outline-offset:-2px}
+.catalogo-identidad .metas-nombre{position:relative;z-index:1}
+.catalogo-identidad small{display:block;margin-top:5px;color:var(--txt2);font-size:14px}
+.catalogo-registro{display:grid;grid-template-columns:auto auto;gap:1px 8px;align-items:baseline;color:var(--txt2);text-align:right}
+.catalogo-registro b{font:800 28px/1 var(--display);color:var(--txt)}
+.catalogo-registro>span{font:600 13px/1.2 var(--display);text-transform:uppercase;letter-spacing:.04em}
+.catalogo-registro small{grid-column:1/-1;margin-top:4px;font-size:12.5px;color:var(--tenue)}
+.catalogo-registro .catalogo-ausente{font:400 13px/1.3 var(--texto);text-transform:none;letter-spacing:0;max-width:20ch}
+.catalogo-ir{display:grid;place-items:center;color:var(--tenue)}
+.catalogo-ir .ico{width:18px;height:18px;transition:transform 160ms var(--ease-out)}
+@media(hover:hover) and (pointer:fine){
+  .catalogo-fila:hover{background:color-mix(in srgb,var(--txt) 4%,var(--sup))}
+  .catalogo-fila:hover .enlace-peleador{color:var(--txt);text-decoration:underline 2px;text-underline-offset:4px}
+  .catalogo-fila:hover .catalogo-ir .ico{transform:translateX(3px)}
+}
+#catalogo-mas{min-height:44px;margin-bottom:12px}
+#perfil-volver{min-height:44px;padding-inline:14px;margin-bottom:18px;gap:9px}
+.perfil-retorno-ico{transform:rotate(180deg)}
+.perfil-cab{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:30px;align-items:center;margin:0 0 22px;
+  background:var(--sup);border-top:3px solid var(--txt);border-bottom:1px solid var(--linea);padding:24px 26px}
+.perfil-identidad{min-width:0}
+.perfil-cab h1{margin:0 0 10px;font-size:clamp(34px,4.5vw,56px);overflow-wrap:anywhere}
+.perfil-cab p{max-width:65ch;color:var(--txt2)}
+.perfil-cab .perfil-division{margin:0 0 18px;font:700 18px/1.3 var(--display);text-transform:uppercase;letter-spacing:.03em;color:var(--txt)}
+.perfil-division small{font:400 13px/1.3 var(--texto);text-transform:none;letter-spacing:0;color:var(--tenue)}
+.perfil-bio{display:flex;flex-wrap:wrap;gap:10px 24px;margin:0 0 20px;padding-bottom:16px;border-bottom:1px solid var(--linea)}
+.perfil-bio>div{min-width:0}
+.perfil-bio dt{font:700 12px/1.2 var(--display);text-transform:uppercase;letter-spacing:.06em;color:var(--tenue);margin-bottom:4px}
+.perfil-bio dd{margin:0;font:600 16px/1.2 var(--display);color:var(--txt)}
+.perfil-record{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:0;max-width:520px}
+.perfil-record>div{display:flex;flex-direction:column-reverse;align-self:start;gap:5px}
+.perfil-record dt{font:700 12px/1.3 var(--display);text-transform:uppercase;letter-spacing:.05em;color:var(--txt2)}
+.perfil-record dd{margin:0;font:800 36px/1 var(--display);color:var(--txt)}
+.perfil-cab .perfil-record-nota{margin:10px 0 0;font-size:12.5px;color:var(--tenue)}
+.perfil-cab .perfil-procedencia{margin:16px 0 0;font-size:13px}
+.perfil-retrato{align-self:end;min-width:0;border-bottom:3px solid var(--txt)}
+.perfil-retrato .retrato{width:100%;aspect-ratio:4/5;background:var(--sup2)}
+.perfil-retrato img{width:100%;height:100%;object-fit:contain;object-position:center bottom}
+.perfil-aviso{background:var(--alerta-sup);color:var(--alerta);padding:16px 20px;border:1px solid currentColor;max-width:75ch}
+.perfil-fuente{margin:0 0 24px;max-width:75ch}
+.perfil-estadisticas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.perfil-estadisticas section{min-width:0;background:var(--sup);padding:0 22px 22px;border-top:3px solid var(--txt)}
+.perfil-estadisticas h2{font:800 28px/1.1 var(--display);margin:0;padding:17px 0 14px;border-bottom:1px solid var(--linea);text-transform:uppercase}
+.perfil-estadisticas h3{font:700 18px/1.2 var(--display);text-transform:uppercase;margin:24px 0 10px}
+.perfil-metricas{margin:0}
+.perfil-metricas>div{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 0;border-bottom:1px solid var(--linea)}
+.perfil-metricas dt{font:700 17px/1.2 var(--display);min-width:0}
+.perfil-metricas dt small{display:block;font:400 12.5px/1.4 var(--texto);color:var(--tenue);margin-top:3px}
+.perfil-metricas dd{font:800 30px/1 var(--display);margin:0;white-space:nowrap}
+.perfil-reparto{margin:0}
+.perfil-reparto>div{display:grid;grid-template-columns:90px minmax(0,1fr);align-items:center;gap:12px;padding:8px 0}
+.perfil-reparto dd{display:flex;align-items:center;gap:12px;margin:0}
+.perfil-reparto dd>span:first-child{width:42px;text-align:right;font:700 18px/1 var(--display)}
+.perfil-barra{height:5px;background:var(--linea);display:block;flex:1}
+.perfil-barra i{display:block;height:100%;background:var(--txt2)}
+.perfil-historial{margin:30px 0}
+.perfil-historial>h2{font:800 28px/1.1 var(--display);text-transform:uppercase}
+.perfil-desplegable{background:var(--sup);border-top:3px solid var(--txt)}
+.perfil-desplegable>summary{display:flex;align-items:center;gap:12px;min-height:66px;padding:16px 22px;list-style:none;cursor:pointer}
+.perfil-desplegable>summary::-webkit-details-marker{display:none}
+.perfil-desplegable>summary h2{font:800 28px/1.1 var(--display);text-transform:uppercase;margin:0;min-width:0}
+.perfil-desplegable>summary span{margin-left:auto;color:var(--tenue);font:600 14px/1.3 var(--display);white-space:nowrap}
+.perfil-desplegable>summary svg{width:20px;height:20px;flex:none;fill:none;stroke:var(--tenue);stroke-width:2;transition:transform 160ms var(--ease-out)}
+.perfil-desplegable[open]:not([data-cerrando])>summary svg{transform:rotate(180deg)}
+.perfil-desplegable>summary:focus-visible{outline:2px solid var(--marca);outline-offset:-3px}
+.perfil-desplegable .tabla-scroll{border-top:1px solid var(--linea)}
+.perfil-desplegable[data-sin-movimiento]>summary svg{transition:none}
+.perfil-historial table{width:100%}
+.perfil-historial td small{display:block;color:var(--tenue);font-size:12px;margin-top:4px}
+.perfil-historial .enlace-peleador{font-size:18px}
+.perfil-res{font-weight:600}.perfil-res.res-V{color:var(--ok)}.perfil-res.res-P{color:var(--error)}
+.perfil-cargando{padding:24px;background:var(--sup);border-top:3px solid var(--txt)}
+.caja-cuotas .cuotas-controles{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:end;gap:10px 12px;margin:18px 20px}
+.cuotas-controles label{grid-column:1/-1;font:700 13px/1.2 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--txt2)}
+.cuotas-controles select{width:100%;min-width:0;min-height:44px}
+.cuotas-controles button{min-height:44px}
+.cuotas-controles #btn-historial-cuotas{grid-column:1/-1;justify-self:start;margin-top:4px;padding:6px 0;border:0;background:transparent;color:var(--txt2);text-decoration:underline;text-underline-offset:4px;text-align:left}
+.cuotas-controles select,.cuotas-evento select{max-width:100%;background:var(--sup);color:var(--txt);border:1px solid var(--linea);padding:10px;font:inherit}
+.caja-cuotas .cuotas-controles select{border:1.5px solid var(--tenue)}
+.caja-cuotas>p.nota{line-height:1.55;max-width:65ch}
+#cuotas-estado{padding-top:12px;border-top:1px solid var(--linea)}
+#cuotas-lista,#cuotas-historial{margin-inline:20px}
+.cuotas-evento{padding:22px 0;border-top:1px solid var(--linea)}
+.cuotas-evento h3{margin:0 0 5px}.cuotas-evento label{display:block;font-size:13px;margin:12px 0 5px}
+.cuotas-evento select{width:100%;min-height:44px;border-color:var(--tenue)}
+.cuotas-evento ul{list-style:none;padding:0;margin:16px 0;color:var(--txt2);font-size:14px}
+.cuotas-evento li{display:flex;justify-content:space-between;gap:20px;padding:7px 0;border-bottom:1px solid var(--linea)}.cuotas-evento li span,.cuotas-evento li small{color:var(--tenue)}
+.cuotas-evento li>div{min-width:0;overflow-wrap:anywhere}
+.cuotas-evento li small{white-space:nowrap;font-variant-numeric:tabular-nums}
+#cuotas-historial{padding-top:12px}#cuotas-historial ul{list-style:none;padding:0}#cuotas-historial li{margin:8px 0}
+#cuotas-historial button{max-width:100%;min-height:44px;text-align:left;white-space:normal;line-height:1.3}
+.fuente-cuotas-aviso{margin:12px 0 20px;padding:12px 16px;border:1px solid var(--linea);color:var(--txt2);font-size:14px;background:var(--sup)}
+[data-estilo="juez"] .explorar-cab h1,[data-estilo="juez"] .perfil-cab h1{font-family:var(--maquina);font-size:clamp(30px,4vw,48px);letter-spacing:-.03em}
+@media(max-width:800px){
+  .ranking-layout{grid-template-columns:minmax(0,1fr);gap:22px}
+  /* Angosto: cada grupo es una fila con scroll propio y la copia viajera se
+     apaga; el botón activo lleva la tinta invertida él mismo. */
+  .ranking-pesos{position:static}
+  .rk-copia{display:none}
+  .rk-grupo{display:flex;align-items:center;gap:4px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
+  .rk-grupo+.rk-grupo{margin-top:10px}
+  .rk-grupo-titulo{flex:none;border-top:0;padding:0 10px 0 0}
+  .rk-menu button{flex:none;width:auto;min-height:44px;white-space:nowrap;padding:11px 14px;font-size:16px;border:1px solid var(--linea)}
+  .rk-menu button.activo{background:var(--txt);color:var(--sup);border-color:var(--txt)}
+  .perfil-cab{grid-template-columns:minmax(0,1fr) 170px;gap:20px;padding:20px}
+  .perfil-estadisticas{gap:28px}
+}
+@media(max-width:540px){
+  .explorar-cab{margin-bottom:24px}
+  .rk-fila{grid-template-columns:40px minmax(0,1fr) 18px;gap:12px;padding:13px 14px}
+  .rk-num{width:38px;height:28px;font-size:19px}
+  .rk-nombre{font-size:20px}
+  .rk-estrella{grid-template-columns:44px 76px minmax(0,1fr) 18px;gap:12px;padding:16px 14px}
+  .rk-estrella .rk-num{width:44px;height:34px;font-size:24px}
+  .rk-estrella .rk-nombre{font-size:24px}
+  .rk-oct{width:76px}.rk-lona{inset:3px}
+  .rk-bandera{width:20px;height:15px;margin-left:7px}
+  .catalogo-fila{grid-template-columns:minmax(0,1fr) 20px;gap:5px 12px;padding:14px;min-height:84px}
+  .catalogo-registro{grid-column:1;display:flex;flex-wrap:wrap;text-align:left;gap:2px 7px;margin-top:5px}
+  .catalogo-registro b{font-size:18px}
+  .catalogo-registro>span{font-size:12px}
+  .catalogo-registro small{flex-basis:100%;margin:0}
+  .catalogo-ir{grid-column:2;grid-row:1/3}
+  .catalogo-identidad .enlace-peleador{font-size:23px}
+  .enlace-peleador{font-size:21px}
+  .perfil-cab{grid-template-columns:minmax(0,1fr) 96px;gap:14px 12px;padding:16px 14px}
+  .perfil-identidad{display:contents}
+  .perfil-identidad>:not(h1){grid-column:1/-1}
+  .perfil-cab h1{grid-column:1;align-self:center;font-size:34px;margin:0}
+  .perfil-cab .perfil-division{margin:0}
+  .perfil-bio{margin:0;gap:12px 20px}
+  .perfil-record{gap:10px}
+  .perfil-record dd{font-size:30px}
+  .perfil-cab .perfil-record-nota,.perfil-cab .perfil-procedencia{margin:0}
+  .perfil-retrato{grid-column:2;grid-row:1;align-self:start;width:96px}
+  .perfil-estadisticas{grid-template-columns:minmax(0,1fr);gap:30px}
+  .perfil-estadisticas section{padding-inline:16px}
+  .perfil-estadisticas h2{font-size:26px}
+  .perfil-desplegable>summary{padding:14px 16px;gap:8px}
+  .perfil-desplegable>summary h2{font-size:24px}
+  .caja-cuotas .cuotas-controles{grid-template-columns:minmax(0,1fr)}
+  .cuotas-controles label,.cuotas-controles #btn-historial-cuotas{grid-column:1}
+}
+@media(prefers-reduced-motion:reduce){
+  .catalogo-ir .ico,.perfil-desplegable>summary svg{transition:none}
+  .catalogo-fila:hover .catalogo-ir .ico{transform:none}
+}
+[data-estilo="juez"] .catalogo-identidad .enlace-peleador,[data-estilo="juez"] .catalogo-registro b,
+[data-estilo="juez"] .perfil-record dd,[data-estilo="juez"] .perfil-metricas dd{font-family:var(--maquina);letter-spacing:-.04em}
+[data-estilo="juez"] .perfil-cab,[data-estilo="juez"] .perfil-estadisticas section,[data-estilo="juez"] .perfil-desplegable{border-top-color:var(--forma)}
