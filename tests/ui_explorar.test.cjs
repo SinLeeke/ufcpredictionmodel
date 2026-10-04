@@ -14,6 +14,8 @@ vm.runInContext(fs.readFileSync(path.join(raiz, 'webui/static/iconos.js'), 'utf8
 vm.runInContext(app.slice(app.indexOf('const NBSP_FINO ='), app.indexOf('const cls =')), contexto);
 vm.runInContext(app.slice(app.indexOf('const SILUETA ='), app.indexOf('function cargarFotos(')), contexto);
 vm.runInContext("const miles = n => Number(n).toLocaleString('es-CL'); const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'; const reducir = () => movimientoReducido;", contexto);
+// Las duraciones compartidas (MOV) tal cual están en app.js.
+vm.runInContext(app.slice(app.indexOf('const MOV ='), app.indexOf('// Lo que se hace con el teclado')), contexto);
 vm.runInContext(explorar.slice(0, explorar.indexOf('async function cargarRankings(')), contexto);
 vm.runInContext(explorar.slice(explorar.indexOf('function filaCatalogo('), explorar.indexOf('async function buscarPeleadores(')), contexto);
 vm.runInContext(explorar.slice(explorar.indexOf('const medidaPerfil ='), explorar.indexOf('function volverPeleadores(')), contexto);
@@ -150,15 +152,16 @@ test('los desgloses ignoran valores ausentes y conservan la proporción medida',
   assert.match(contexto.repartoPerfil({head:null,body:0},{head:'Cabeza',body:'Cuerpo'}), /Desglose no disponible/);
 });
 
-test('la exploración anima solo entradas nuevas con GPU y un escalonado acotado', () => {
+test('la exploración escalona con las duraciones compartidas, solo transform y opacidad, y corta en la fila 12', () => {
   const animaciones = [];
   const filas = Array.from({length:20},()=>({animate:(frames,opciones)=>animaciones.push({frames,opciones})}));
   contexto.entrarExploracion(filas);
-  assert.equal(animaciones.length, 8);
+  assert.equal(animaciones.length, 20);
   assert.equal(animaciones[0].opciones.delay, 0);
-  assert.equal(animaciones[7].opciones.delay, 210);
+  assert.equal(animaciones[12].opciones.delay, 12 * 28);
+  assert.equal(animaciones[19].opciones.delay, 12 * 28);       // la cola no se alarga
   for (const a of animaciones) {
-    assert.equal(a.opciones.duration, 220);
+    assert.equal(a.opciones.duration, 240);
     assert.ok(a.frames.every(f => Object.keys(f).every(k => ['transform','opacity'].includes(k))));
     assert.match(a.opciones.easing, /^cubic-bezier/);
   }
@@ -172,7 +175,7 @@ test('teclado no anima la exploración y movimiento reducido conserva un fundido
   contexto.porTeclado = false;
   contexto.movimientoReducido = true;
   contexto.entrarExploracion(filas);
-  assert.equal(animaciones[0].opciones.duration, 100);
+  assert.equal(animaciones[0].opciones.duration, 150);
   assert.equal(animaciones[0].opciones.delay, 0);
   assert.ok(animaciones[0].frames.every(f => Object.keys(f).length === 1 && 'opacity' in f));
   contexto.movimientoReducido = false;
@@ -221,4 +224,18 @@ test('sin pelea reconstruible se dice por qué, y aun así cómo terminó', () =
     resultado:{ganador:'Ana Arco', lado:'a', como:'KO/TKO'}});
   assert.match(html, /La base no alcanza para antes de 2013\./);
   assert.match(html, /Ganó Ana Arco/);
+});
+
+
+test('cada fila del listado lleva su foto en el cartel; el campeón en dorado y un nombre compartido sin foto', () => {
+  const normal = contexto.filaCatalogo({nombre:'Aaron Brink', id:'1234', peso:'Pesado', peleas:1});
+  assert.match(normal, /data-id="1234"/);
+  assert.match(normal, /class="catalogo-foto foto-cartel" aria-hidden="true"><figure class="retrato" data-foto="Aaron Brink" data-calidad="alta">/);
+  const campeon = contexto.filaCatalogo({nombre:'Islam Makhachev', id:'44', peso:'Wélter', peleas:18,
+    campeon:{clave:'Welterweight', division:'Peso welter', interino:false}});
+  assert.match(campeon, /class="catalogo-fila catalogo-oro"/);
+  assert.match(campeon, /catalogo-foto foto-cartel oro/);
+  assert.match(campeon, /class="catalogo-cinturon">Campeón peso wélter</);
+  const homonimo = contexto.filaCatalogo({nombre:'Mike Davis', id:null, homonimo:true, campeon:{clave:'Lightweight'}, peleas:null});
+  assert.doesNotMatch(homonimo, /data-foto|catalogo-oro|catalogo-cinturon/);
 });

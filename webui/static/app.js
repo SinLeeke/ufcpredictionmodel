@@ -2928,14 +2928,14 @@ const filaAnterior = (p) => `<button type="button" class="anterior${p.titulo ? '
 // Las fotos se piden solo al acercarse a la pantalla: el servidor las baja de a
 // una, y una lista larga las pediría todas juntas.
 let observadorFotos;
-function fotosAlVerse(raiz) {
+function fotosAlVerse(raiz, selector = '.anterior') {
   if (!('IntersectionObserver' in window)) { cargarFotos(raiz); return; }
   observadorFotos ??= new IntersectionObserver(entradas => entradas.forEach(e => {
     if (!e.isIntersecting) return;
     observadorFotos.unobserve(e.target);
     cargarFotos(e.target);
   }), { rootMargin: '200px 0px' });
-  raiz.querySelectorAll('.anterior').forEach(fila => observadorFotos.observe(fila));
+  raiz.querySelectorAll(selector).forEach(fila => observadorFotos.observe(fila));
 }
 async function listarAnteriores({ forzar = false } = {}) {
   const div = $('#lista-anteriores');

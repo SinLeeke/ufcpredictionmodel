@@ -43,8 +43,8 @@ const banderaRanking = p => p.pais && /^[A-Z]{2}$/.test(String(p.pais.bandera ||
 // con el mismo metal dorado de la baranda de los títulos. La foto la resuelve
 // cargarFotos() de app.js: misma caché, misma silueta mientras llega o si no hay.
 const fotoCampeon = nombre => {
-  const url = FOTOS.get(nombre);
-  return `<span class="rk-oct" aria-hidden="true"><span class="rk-brillo"></span><span class="rk-lona"><span class="retrato rk-foto" data-foto="${esc(nombre)}">${
+  const url = FOTOS.get(claveFoto(nombre, true));
+  return `<span class="rk-oct" aria-hidden="true"><span class="rk-brillo"></span><span class="rk-lona"><span class="retrato rk-foto" data-foto="${esc(nombre)}" data-calidad="alta">${
     url ? `<img src="${url}" alt="" decoding="async">` : SILUETA}</span></span></span>`;
 };
 // «Campeón» o «Campeona» según la división (la del cinturón o la que se mira).
@@ -247,12 +247,19 @@ function abrirCatalogo() {
   $('#catalogo-vista').classList.remove('oculto'); $('#perfil-vista').classList.add('oculto');
 }
 
+// Cada fila con su foto en el cartel (grafito, o dorado si es campeón vigente).
+// Un nombre compartido por dos fichas no lleva foto: mejor la silueta que la
+// cara de otro. La foto se pide al acercarse a la pantalla (fotosAlVerse).
 function filaCatalogo(p) {
   const categoria = p.homonimo ? 'Nombre compartido: historiales sin separar' : p.peso || 'División no disponible';
   const registro = p.peleas == null
     ? `<span class="catalogo-ausente">${p.nacimiento ? 'Nació el ' + esc(fechaExplorar(p.nacimiento)) : 'Nacimiento no disponible'}</span>`
     : `<b>${miles(p.peleas)}</b><span>${p.peleas === 1 ? 'pelea en UFC' : 'peleas en UFC'}</span>`;
-  return `<li class="catalogo-fila"><div class="catalogo-identidad">${perfilEnlace(p.nombre,p.id,p.identidad_visual)}<small>${esc(categoria)}</small></div>
+  const oro = !!p.campeon && !p.homonimo;
+  const foto = p.homonimo ? `<figure class="retrato">${SILUETA}</figure>` : retrato(p.nombre, '', {alta: true});
+  return `<li class="catalogo-fila${oro ? ' catalogo-oro' : ''}"${p.id ? ` data-id="${esc(p.id)}"` : ''}>
+    <div class="catalogo-foto foto-cartel${oro ? ' oro' : ''}" aria-hidden="true">${foto}</div>
+    <div class="catalogo-identidad">${perfilEnlace(p.nombre,p.id,p.identidad_visual)}${oro ? `<small class="catalogo-cinturon">${esc(rotuloCampeon(p.campeon, null, true))}</small>` : ''}<small>${esc(categoria)}</small></div>
     <div class="catalogo-registro">${registro}${p.ultima ? `<small>Última: ${esc(fechaExplorar(p.ultima))}</small>` : ''}</div>
     <span class="catalogo-ir" aria-hidden="true">${ico('ir')}</span></li>`;
 }
@@ -260,12 +267,55 @@ function filaCatalogo(p) {
 // Llegar a una ficha o ampliar la lista es ocasional: el fundido con 6 px une
 // el cambio de superficie, sin contar cifras desde cero ni mover lo leído.
 // La búsqueda escrita y las acciones de teclado son instantáneas.
-function entrarExploracion(elementos, { escalonar = true } = {}) {
+function entrarExploracion(elementos, { escalonar = true, desde = 0 } = {}) {
   if (porTeclado) return;
   const quieto = reducir();
-  Array.from(elementos).slice(0, 8).forEach((el, i) => el.animate(quieto
-    ? [{opacity:0}, {opacity:1}] : [{opacity:0, transform:'translateY(6px)'}, {opacity:1, transform:'none'}],
-    {duration:quieto ? 100 : 220, delay:quieto || !escalonar ? 0 : i * 30, easing:EASE_OUT, fill:'backwards'}));
+  Array.from(elementos).forEach((el, i) => el.animate(quieto
+    ? [{opacity:0}, {opacity:1}] : [{opacity:0, transform:`translateY(${MOV.desplaza}px)`}, {opacity:1, transform:'none'}],
+    {duration:quieto ? 150 : MOV.entrada, delay:quieto || !escalonar ? 0 : desde + Math.min(i, MOV.escalonMax) * MOV.escalon,
+     easing:EASE_OUT, fill:'backwards'}));
+}
+
+// Una búsqueda nueva hecha con el puntero (Buscar, o un enlace #buscar-):
+// las filas que se van se funden donde estaban (una copia encima, que no
+// recibe clics), las que siguen viajan de su lugar viejo al nuevo (FLIP) y
+// las nuevas entran escalonadas. Lo escrito tecla a tecla no se anima: es
+// teclado, y repetido. Otra búsqueda a medio camino termina la anterior.
+function medirCatalogo() {
+  const lista = $('#catalogo-lista');
+  return new Map(Array.from(lista.querySelectorAll('.catalogo-fila[data-id]'), li => [li.dataset.id, li.getBoundingClientRect()]));
+}
+function reacomodarCatalogo(antes, fantasmas) {
+  const lista = $('#catalogo-lista');
+  const quieto = reducir();
+  const caja = lista.getBoundingClientRect();
+  const capa = document.createElement('div');
+  capa.className = 'catalogo-fantasmas';
+  capa.setAttribute('aria-hidden', 'true');
+  const nuevas = [];
+  const ahora = new Set();
+  lista.querySelectorAll('.catalogo-fila').forEach(li => {
+    const r0 = li.dataset.id && antes.get(li.dataset.id);
+    if (li.dataset.id) ahora.add(li.dataset.id);
+    if (!r0) { nuevas.push(li); return; }
+    const dy = r0.top - li.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1 || quieto) return;
+    li.animate([{transform: `translateY(${dy}px)`}, {transform: 'none'}], {duration: MOV.viaje, easing: EASE_IN_OUT});
+  });
+  fantasmas.forEach(([id, nodo, r]) => {
+    if (ahora.has(id)) return;
+    nodo.style.cssText = `position:absolute;left:${r.left - caja.left}px;top:${r.top - caja.top}px;width:${r.width}px;height:${r.height}px;margin:0`;
+    capa.append(nodo);
+  });
+  if (capa.childElementCount) {
+    lista.append(capa);
+    const salida = capa.animate([{opacity: 1}, {opacity: 0}], {duration: MOV.salida, easing: EASE_OUT});
+    salida.onfinish = salida.oncancel = () => capa.remove();
+    EXP.salidaCatalogo = salida;
+  }
+  // Las nuevas esperan a que las viejas empiecen a irse: se lee primero qué se
+  // fue y después qué llegó.
+  entrarExploracion(nuevas, {desde: capa.childElementCount ? MOV.salida / 2 : 0});
 }
 
 async function buscarPeleadores(mas=false) {
@@ -282,6 +332,14 @@ async function buscarPeleadores(mas=false) {
     const lista = $('#catalogo-lista');
     const anteriores = mas ? lista.querySelectorAll('.catalogo-fila').length : 0;
     const rows = d.peleadores.map(filaCatalogo).join('');
+    // Reacomodar solo si ya había una lista a la vista y la búsqueda no vino
+    // del teclado; la primera carga y "Ver más" entran escalonadas.
+    EXP.salidaCatalogo?.finish();
+    const flip = !mas && !porTeclado && !$('#catalogo-vista').classList.contains('oculto')
+      && lista.querySelector('.catalogo-fila') && $('#tab-peleadores').classList.contains('activa');
+    const antes = flip ? medirCatalogo() : null;
+    const fantasmas = flip ? Array.from(lista.querySelectorAll('.catalogo-fila[data-id]'), li =>
+      [li.dataset.id, li.cloneNode(true), li.getBoundingClientRect()]) : [];
     if (mas) $('#catalogo-lista ul').insertAdjacentHTML('beforeend',rows);
     else $('#catalogo-lista').innerHTML = rows ? `<ul class="catalogo-lista">${rows}</ul>` : '<p>No encontré ese nombre. Prueba con el apellido.</p>';
     EXP.offset += d.peleadores.length;
@@ -289,7 +347,9 @@ async function buscarPeleadores(mas=false) {
     $('#catalogo-total').textContent = `${miles(d.total)} ${d.total === 1 ? 'peleador encontrado' : 'peleadores encontrados'}`;
     $('#catalogo-mas').classList.toggle('oculto', EXP.offset >= d.total);
     const nuevas = Array.from(lista.querySelectorAll('.catalogo-fila')).slice(anteriores);
-    entrarExploracion(nuevas);
+    fotosAlVerse(lista, '.catalogo-fila');
+    if (flip) reacomodarCatalogo(antes, fantasmas);
+    else entrarExploracion(nuevas);
     if (mas && porTeclado) nuevas[0]?.querySelector('a')?.focus();
   } catch(e) { if (seq === EXP.request) $('#catalogo-total').textContent = 'No pude abrir la base. Pulsa Buscar para reintentar.'; }
   finally { if (seq === EXP.request) { $('#catalogo-mas').disabled = false; $('#catalogo-lista').setAttribute('aria-busy', 'false'); } }
@@ -335,6 +395,9 @@ function vistaPerfil(d) {
       <section class="perfil-historial">${historial.length ? `<details class="perfil-desplegable" open><summary><h2>Historial en UFC</h2><span>${historial.length} ${historial.length === 1 ? 'pelea' : 'peleas'}<small>Elige una para verla como se veía ese día</small></span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></summary><div class="perfil-historial-contenido"><div class="tabla-scroll"><table><thead><tr><th scope="col">Fecha / evento</th><th scope="col">Rival</th><th scope="col">Resultado</th><th scope="col">Método</th><th scope="col">Asalto / tiempo</th></tr></thead><tbody>${historial.map((p,i)=>`<tr class="hist-fila"><td><button type="button" class="hist-abrir" data-hist="${i}" aria-label="${esc(`Ver ${p.evento} frente a ${p.rival} como se veía ese día`)}">${esc(fechaExplorar(p.fecha))}<small>${esc(p.evento)}</small></button></td><td>${perfilEnlace(p.rival,p.rival_id)}</td><td><span class="perfil-res res-${esc(p.resultado)}">${{V:'Victoria',P:'Derrota',E:'Empate',NC:'Sin resultado','?':'Por confirmar'}[p.resultado] || 'Por confirmar'}</span></td><td>${esc(p.metodo)}</td><td>${esc(p.asalto)} · ${esc(p.tiempo)}</td></tr>`).join('')}</tbody></table></div></div></details>` : '<h2>Historial en UFC</h2><p class="nota">No hay peleas que se puedan atribuir a esta ficha con certeza.</p>'}</section>`;
 }
 
+// Al volver, el listado reaparece donde estaba: mismo scroll y el foco en el
+// peleador que se había abierto. Un fundido corto (sin desplazar nada) une
+// el cambio; con teclado, en el acto.
 function volverPeleadores() {
   EXP.perfilObs?.disconnect();
   history.replaceState(null,'',location.pathname);
@@ -342,7 +405,9 @@ function volverPeleadores() {
   if (!EXP.catalogoCargado) { buscarPeleadores(); return; }
   if (EXP.vuelta?.isConnected) EXP.vuelta.focus({preventScroll:true});
   window.scrollTo({top:EXP.scrollCatalogo || 0, behavior:'auto'});
+  if (!porTeclado) $('#catalogo-vista').animate([{opacity: 0}, {opacity: 1}], {duration: 150, easing: EASE_OUT});
 }
+
 
 // La ficha llega de una vez (una petición), pero no aparece de golpe: el panel
 // sube MOV.desplaza px, el contorno del octágono del cartel se asienta y la
@@ -518,17 +583,41 @@ function entrarHistorialPelea(cuerpo) {
   cuerpo.querySelectorAll('.analisis-barra span').forEach((b, i) => llenarDesde(b, 'left', 480 + Math.min(i, 8) * MOV.escalon));
 }
 
+// Clic en un peleador del listado: se anota de dónde sale su foto para que
+// viaje al perfil (EXP.origenPerfil = {id, rect, foto, oro}) y a quién
+// devolverle el foco al volver. Se mide antes de que cambie nada.
+$('#catalogo-lista').addEventListener('click', e => {
+  const enlace = e.target.closest('.catalogo-fila .enlace-peleador');
+  const fila = enlace?.closest('.catalogo-fila');
+  if (!fila?.dataset.id) return;
+  const foto = fila.querySelector('.catalogo-foto');
+  EXP.vuelta = enlace;
+  EXP.origenPerfil = {id: fila.dataset.id, rect: foto?.getBoundingClientRect() || null,
+    foto: foto?.querySelector('img')?.getAttribute('src') || null, oro: fila.classList.contains('catalogo-oro')};
+}, true);
+
 async function abrirPerfil(id) {
-  if ($('#tab-peleadores').classList.contains('activa') && !$('#catalogo-vista').classList.contains('oculto')) {
-    EXP.vuelta = document.activeElement?.closest?.('#catalogo-vista .enlace-peleador');
+  const desdeListado = $('#tab-peleadores').classList.contains('activa') && !$('#catalogo-vista').classList.contains('oculto');
+  if (desdeListado) {
+    if (!EXP.vuelta?.isConnected) EXP.vuelta = document.activeElement?.closest?.('#catalogo-vista .enlace-peleador');
     EXP.scrollCatalogo = window.scrollY;
   } else if (!location.hash.startsWith('#peleador-') || !$('#perfil-vista h1')) { EXP.vuelta = null; EXP.scrollCatalogo = 0; }
-  ++EXP.request; irA('peleadores');
+  const seq = ++EXP.request;
+  const pedido = api('/api/peleadores/' + encodeURIComponent(id));
+  pedido.catch(() => {});
+  // Desde el listado ya se está en la pestaña: el listado se funde (MOV.salida)
+  // mientras llega la ficha, y recién ahí sube la página. Con teclado o con un
+  // enlace de otra parte, el cambio es inmediato como antes.
+  if (desdeListado && !porTeclado) {
+    await $('#catalogo-vista').animate([{opacity: 1}, {opacity: 0}], {duration: MOV.salida, easing: EASE_OUT}).finished.catch(() => {});
+    if (seq !== EXP.request) return;
+    window.scrollTo({top: 0});
+  } else if (!desdeListado) irA('peleadores');
+  else window.scrollTo({top: 0});
   $('#catalogo-vista').classList.add('oculto'); $('#perfil-vista').classList.remove('oculto');
   $('#perfil-vista').innerHTML = '<p class="nota perfil-cargando" role="status">Cargando ficha local…</p>';
-  const seq = ++EXP.request;
   try {
-    const d = await api('/api/peleadores/' + encodeURIComponent(id));
+    const d = await pedido;
     if (seq !== EXP.request) return;
     EXP.perfil = d;
     // El origen del viaje solo vale para este peleador y una sola vez.
