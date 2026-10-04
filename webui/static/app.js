@@ -61,6 +61,12 @@ $$('[data-ico]').forEach(e => { e.outerHTML = ico(e.dataset.ico, e.className); }
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
 const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)';
 const reducir = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Duraciones compartidas, en ms: las mismas que --dur-* de style.css. Rankings,
+// Peleadores, el perfil y el modal del historial las usan en vez de números
+// sueltos. `desplaza` es cuánto sube lo que entra; `escalonMax` corta el
+// desfase para que la cola de una lista larga no se sienta lenta.
+const MOV = Object.freeze({ press: 160, entrada: 240, salida: 160, modalIn: 200, modalOut: 140,
+  conteo: 560, brillo: 700, escalon: 28, escalonMax: 12, desplaza: 8 });
 // Lo que se hace con el teclado no se anima: se repite tanto que el movimiento
 // lo haría sentir lento. Se anota con qué se hizo lo último (tecla o puntero)
 // y las acciones del usuario lo consultan. Lo que hace el sistema solo (EN

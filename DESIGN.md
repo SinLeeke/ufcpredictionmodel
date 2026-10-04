@@ -430,6 +430,13 @@ métodos y datos finales se presentan en una columna lateral, debajo en pantalla
 estrechas. La coestelar sin título usa una tarjeta normal con su rótulo.
 Sin foto oficial, una silueta de peleador; nunca la foto de otro.
 
+### Fondo de la foto (`.foto-cartel`)
+Fuera del combate (perfil, listado de Peleadores, Rankings), la foto se apoya en un
+panel de cartel, oscuro en los dos temas como la cabecera: grafito (`--cartel-*`) con
+filetes hueso inclinados 12° y el contorno del octágono en tenue, sobre una regla de
+3 px. El campeón usa la variante `.oro` (`--oro-*` y el metal de la baranda de los
+títulos). Sin rojo ni azul: esos colores son de las esquinas.
+
 Dentro de la lona, el bloque arranca a 10,5 cqw del borde y la barra mide el 84 % del
 ancho, centrada: la franja de ancho completo de la línea pintada va de y = 32 a y = 68
 (en % de la jaula) y abajo los chaflanes cierran 1 cqw por cada 1 cqw que se baja. Con
@@ -570,6 +577,10 @@ combates animan su altura al abrir y cerrar.
   entrada, 140 ms de salida.
 - Estilo C, solo en la primera vista de una cartelera: el lápiz encierra al ganador
   (450 ms).
+- **Duraciones compartidas** (`--dur-*` en `style.css`, `MOV` en `app.js`): presión y
+  realce 160 ms, entrada 240 ms, salida 160 ms, modal 200 / 140 ms, conteo 560 ms,
+  brillo de un marco dorado 700 ms (una vez) y 28 ms de desfase entre filas, cortado
+  en la fila 12. Rankings, Peleadores, el perfil y su historial usan estas.
 - Con teclado (Enter, Espacio, Esc) nada se anima. Con "menos movimiento" se quitan
   desplazamientos, escalas y el latido de EN VIVO; quedan los fundidos y el destello.
 

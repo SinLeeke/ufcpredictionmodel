@@ -57,6 +57,26 @@
      entra, sale o responde; ease-in-out para lo que viaja por la pantalla. */
   --ease-out:cubic-bezier(0.23,1,0.32,1);
   --ease-in-out:cubic-bezier(0.77,0,0.175,1);
+  /* Duraciones compartidas (las mismas en MOV de app.js). Rankings, Peleadores,
+     el perfil y su historial usan estas y no inventan otras: si una sección
+     anima 240 ms y la de al lado 300, el conjunto se siente desparejo. */
+  --dur-press:160ms;      /* presión de un botón, realce al pasar el mouse */
+  --dur-entrada:240ms;    /* una fila, tarjeta o ficha que entra */
+  --dur-salida:160ms;     /* lo que sale, siempre más corto que su entrada */
+  --dur-modal-in:200ms; --dur-modal-out:140ms;
+  --dur-conteo:560ms;     /* una cifra que corre hasta su valor */
+  --dur-brillo:700ms;     /* el destello que cruza un marco dorado, una sola vez */
+  --escalon:28ms;         /* desfase entre filas; se corta en la fila 12 */
+
+  /* Fondo de las fotos de peleador: un panel de cartel, oscuro en los dos
+     temas (como la cabecera), para que el PNG recortado se lea igual sobre
+     papel o en la sala a oscuras. Sin rojo ni azul: esos son de las esquinas.
+     Grafito con filetes hueso para todos; dorado, como la baranda de los
+     títulos, para el campeón. Se usan con .foto-cartel (final del archivo). */
+  --cartel-fondo:#1c1a17; --cartel-hilo:rgba(239,233,223,.07);
+  --cartel-regla:rgba(239,233,223,.34); --cartel-tinta:#efe9df;
+  --oro-fondo:#231b0c; --oro-hilo:rgba(244,223,155,.12);
+  --oro-regla:#cfb05a; --oro-tinta:#f1d78d;
 
   /* Nombres viejos, para las pestañas que todavía no se rediseñan. */
   --acento:var(--marca); --acento-sup:var(--error-sup); --mal:var(--error); --mal-sup:var(--error-sup);
@@ -2322,3 +2342,28 @@ p.cons-error{color:var(--alerta)}
   .cons-detalle{padding-inline:10px}
 }
 @media (prefers-reduced-motion:reduce){.cons-flecha{transition:none}}
+
+/* ======================= FONDO DE LA FOTO DEL PELEADOR ===================== */
+/* Componente compartido por el perfil, el listado de Peleadores y Rankings
+   (tokens --cartel-* y --oro-* en :root). Es el póster detrás del PNG: fondo
+   oscuro, filetes finos con la inclinación de la gráfica (12°) y el contorno
+   del octágono marcado en tenue, apoyado en una regla de 3 px que hace de
+   lona. La foto va encima (z-index 1); el componente no la recorta ni decide
+   cómo se ajusta: eso lo hace quien lo usa. Variante de campeón: .oro. */
+.foto-cartel{--fc-fondo:var(--cartel-fondo);--fc-hilo:var(--cartel-hilo);--fc-regla:var(--cartel-regla);--fc-oct:min(92%,420px);
+  position:relative;isolation:isolate;overflow:hidden;color:var(--cartel-tinta);
+  background:repeating-linear-gradient(102deg,transparent 0 9px,var(--fc-hilo) 9px 10px),var(--fc-fondo);
+  border-bottom:3px solid var(--fc-regla)}
+/* El octágono: dos polígonos iguales, el de afuera del color del filete y el de
+   adentro del fondo, dejan un contorno de 1,5 px sin SVG ni imagen. */
+.foto-cartel::before,.foto-cartel::after{content:"";position:absolute;z-index:-1;pointer-events:none;
+  left:50%;top:54%;width:var(--fc-oct);aspect-ratio:1;translate:-50% -50%;
+  clip-path:polygon(29.29% 0,70.71% 0,100% 29.29%,100% 70.71%,70.71% 100%,29.29% 100%,0 70.71%,0 29.29%)}
+.foto-cartel::before{background:var(--fc-regla);opacity:.5}
+.foto-cartel::after{background:var(--fc-fondo);width:calc(var(--fc-oct) - 3px)}
+.foto-cartel>img,.foto-cartel>svg,.foto-cartel>.retrato{position:relative;z-index:1}
+.foto-cartel.oro{--fc-fondo:var(--oro-fondo);--fc-hilo:var(--oro-hilo);--fc-regla:var(--oro-regla);
+  color:var(--oro-tinta);border-bottom:0;border-image:var(--titulo-metal) 1;border-style:solid;border-width:0 0 3px}
+.foto-cartel.oro::before{opacity:.65}
+@media(forced-colors:active){.foto-cartel{background:Canvas;border-bottom-color:CanvasText}
+  .foto-cartel.oro{border-image:none}.foto-cartel::before,.foto-cartel::after{display:none}}
