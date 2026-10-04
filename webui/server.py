@@ -11,9 +11,11 @@ tiene autenticación, y no hay ningún motivo para exponerlo a la red.
 """
 from __future__ import annotations
 
+import json
 import sys
 import time
 import webbrowser
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -25,21 +27,185 @@ from fastapi.responses import FileResponse, JSONResponse, Response      # noqa: 
 from fastapi.staticfiles import StaticFiles                             # noqa: E402
 from pydantic import BaseModel                                          # noqa: E402
 
-import config as C                                                      # noqa: E402
-from src import storage as DB                                           # noqa: E402
+import config as C
+from src import storage as DB                                                      # noqa: E402
 from webui import engine, fotos, parlay as P                            # noqa: E402
 from webui.jobs import GESTOR, RECETAS                                  # noqa: E402
 
+@asynccontextmanager
+async def _lifespan(_app):
+    with DB.lease("ui"):
+        engine.arrancar_auto()
+        # Polling de cuotas (BFO, Polymarket, The Odds API) en hilos de fondo.
+        # Si algo falla al arrancarlo, la UI abre igual: el mercado es un extra.
+        try:
+            from src.cuotas import capa as mercado
+            mercado.arrancar()
+        except Exception:                                   # noqa: BLE001
+            mercado = None
+        yield
+        if mercado is not None:
+            mercado.detener()
+
+
 STATIC = Path(__file__).resolve().parent / "static"
-app = FastAPI(title="UFC Predictor UI", docs_url=None, redoc_url=None)
+app = FastAPI(title="UFC Predictor UI", docs_url=None, redoc_url=None, lifespan=_lifespan)
 
 
 # --------------------------------------------------------------------------- #
 # Cartelera
 # --------------------------------------------------------------------------- #
+@app.get("/api/peleadores")
+def buscar_peleadores(q: str = "", limite: int = 40, offset: int = 0):
+    from webui import catalogo
+    return catalogo.buscar(q[:100], min(max(limite, 1), 100), max(0, offset))
+
+
+@app.get("/api/peleadores/{identidad}")
+def perfil_peleador(identidad: str):
+    from webui import catalogo
+    d = catalogo.perfil(identidad)
+    if d is None:
+        raise HTTPException(404, "No existe esa ficha en la base local.")
+    return d
+
+
+@app.get("/api/rankings")
+def rankings_oficiales():
+    from webui import catalogo
+    return catalogo.rankings()
+
+
+@app.get("/api/cuotas/configuracion")
+def configuracion_cuotas():
+    # Solo si hay clave, nunca la clave: config.ODDS_API_KEY viene del .env
+    # (ODDS_API_KEY, con THE_ODDS_API_KEY como nombre antiguo de respaldo).
+    return {"odds_api_configurada": bool(C.ODDS_API_KEY), "ttl_seg": 1800}
+
+
+@app.get("/api/cuotas")
+def consultar_cuotas(proveedor: str = "bfo"):
+    from src import cuotas_fuentes
+    from src import cartelera_completa
+    try:
+        return cartelera_completa.resumen(cuotas_fuentes.consultar(proveedor))
+    except ValueError as e:
+        raise HTTPException(502, str(e)) from None
+
+
+# --------------------------------------------------------------------------- #
+# Mercado: capa común de cuotas (src/cuotas). Contrato: docs/contrato-datos.md §2.
+# Todos leen de SQLite y responden al instante: ninguno espera a la red.
+# --------------------------------------------------------------------------- #
+@app.get("/api/mercado/estado")
+def mercado_estado():
+    from src.cuotas import capa
+    return capa.capa().estado()
+
+
+@app.get("/api/mercado/peleas")
+def mercado_peleas(evento: str | None = None):
+    from src.cuotas import capa
+    return capa.capa().peleas((evento or "")[:120] or None)
+
+
+@app.get("/api/mercado/cartelera")
+def mercado_cartelera():
+    from src.cuotas import capa
+    with engine.ESTADO.lock:
+        peleas = list((engine.ESTADO.datos or {}).get("peleas") or [])
+    pares = [(str(p.get("a") or ""), str(p.get("b") or "")) for p in peleas if p.get("a") and p.get("b")]
+    return capa.capa().cartelera(pares)
+
+
+@app.get("/api/mercado/historial")
+def mercado_historial(pelea_id: str, desde: str | None = None, a: str | None = None):
+    from src.cuotas import capa
+    try:
+        return capa.capa().historial(pelea_id[:300], desde, a)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+
+
+@app.get("/api/mercado/vivo")
+def mercado_vivo(desde: str | None = None, pelea_id: str | None = None,
+                 terminadas: str | None = None, evento_id: str | None = None):
+    # Sección "Mercado en vivo" de Inicio (webui/vivo.py). Sin evento en curso: {"activo": false}.
+    from webui import vivo
+    marcas = None
+    if terminadas is not None:
+        # Son marcas de este navegador, no resultados deportivos ni datos del
+        # modelo. Acotar la entrada evita convertir un GET en una carga arbitraria.
+        if len(terminadas) > 10000:
+            raise HTTPException(400, "Demasiadas marcas de peleas terminadas.")
+        try:
+            marcas = json.loads(terminadas)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Las marcas deben ser una lista de identificadores.") from None
+        if (not isinstance(marcas, list) or len(marcas) > 50
+                or any(not isinstance(marca, str) or not marca or len(marca) > 300 for marca in marcas)):
+            raise HTTPException(400, "Las marcas deben ser una lista de hasta 50 identificadores.")
+    if evento_id is not None and len(evento_id) > 300:
+        raise HTTPException(400, "Identificador de evento demasiado largo.")
+    return vivo.vivo((desde or "")[:40] or None, (pelea_id or "")[:300] or None,
+                     terminadas=marcas, evento_id=evento_id)
+
+
+class CargaCuotas(BaseModel):
+    snapshot: str
+    evento: str
+    casa: str
+    oficial: bool = False
+
+
+@app.get("/api/cuotas/historial")
+def historial_cuotas(proveedor: str | None = None):
+    from src import cuotas_fuentes
+    return {"capturas": cuotas_fuentes.historial(proveedor)}
+
+
+@app.get("/api/cuotas/capturas/{identidad}")
+def captura_cuotas(identidad: str):
+    from src import cuotas_fuentes, cartelera_completa
+    try:
+        return cartelera_completa.resumen({**cuotas_fuentes.captura(identidad), "cache": True})
+    except ValueError as e:
+        raise HTTPException(404, str(e)) from None
+
+
+@app.post("/api/cartelera/cuotas")
+def cargar_desde_cuotas(body: CargaCuotas):
+    from src import cuotas_fuentes
+    if engine.ESTADO.cargando:
+        raise HTTPException(409, "Ya hay una carga en curso.")
+    try:
+        if body.oficial:
+            from src import cartelera_completa
+            ruta, titulo, meta = cartelera_completa.desde_snapshot(body.snapshot, body.evento, body.casa)
+        else:
+            ruta, titulo, meta = cuotas_fuentes.cartelera(body.snapshot, body.evento, body.casa)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    # Una captura histórica no se predice con estadísticas actuales.
+    corte = meta["fecha_fuente"][:10] if meta.get("fecha_fuente") else meta.get("corte")
+    engine.cargar(meta["proveedor"], titulo, ruta, corte=corte,
+                  fuente_cuotas=meta, titulo_fuente=titulo)
+    return {"ok": True}
+
+
 @app.get("/api/estado")
 def estado():
-    return engine.ESTADO.snapshot()
+    from webui import identidad_visual
+    return identidad_visual.decorar_estado(engine.ESTADO.snapshot(), engine.ESTADO.csv_path)
+
+
+@app.get("/api/bandera/{codigo}")
+def bandera(codigo: str):
+    from webui import banderas
+    vector = banderas.svg(codigo)
+    if vector is None:
+        raise HTTPException(404, "Bandera no disponible")
+    return Response(vector, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/api/betano/carteleras")
@@ -389,7 +555,6 @@ def main() -> None:
             raise SystemExit(f"No hay ninguna demo que contenga '{nombre}' en webui/demo/.")
         engine.cargar_demo(ruta)
         print(f"  [demo] {ruta.name}")
-    engine.arrancar_auto()
     # --puerto N: para abrir una segunda copia (por ejemplo la demo) sin cerrar
     # la que ya está en el 8000.
     puerto = 8000

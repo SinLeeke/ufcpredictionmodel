@@ -1,9 +1,16 @@
 """Pruebas de webui/engine.py: el refresco EN VIVO de la línea de ganador."""
+import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import config as C
+from src import storage as DB
 from src import value as V
+from src.cuotas import calendario, capa as capa_mod, cruce
+from src.cuotas.capa import Capa
+from src.cuotas.fuentes.betano import Betano
 from src.simulate import monte_carlo
 from webui import engine as E, parlay as P
 
@@ -26,21 +33,47 @@ def _datos_cargados(p_modelo=0.61, cuota_a=1.26, cuota_b=3.80):
     return E._serializar(res, Path("prueba.csv"))
 
 
-class RefrescoEnVivo(unittest.TestCase):
+class BaseEngine(unittest.TestCase):
+    """Cada prueba conserva la ingesta real, pero solo en su SQLite temporal."""
 
     def setUp(self):
+        temporal = tempfile.TemporaryDirectory()
+        self.addCleanup(temporal.cleanup)
+        ruta_db = (Path(temporal.name) / "engine.db").resolve()
+        for parche in (
+            mock.patch.dict(os.environ, {"UFC_DB": str(ruta_db)}),
+            mock.patch.object(C, "MERCADO_SIMULADO", False),
+            mock.patch("requests.sessions.Session.request",
+                       side_effect=AssertionError("red bloqueada en tests de engine")),
+        ):
+            parche.start()
+            self.addCleanup(parche.stop)
+        self.assertEqual(DB.db_path().resolve(), ruta_db)
+        # Reutilizar el singleton de otra prueba mezclaba sus fuentes y sus
+        # memorias; Betano pasiva permite probar la misma entrega sin polling.
+        parche = mock.patch.object(capa_mod, "_CAPA", Capa([Betano()]))
+        parche.start()
+        self.addCleanup(parche.stop)
+        self.addCleanup(cruce.invalidar)
+        self.addCleanup(calendario.olvidar)
+        cruce.invalidar()
+        calendario.olvidar()
+
+
+class RefrescoEnVivo(BaseEngine):
+
+    def setUp(self):
+        super().setUp()
         self.estado = E.Estado()
         datos, patas = _datos_cargados()
         self.estado.origen, self.estado.consulta = "betano", "UFC"
         self.estado.datos, self.estado.patas = datos, patas
         self.parches = [mock.patch.object(E, "ESTADO", self.estado),
+                        mock.patch.object(E, "_archivar_linea"),
                         mock.patch.object(V, "cargar_calibrador", lambda: CAL)]
         for p in self.parches:
             p.start()
-
-    def tearDown(self):
-        for p in self.parches:
-            p.stop()
+            self.addCleanup(p.stop)
 
     def _refrescar(self, frescas):
         import src.betano_scraper as BS
@@ -78,6 +111,16 @@ class RefrescoEnVivo(unittest.TestCase):
         m = self.estado.datos["peleas"][0]["mercado"]
         self.assertEqual((m["cuota_a"], m["cuota_b"]), (2.05, 1.80))
 
+    def test_un_apellido_compartido_no_mueve_la_cuota(self):
+        self._refrescar({"1": ("Otro Rakic", "Otro Tybura", 2.05, 1.80)})
+        m = self.estado.datos["peleas"][0]["mercado"]
+        self.assertEqual((m["cuota_a"], m["cuota_b"]), (1.26, 3.80))
+        from src.cuotas import historial
+        # Antes estas filas de diagnóstico terminaban en data/ufc.db.
+        no_calzados = historial.resumen_no_calzados()
+        self.assertEqual({n["texto"] for n in no_calzados["recientes"]},
+                         {"Otro Rakic", "Otro Tybura"})
+
     def test_movimiento_de_los_dos_lados(self):
         self._refrescar({"1": (A, B, 2.05, 1.80)})
         mov = self.estado.movimiento
@@ -85,7 +128,7 @@ class RefrescoEnVivo(unittest.TestCase):
         self.assertEqual(mov["0:ML:B"], {"antes": 3.80, "ahora": 1.80})
 
 
-class AvisosYGraficos(unittest.TestCase):
+class AvisosYGraficos(BaseEngine):
     def _serializar(self, info_a=None, info_b=None, **extra):
         metodo = {"KO/TKO": 0.35, "Submission": 0.10, "Decision": 0.55}
         sim = monte_carlo(0.62, metodo, A, B)
@@ -149,7 +192,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class ResultadosRecientes(unittest.TestCase):
+class ResultadosRecientes(BaseEngine):
     """La portada: las últimas carteleras repetidas, calculadas aparte y guardadas."""
 
     def _pelea(self, a, b, ganador, metodo_real, segmento=""):

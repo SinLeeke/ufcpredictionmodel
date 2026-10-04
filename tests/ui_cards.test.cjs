@@ -179,6 +179,7 @@ test('table title labels only appear for confirmed championships', () => {
 
 let reducedMotion = false;
 context.reducir = () => reducedMotion;
+context.porTeclado = false;
 context.EASE_OUT = 'ease-out';
 // Cerrado, un details mide su summary más su borde y su relleno: aquí, 75 px
 // de summary y 1 px de borde arriba = los 76 px de la fila cerrada.
@@ -277,6 +278,23 @@ test('reduced motion cancels a running disclosure and applies the final state im
   assert.equal(detail.open, true);
   assert.equal(animations.length, 1);
   reducedMotion = false;
+});
+
+test('el teclado interrumpe un despliegue y aplica el estado sin movimiento', () => {
+  const {detail, animations} = animatedFight();
+  context.desplegarCombate(detail, true);
+  context.porTeclado = true;
+  context.desplegarCombate(detail, false);
+  assert.equal(animations.length, 1);
+  assert.equal(animations[0].cancelled, true);
+  assert.equal(detail.open, false);
+  assert.equal(detail.hasAttribute('data-sin-movimiento'), true);
+  assert.equal(detail.style.height, '');
+  assert.equal(detail.style.overflow, '');
+  context.desplegarCombate(detail, true);
+  assert.equal(detail.open, true);
+  assert.equal(animations.length, 1);
+  context.porTeclado = false;
 });
 
 test('compact canvas history exposes real results without nested interactive controls', () => {
@@ -467,4 +485,213 @@ test('a replay says whether the most likely method was the real one', () => {
   assert.match(context.metodoFila(miss), /Falló el método/);
   // A draw or no contest has no method to judge.
   assert.doesNotMatch(context.metodoFila({...p, resultado: {ganador: '', metodo: 'Decision'}}), /metodo-veredicto/);
+});
+
+// Consenso del mercado (bloque 5): etiqueta escrita, signo menos tipográfico y
+// "sin cuotas publicadas" en vez de un hueco. Fuera de una cartelera futura no
+// se dibuja nada.
+test('market consensus shows written labels, typographic minus and a no-odds state', () => {
+  const p = {id:'c1', a:'Alpha', b:'Beta'};
+  vm.runInContext('MERCADO.mostrar = false; MERCADO.peleas = null; MERCADO.error = false;', context);
+  context.__p = p;
+  assert.equal(vm.runInContext('ranuraCab(__p) + ranuraCuerpo(__p)', context), '');
+  const cot = {fuente:'bfo', tipo:'casa', casa:'FanDuel', timestamp:'2026-10-03T22:15:00+00:00',
+    a:{americana:-150, decimal:1.667, prob_implicita:.6}, b:{americana:125, decimal:2.25, prob_implicita:.444}};
+  const poly = {fuente:'polymarket', tipo:'mercado_prediccion', casa:'Polymarket', timestamp:'2026-10-03T22:10:00+00:00',
+    a:{americana:-135, prob_implicita:.575}, b:{americana:135, prob_implicita:.425}};
+  context.__peleas = {'Alpha|Beta': {consenso:{a:{prob:.575, americana:-135, etiqueta:'Favorito'},
+    b:{prob:.425, americana:135, etiqueta:'Underdog'}, pareja:false, n_cotizaciones:2},
+    cotizaciones:[cot, poly], mejor:{a:{fuente:'bfo', casa:'FanDuel', americana:-150}, b:{fuente:'bfo', casa:'FanDuel', americana:125}}},
+    'Gamma|Delta': null};
+  vm.runInContext('MERCADO.mostrar = true; MERCADO.peleas = __peleas;', context);
+  const cab = context.cabConsenso(p), cuerpo = context.cuerpoConsenso(p);
+  assert.match(cab, /−135/); assert.match(cab, /\+135/);
+  assert.match(cab, /data-etq="favorito">Favorito/); assert.match(cab, /data-etq="underdog">Underdog/);
+  assert.match(cuerpo, /aria-expanded="false"/);
+  assert.match(cuerpo, /Mercado de predicción/); assert.match(cuerpo, /Polymarket/);
+  assert.match(cuerpo, /class="num cons-top"><b>−150<\/b><small class="cons-mejor">mejor/);
+  assert.doesNotMatch(cuerpo, /Polymarket<\/th><td class="num cons-top"/);
+  const sin = {id:'c2', a:'Gamma', b:'Delta'};
+  assert.match(context.cuerpoConsenso(sin), /Sin cuotas publicadas todavía/);
+  assert.match(context.cabConsenso(sin), /sin cuotas publicadas todavía/);
+  vm.runInContext('MERCADO.mostrar = false; MERCADO.peleas = null;', context);
+});
+
+test('una cuota desconocida nunca se convierte en ±0', () => {
+  for (const ausente of [null, undefined, '', '  ', NaN, Infinity, false, true]) {
+    context.__cuota = ausente;
+    assert.equal(vm.runInContext('americana(__cuota)', context), '—');
+  }
+  assert.equal(vm.runInContext('americana(1200)', context), '+1200');
+  assert.equal(vm.runInContext('americana(-135)', context), '−135');
+});
+
+test('la cartelera no presenta fechas pasadas ni desconocidas como próximas', () => {
+  const inicio = source.indexOf('function eventoVigente(');
+  const fin = source.indexOf('// Pide el consenso', inicio);
+  const fechas = vm.createContext({});
+  vm.runInContext(source.slice(inicio, fin), fechas);
+  for (const [iso, vigente] of [['2026-10-03', false], ['2026-10-02', false],
+    ['2026-10-04', true], ['2026-10-10', true], ['', false], [null, false],
+    ['2026-13-04', false], ['2026-02-30', false], ['2026-10-04T22:00:00', false]]) {
+    fechas.__iso = iso;
+    assert.equal(vm.runInContext('eventoVigente(__iso, new Date(2026, 9, 4, 12))', fechas), vigente, String(iso));
+  }
+  assert.match(source, /MERCADO\.mostrar = !S\.repeticion && !S\.corte && eventoVigente\(S\.evento\?\.iso\)/);
+});
+
+test('el consenso respeta las esquinas del endpoint aunque pelea_id esté invertido', () => {
+  context.__p = {id:'invertida', a:'Zulu', b:'Alpha'};
+  context.__peleas = {'Zulu|Alpha': {a:'Zulu', b:'Alpha', invertida:true,
+    consenso:{a:{americana:135, etiqueta:'Underdog'}, b:{americana:-135, etiqueta:'Favorito'}, n_cotizaciones:1},
+    cotizaciones:[]}};
+  vm.runInContext('MERCADO.mostrar = true; MERCADO.peleas = __peleas; MERCADO.error = false;', context);
+  const html = vm.runInContext('cuerpoConsenso(__p)', context);
+  assert.match(html, /data-lado="a".*?>Zulu: <\/span><b[^>]*>\+135<\/b><span[^>]*>Underdog/s);
+  assert.match(html, /data-lado="b".*?>Alpha: <\/span><b[^>]*>−135<\/b><span[^>]*>Favorito/s);
+});
+
+test('los errores distinguen falta de respuesta y una captura conservada', () => {
+  context.__p = {id:'error', a:'Alpha', b:'Beta'};
+  vm.runInContext('MERCADO.peleas = null; MERCADO.error = true;', context);
+  assert.match(context.cuerpoConsenso(context.__p), /No pude leer las cuotas del mercado/);
+  assert.equal(context.cabConsenso(context.__p), '');
+  context.__peleas = {'Alpha|Beta': {consenso:{a:{americana:-135, etiqueta:'Favorito'},
+    b:{americana:135, etiqueta:'Underdog'}, n_cotizaciones:1}, cotizaciones:[]}};
+  vm.runInContext('MERCADO.peleas = __peleas;', context);
+  const conservado = context.cuerpoConsenso(context.__p);
+  assert.match(conservado, /−135/);
+  assert.match(conservado, /No pude actualizar las cuotas\. Se conserva la última captura disponible/);
+  vm.runInContext('MERCADO.error = false; MERCADO.peleas = null; MERCADO.mostrar = false;', context);
+});
+
+test('el vínculo accesible del detalle no colisiona con identificadores parecidos', () => {
+  context.__peleas = {'Alpha|Beta': {consenso:{a:{americana:-135}, b:{americana:135}, n_cotizaciones:1}, cotizaciones:[]}};
+  vm.runInContext('MERCADO.peleas = __peleas;', context);
+  const ids = ['a b', 'a!b', 'a_b'].map(id => {
+    const html = context.cuerpoConsenso({id, a:'Alpha', b:'Beta'});
+    const control = html.match(/aria-controls="([^"]+)"/)[1];
+    assert.ok(html.includes(`id="${control}" popover="manual" role="region"`));
+    return control;
+  });
+  assert.equal(new Set(ids).size, 3);
+  vm.runInContext('MERCADO.peleas = null;', context);
+});
+
+// Se ejercitan los manejadores reales con reloj controlado. El panel simula
+// las API nativas: las pruebas no abren la red ni escriben en la base real.
+function entornoDetalle({teclado=false, reducir=false, punteroFino=true, ancho=390, alto=600, y=480, altura=230} = {}) {
+  const manejadores = {}, esperas = new Map(), animaciones = [];
+  let siguiente = 0, foco = 0;
+  const panel = {hidden:true, superior:false, style:{}, dataset:{},
+    showPopover() { this.superior = true; }, hidePopover() { this.superior = false; },
+    matches(selector) { assert.equal(selector, ':popover-open'); return this.superior; },
+    getAnimations() { return animaciones; },
+    getBoundingClientRect() { return {width:Math.min(460, ancho - 24), height:Math.min(altura, Number.parseFloat(this.style.maxHeight) || altura)}; },
+    animate(frames, opciones) { const a = {frames, opciones, cancel() { this.cancelada = true; }}; animaciones.push(a); return a; },
+    closest(selector) { return selector === '.consenso' ? seccion : selector.includes('.cons-detalle') ? this : null; },
+  };
+  const boton = {dataset:{consBoton:'detalle-1'}, attrs:{'aria-controls':'cons-det-detalle-1'},
+    getAttribute(k) { return this.attrs[k]; }, setAttribute(k,v) { this.attrs[k] = v; },
+    toggleAttribute(k, si) { if (si) this.attrs[k] = ''; else delete this.attrs[k]; },
+    getBoundingClientRect() { return {left:120, right:250, width:130, top:y, bottom:y+44}; },
+    focus() { foco++; },
+    closest(selector) { return selector === '.consenso' ? seccion : selector.includes('[data-cons-boton]') ? this : null; },
+  };
+  const seccion = {querySelector:() => boton, contains:e => e === boton || e === panel,
+    closest:() => seccion};
+  const raiz = {querySelectorAll(selector) {
+    return selector.includes('aria-expanded="true"') && boton.attrs['aria-expanded'] !== 'true' ? [] : [boton];
+  }};
+  const mercado = {abiertas:new Set(), hover:null};
+  const entorno = vm.createContext({MERCADO:mercado, porTeclado:teclado, EASE_OUT:'cubic-bezier(0.23, 1, 0.32, 1)',
+    reducir:() => reducir, CSS:{escape:x=>x}, $:() => raiz,
+    matchMedia:() => ({matches:punteroFino}), window:{innerHeight:alto},
+    document:{documentElement:{clientWidth:ancho}, activeElement:boton,
+      getElementById:() => panel, querySelector:() => null,
+      addEventListener:(tipo, funcion) => { manejadores[tipo] = funcion; }},
+    addEventListener:()=>{}, requestAnimationFrame:f=>f(),
+    setTimeout:funcion => { const id=++siguiente; esperas.set(id,funcion); return id; },
+    clearTimeout:id => esperas.delete(id),
+  });
+  const inicio = source.indexOf('function situarDetalleConsenso(');
+  const fin = source.indexOf('// Abrir un combate', inicio);
+  vm.runInContext(source.slice(inicio, fin), entorno);
+  return {entorno, mercado, panel, boton, manejadores, esperas, animaciones,
+    foco:() => foco, ejecutarEsperas:() => { const pendientes=[...esperas.values()]; esperas.clear(); pendientes.forEach(f=>f()); }};
+}
+
+test('Esc cierra el vistazo por mouse y cancela el vistazo todavía pendiente', () => {
+  const ui = entornoDetalle();
+  ui.manejadores.pointerover({pointerType:'mouse', target:ui.boton});
+  assert.equal(ui.esperas.size, 1);
+  ui.manejadores.keydown({key:'Escape'});
+  ui.ejecutarEsperas();
+  assert.equal(ui.panel.hidden, true);
+  ui.manejadores.pointerover({pointerType:'mouse', target:ui.boton});
+  ui.ejecutarEsperas();
+  assert.equal(ui.panel.hidden, false);
+  assert.equal(ui.panel.superior, true);
+  assert.equal(ui.animaciones.length, 0);
+  ui.manejadores.keydown({key:'Escape'});
+  assert.equal(ui.panel.hidden, true);
+  assert.equal(ui.panel.superior, false);
+  assert.equal(ui.boton.attrs['aria-expanded'], 'false');
+  assert.equal(ui.mercado.hover, null);
+  assert.equal(ui.foco(), 1);
+});
+
+test('clic, toque y teclado fijan el detalle; otro clic y clic fuera lo cierran', () => {
+  for (const teclado of [false, true]) {
+    const ui = entornoDetalle({teclado});
+    ui.manejadores.click({target:ui.boton});
+    assert.equal(ui.mercado.abiertas.has('detalle-1'), true);
+    assert.equal(ui.panel.hidden, false);
+    assert.equal(ui.animaciones.length, teclado ? 0 : 1);
+    ui.manejadores.click({target:ui.boton});
+    assert.equal(ui.panel.hidden, true);
+    ui.manejadores.click({target:ui.boton});
+    ui.manejadores.click({target:{closest:() => null}});
+    assert.equal(ui.panel.hidden, true);
+    assert.equal(ui.mercado.abiertas.size, 0);
+  }
+  const tactil = entornoDetalle({punteroFino:false});
+  tactil.manejadores.pointerover({pointerType:'touch', target:tactil.boton});
+  assert.equal(tactil.esperas.size, 0);
+  tactil.manejadores.click({target:tactil.boton});
+  assert.equal(tactil.panel.hidden, false);
+});
+
+test('el detalle cambia de lado junto al borde y limita las tablas largas a la ventana', () => {
+  for (const [y, altura, direccion] of [[480,230,'arriba'], [50,230,'abajo'], [480,1200,'arriba']]) {
+    const ui = entornoDetalle({y, altura});
+    ui.manejadores.click({target:ui.boton});
+    assert.equal(ui.panel.dataset.direccion, direccion);
+    assert.ok(Number.parseFloat(ui.panel.style.left) >= 12);
+    assert.ok(Number.parseFloat(ui.panel.style.left) + ui.panel.getBoundingClientRect().width <= 378);
+    assert.ok(Number.parseFloat(ui.panel.style.top) >= 12);
+    assert.ok(Number.parseFloat(ui.panel.style.top) + ui.panel.getBoundingClientRect().height <= 588);
+  }
+});
+
+test('movimiento reducido conserva un fundido corto sin desplazamiento', () => {
+  const ui = entornoDetalle({reducir:true});
+  ui.manejadores.click({target:ui.boton});
+  assert.equal(ui.animaciones.length, 1);
+  assert.equal(ui.animaciones[0].opciones.duration, 100);
+  assert.ok(ui.animaciones[0].frames.every(f => !('transform' in f)));
+});
+
+test('el vistazo permanece abierto al cruzar el espacio del botón al detalle', () => {
+  const ui = entornoDetalle();
+  ui.manejadores.pointerover({pointerType:'mouse', target:ui.boton});
+  ui.ejecutarEsperas();
+  ui.manejadores.pointerout({pointerType:'mouse', target:ui.boton, relatedTarget:null});
+  assert.equal(ui.panel.hidden, false);
+  ui.manejadores.pointerover({pointerType:'mouse', target:ui.panel});
+  ui.ejecutarEsperas();
+  assert.equal(ui.panel.hidden, false);
+  ui.manejadores.pointerout({pointerType:'mouse', target:ui.panel, relatedTarget:null});
+  ui.ejecutarEsperas();
+  assert.equal(ui.panel.hidden, true);
 });

@@ -14,6 +14,8 @@
 <link rel="preload" href="/fuentes/barlow-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/analisis.css">
+<link rel="stylesheet" href="/explorar.css">
+<link rel="stylesheet" href="/vivo.css">
 </head>
 <body>
 
@@ -35,6 +37,8 @@
   <nav class="tabs" aria-label="Secciones">
     <button class="tab activa" data-tab="inicio">Inicio</button>
     <button class="tab" data-tab="cartelera">Cartelera</button>
+    <button class="tab" data-tab="rankings">Rankings</button>
+    <button class="tab" data-tab="peleadores">Peleadores</button>
     <button class="tab" data-tab="parlay">Combinada <span id="badge-patas" class="badge">0</span></button>
     <button class="tab" data-tab="datos">Cargar</button>
     <button class="tab" data-tab="mantenimiento">Mantenimiento</button>
@@ -133,6 +137,9 @@
      que vienen y los eventos al costado. Todo de UFC (ufc_oficial.py), desde una
      caché: abre igual sin internet, con lo último que se bajó. -->
 <section id="tab-inicio" class="panel activa">
+  <!-- El mercado se consulta aparte: la portada abre desde su caché y esta
+       sección no ocupa espacio cuando no hay un evento en curso. -->
+  <section id="vivo" class="vivo oculto" aria-labelledby="vivo-titulo"></section>
   <div id="inicio-actual" class="inicio-actual oculto"></div>
   <!-- Cómo le fue al modelo: las últimas carteleras de la base, predichas con lo
        que se sabía ese día y comparadas con cómo terminaron. Cada una se abre
@@ -286,18 +293,65 @@
 </section>
 
 <!-- ========================= CARGAR ======================== -->
+<section id="tab-rankings" class="panel">
+  <div class="explorar-cab">
+    <h1>Rankings oficiales UFC</h1>
+    <p>Campeones y aspirantes, peso por peso. Elige un peleador para explorar su trayectoria.</p>
+    <p id="rankings-fecha" class="nota"></p>
+  </div>
+  <div class="ranking-layout">
+    <nav id="ranking-pesos" class="ranking-pesos" aria-label="Divisiones de peso"></nav>
+    <div id="ranking-lista"></div>
+  </div>
+</section>
+
+<section id="tab-peleadores" class="panel">
+  <div id="catalogo-vista">
+    <div class="explorar-cab">
+      <h1>Peleadores</h1>
+      <p>Explora golpes, derribos, control y el historial registrado en UFC.</p>
+    </div>
+    <form id="form-buscar-peleador" class="buscar-peleador" role="search">
+      <label for="buscar-peleador">Nombre del peleador</label>
+      <div class="fila-input">
+        <input id="buscar-peleador" type="search" placeholder="Silva, Makhachev, Grasso…" autocomplete="off">
+        <button class="primario" type="submit">Buscar</button>
+      </div>
+    </form>
+    <p id="catalogo-total" class="nota" role="status"></p>
+    <div id="catalogo-lista"></div>
+    <button id="catalogo-mas" class="secundario oculto">Ver más peleadores</button>
+  </div>
+  <div id="perfil-vista" class="oculto"></div>
+</section>
+
 <section id="tab-datos" class="panel">
   <div class="cargar">
     <div class="cargar-col">
+    <section class="caja caja-cuotas" aria-labelledby="tit-cuotas">
+      <div class="caja-cab"><h2 id="tit-cuotas">Comparar cuotas</h2></div>
+      <p class="nota">La cartelera completa viene de las peleas anunciadas; las cuotas se añaden donde estén disponibles.
+        BestFightOdds funciona sin cuenta. Cada consulta queda guardada con su fecha.
+        Elige una casa: las cuotas de una pelea siempre pertenecen a la misma.
+        Esta integración usa el mercado de ganador.</p>
+      <div class="cuotas-controles">
+        <label for="fuente-cuotas">Fuente</label>
+        <select id="fuente-cuotas"><option value="bfo">BestFightOdds</option><option value="odds-api">The Odds API</option></select>
+        <button id="btn-consultar-cuotas" class="primario">Consultar cuotas</button>
+        <button id="btn-historial-cuotas" class="secundario">Ver capturas guardadas</button>
+      </div>
+      <p id="cuotas-estado" class="nota" role="status">La consulta es manual, con caché compartida de 30 minutos.</p>
+      <div id="cuotas-lista"></div>
+      <div id="cuotas-historial" class="oculto"></div>
+    </section>
     <section class="caja caja-betano" aria-labelledby="tit-betano">
       <div class="caja-cab">
         <span data-ico="senal"></span>
         <h2 id="tit-betano">Desde Betano</h2>
         <button id="btn-listar" class="secundario"><span data-ico="refrescar"></span>Ver qué carteleras hay</button>
       </div>
-      <p class="nota">Baja las cuotas reales y arma el archivo solo. Es la opción
-        recomendada: con cuotas el sistema acierta ~3 puntos más y se habilita el
-        análisis de valor y la combinada.</p>
+      <p class="nota">Fuente alternativa para los mercados de ganador y método.
+        Solo se consulta al pedirla explícitamente.</p>
       <div id="lista-carteleras"></div>
       <div class="campo">
         <label for="query">…o escribe parte del nombre</label>
@@ -744,5 +798,7 @@ Mackenzie Dern,Gillian Robertson,Co-estelar,1.80,2.05</pre>
 <script src="/iconos.js"></script>
 <script src="/analisis.js"></script>
 <script src="/app.js"></script>
+<script src="/explorar.js"></script>
+<script src="/vivo.js"></script>
 </body>
 </html>

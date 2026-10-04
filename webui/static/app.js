@@ -37,6 +37,17 @@ const sgn = (x, d = 1) => (x >= 0 ? '+' : '−') + fmt(Math.abs(x) * 100, d) + N
 const cuota = (x) => (x ? fmt(x, 2) : 'sin cuota');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function insigniasIdentidad(meta, mostrarRanking = true) {
+  if (!meta) return '';
+  const pais = meta.pais;
+  const codigo = String(pais?.bandera || pais?.codigo || '').toUpperCase();
+  const bandera = /^[A-Z]{2}$/.test(codigo) ? `<img class="nombre-bandera" src="/api/bandera/${codigo}" width="24" height="18" alt="${esc(pais.nombre)}" title="${esc(pais.nombre)}" loading="lazy" decoding="async">` : '';
+  const rango = String(meta.rango || '');
+  const valido = /^(C|IC|[1-9][0-9]?)$/.test(rango);
+  const titulo = rango === 'C' ? 'Campeón' : rango === 'IC' ? 'Campeón interino' : `Ranking ${rango}`;
+  const insignia = mostrarRanking && valido ? `<span class="insignia-ranking ${rango === 'C' || rango === 'IC' ? 'insignia-campeon' : ''}" title="${esc(titulo + (meta.ranking_fecha ? ' · ' + meta.ranking_fecha : ''))}" aria-label="${esc(titulo)}">${esc(rango)}</span>` : '';
+  return bandera || insignia ? `<span class="metas-nombre">${bandera}${insignia}</span>` : '';
+}
 const cls = (x) => x >= 0 ? 'pos' : 'neg';
 const miles = (n) => n.toLocaleString('es-CL');
 
@@ -200,7 +211,7 @@ $$('.tab').forEach(t => t.onclick = () => {
     e.getAnimations({ subtree: true }).forEach(a => a.finish()));
   window.scrollTo({ top: 0 });
   if (t.dataset.tab === 'mantenimiento') cargarTareas();
-  if (t.dataset.tab === 'datos') { cargarCSVs(); listarCarteleras(); listarAnteriores(); }
+  if (t.dataset.tab === 'datos') { cargarCSVs(); listarAnteriores(); }
   if (t.dataset.tab === 'inicio') cargarInicio();
 });
 $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
@@ -315,7 +326,10 @@ function evento(e) {
   let liga = '';
   if (!crudo || ES_SLUG.test(crudo)) nombre = deSlug(conFecha ? conFecha[4] : (crudo || e.csv || ''));
   else if (conFecha) { liga = crudo; nombre = deSlug(conFecha[4]); }
+  // iso: la fecha de la cartelera en "2026-10-10", para saber si todavía no
+  // ocurre (las cuotas de consenso solo tienen sentido antes de la pelea).
   return { nombre: nombre || 'Cartelera', fecha, liga, demo: /^DEMO · /.test(e.titulo || ''),
+           iso: conFecha ? `${conFecha[1]}-${conFecha[2]}-${conFecha[3]}` : '',
            crudo: e.titulo || e.csv || '' };
 }
 
@@ -556,10 +570,37 @@ function reloj() {
   $('#vivo-caja').classList.toggle('activo', !!S.vivo);
   // El auto-refresco solo tiene sentido con origen Betano: un archivo en disco
   // no cambia solo, y mostrar una cuenta regresiva ahí haría creer lo contrario.
-  if (S.origen !== 'betano') { r.textContent = 'archivo: sin cuotas en vivo'; return; }
-  if (!S.proximoAuto) { r.textContent = 'auto apagado'; return; }
+  const mercado = estadoMercadoCab();
+  $('#reloj-caja').title = ['Refresco automático de cuotas', mercado.detalle].filter(Boolean).join('\n');
+  // Sin cuotas de ninguna fuente, el estado de siempre. Con consenso, un archivo
+  // en disco sigue sin cuotas propias en vivo, pero el mercado sí está al día.
+  if (S.origen !== 'betano') {
+    r.innerHTML = (mercado.hay && MERCADO.mostrar ? 'archivo · <b>consenso del mercado</b>' : 'archivo: sin cuotas en vivo') + mercado.aviso;
+    return;
+  }
+  if (!S.proximoAuto) { r.innerHTML = 'auto apagado' + mercado.aviso; return; }
   const s = Math.max(0, Math.round(S.proximoAuto - Date.now() / 1000));
-  r.innerHTML = `cuotas en <b>${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}</b>`;
+  r.innerHTML = `cuotas en <b>${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}</b>` + mercado.aviso;
+}
+
+// Lo que el reloj dice de la capa de cuotas (GET /api/mercado/estado). Discreto
+// y honesto: si a The Odds API le quedan pocos créditos se avisa ahí mismo,
+// porque cuando se acaban esa fuente se pausa y el consenso pierde casas. El
+// detalle de cada fuente va en el title. Nunca se muestra una clave: el estado
+// no las trae, y los motivos solo nombran la variable que falta.
+function estadoMercadoCab() {
+  const e = MERCADO.estado;
+  if (!e || !Array.isArray(e.fuentes)) return { hay:false, aviso:'', detalle:'' };
+  const bajos = e.fuentes.filter(f => f.activa && f.creditos?.bajos);
+  const aviso = bajos.map(f => {
+    const n = Number(f.creditos.restantes);
+    return ` <span class="reloj-aviso">· ${esc(f.nombre)}: ${Number.isFinite(n) ? `quedan ${miles(n)} créditos` : 'pocos créditos'}</span>`;
+  }).join('');
+  const detalle = 'Consenso del mercado:\n' + e.fuentes.map(f => {
+    const estado = !f.activa ? 'desactivada' : f.ultimo_ok ? `al día (${horaCuota(f.ultimo_ok)})` : 'sin datos todavía';
+    return `· ${f.nombre}: ${estado}${f.motivo ? ` — ${f.motivo}` : ''}`;
+  }).join('\n');
+  return { hay: !!e.hay_cuotas, aviso, detalle };
 }
 
 setInterval(tick, 2000);
@@ -669,6 +710,11 @@ function pintarMarcador(d, peleas) {
 function pintarCartelera(d, mov) {
   const raiz = $('#cartelera-contenido');
   S.repeticion = d.repeticion || null;
+  // El consenso del mercado solo va en una cartelera que todavía no ocurre: en
+  // una repetición las cuotas son las de cierre de ese día, y en una cartelera
+  // ya pasada "sin cuotas publicadas todavía" sería falso.
+  MERCADO.mostrar = !S.repeticion && !S.corte && eventoVigente(S.evento?.iso);
+  if (S.otraCartelera) { MERCADO.peleas = null; MERCADO.error = false; MERCADO.abiertas.clear(); MERCADO.hover = null; }
   const antes = S.otraCartelera ? new Map() : capturarCifras(raiz);
   const analisisAbiertos = S.otraCartelera ? null : new Set(
     $$('#peleas [data-analisis][open]').filter(e => !e.hasAttribute('data-cerrando')).map(e => e.dataset.analisis));
@@ -683,7 +729,7 @@ function pintarCartelera(d, mov) {
 
   /* ---- el evento ---- */
   const ev = S.evento || { nombre: d.titulo, fecha: '' };
-  const origen = { betano: 'Cuotas de Betano', csv: 'Desde un archivo', demo: 'Cartelera de ejemplo' }[S.origen] || '';
+  const origen = { betano: 'Cuotas de Betano', bfo: 'Cuotas de BestFightOdds', 'odds-api': 'The Odds API', csv: 'Desde un archivo', demo: 'Cartelera de ejemplo' }[S.origen] || '';
   $('#evento-origen').innerHTML = (ev.demo ? '<span class="demo">Demo</span>' : '') +
     (S.repeticion ? '<span class="repe">Repetición</span>' : '') +
     esc([ev.fecha, ev.liga || origen].filter(Boolean).join(' · '));
@@ -693,6 +739,12 @@ function pintarCartelera(d, mov) {
   // Gravedad: err (bloquea o invalida), warn (cuidado), info (dato). La marca
   // de la izquierda la dice sin depender del color.
   const av = [];
+  if (d.fuente_cuotas) {
+    const f = d.fuente_cuotas;
+    av.push(['info','info',`Cuotas de <b>${esc(f.casa)}</b>, capturadas el ${esc(new Date(f.capturado).toLocaleString('es-CL'))}.
+      ${f.peleas_sin_cuota ? `${f.peleas_sin_cuota} peleas siguen sin cuota: se muestra el modelo, sin calcular valor de apuesta.` : ''}
+      Estas cuotas son una captura guardada; no se anuncian como una línea en vivo.`]);
+  }
   if (S.repeticion) {
     const r = S.repeticion;
     const modelo = r.modelo === 'reentrenado'
@@ -714,14 +766,16 @@ function pintarCartelera(d, mov) {
     `Las cuotas de método de ${sosp.length} pelea(s) son <b>demasiado generosas para ser reales</b>. Suelen indicar números escritos a mano en vez de bajados de la casa. Como el valor se calcula con el precio, esas peleas mostrarían valor falso, así que quedan bloqueadas.`]);
   if (!d.con_cuotas) av.push(['warn','info', S.repeticion
     ? 'No hay cuotas guardadas de esta cartelera, así que la repetición usa solo el modelo: sin la casa acierta ~3 puntos menos y no se puede calcular valor.'
-    : 'Esta cartelera no trae cuotas, así que se predice pero no se puede decir dónde hay valor ni armar combinadas. Bajarla desde Betano suma cuotas y ~3 puntos de acierto.']);
+    : 'Esta cartelera no trae cuotas: se predice con el modelo, sin calcular valor de apuesta. Puedes consultar las cuotas disponibles en Cargar.']);
   // Caso muy frecuente y que sin explicación se lee como si el sistema fallara:
   // hay cuotas de ganador pero Betano todavía no abrió el mercado de método, que
   // es justo el único con ventaja demostrada. Sin este aviso el usuario ve una
   // pantalla entera de "sin ventaja clara" y no sabe si es culpa del modelo.
   const hayMetodo = d.patas.some(p => p.mercado !== 'ganador');
   if (d.con_cuotas && !hayMetodo && !S.repeticion) av.push(['warn','info',
-    '<b>Betano todavía no abre el mercado de método para esta cartelera.</b> Por ahora solo publica "Ganador", que es precisamente el mercado donde las pruebas <b>no</b> encontraron ventaja; por eso todas las selecciones salen como <i>sin ventaja clara</i>. No es un fallo del modelo ni falta de datos. Los mercados de método (KO / sumisión / decisión) suelen abrirse en los días previos al evento: vuelve a refrescar más cerca de la fecha y aparecerán las selecciones <i>probadas</i>.']);
+    d.fuente_cuotas
+      ? '<b>Esta integración solo consulta el mercado de ganador.</b> No incluye cuotas de KO, sumisión o decisión. En las pruebas del proyecto, el mercado de ganador no mostró una ventaja clara sobre la casa.'
+      : '<b>Esta captura no trae cuotas de método.</b> Solo permite comparar el ganador con el precio de la casa; no se calcula valor de KO, sumisión o decisión sin sus cuotas.']);
   if (d.missing.length) av.push(['warn','duda',
     `No encontré datos de estos peleadores en las fuentes consultadas: <b>${d.missing.map(esc).join(', ')}</b>. Sus peleas se omiten en vez de inventar datos.`]);
   const conDebut = d.peleas.filter(p => debutantesPelea(p).length);
@@ -788,7 +842,9 @@ function pintarCartelera(d, mov) {
   $('#resumen').innerHTML = html;
 
   /* ---- peleas ---- */
-  $('#nota-base').innerHTML = d.con_cuotas
+  $('#nota-base').innerHTML = d.fuente_cuotas?.peleas_sin_cuota
+    ? 'Donde hay cuotas, las probabilidades combinan modelo y mercado. Las peleas sin cuota usan solo el modelo.'
+    : d.con_cuotas
     ? (S.repeticion ? 'Las probabilidades combinan el modelo con las cuotas de cierre de ese día, que es la versión más certera (~70% de acierto).'
       : 'Las probabilidades combinan el modelo con las cuotas de la casa, que es la versión más certera (~70% de acierto).')
     : 'Probabilidades del modelo solo, sin cuotas. Con cuotas acertaría ~3 puntos más.';
@@ -858,22 +914,248 @@ function pintarCartelera(d, mov) {
   });
 
   tabla('#tabla-principal',
-    ['Pelea','Ganador','Probabilidad','Cuotas','Confianza','Termina por','No llega a tarjetas','Comparado con lo normal',
+    ['Pelea','Ganador','Probabilidad','Cuotas', ...(MERCADO.mostrar ? ['Mercado'] : []), 'Confianza','Termina por','No llega a tarjetas','Comparado con lo normal',
       ...(S.repeticion ? ['Resultado real'] : [])],
     peleas.map(p => {
       const pg = Math.max(p.p_a, p.p_b);
       const m = p.mercado;
       const r = p.resultado;
-      return [`<span class="tabla-peleador" data-lado="a">${esc(p.a)}</span> <small>vs</small> <span class="tabla-peleador" data-lado="b">${esc(p.b)}</span>` + etiquetaTitulo(p) + etiquetaDebut(p), esc(p.ganador), td(`<span data-num="t:${p.id}:p">${pct(pg)}</span>`),
+      return [`<span class="tabla-peleador" data-lado="a">${esc(p.a)}${insigniasIdentidad(p.identidad_a)}</span> <small>vs</small> <span class="tabla-peleador" data-lado="b">${esc(p.b)}${insigniasIdentidad(p.identidad_b)}</span>` + etiquetaTitulo(p) + etiquetaDebut(p), esc(p.ganador), td(`<span data-num="t:${p.id}:p">${pct(pg)}</span>`),
         td(m ? `<span data-num="t:${p.id}:cA">${cuota(m.cuota_a)}${flecha(mov, p.id, 'A')}</span> / <span data-num="t:${p.id}:cB">${cuota(m.cuota_b)}${flecha(mov, p.id, 'B')}</span>` : 'sin cuotas'),
+        ...(MERCADO.mostrar ? [`<span class="cons-celda" data-consenso-tabla="${esc(p.id)}"></span>`] : []),
         `<span class="pill ${claseConf(p.confianza)}">${p.confianza}</span>`,
         mejorMetodo(p.metodo), td(pct(p.p_finish,0)), esc(p.tendencia),
         ...(S.repeticion ? [`${pillResultado(p)}${r ? ` <small>${esc(textoResultado(r, true).titulo)}${r.como ? ' · ' + esc(r.como) : ''}</small>` : ''}`] : [])];
     }), peleas.map(p => p.es_titulo === true ? 'fila-titulo' : ''));
 
-  if (S.otraCartelera) { revelarCombates(); entradaCartelera(); entradaMarcador(); abrirPeleaElegida(peleas); }
+  // Las ranuras del consenso se llenan antes de comparar cifras: si la cuota de
+  // consenso no cambió, el repintado de EN VIVO no la hace destellar.
+  pintarConsenso({ animar:false });
+  if (S.otraCartelera) {
+    revelarCombates(); entradaCartelera(); entradaMarcador(); abrirPeleaElegida(peleas);
+    cargarMercado();
+  }
   else { resaltarCambios(raiz, antes); moverBarras(S.previo); }
 }
+
+/* ---------------------- consenso: datos y pintado ---------------------- */
+// La capa conserva precios de ayer para el evento que termina de madrugada;
+// eso no convierte una cartelera pasada en futura. Aquí solo se muestran en
+// fechas de hoy en adelante, y sin fecha no se afirma que quedan por pelear.
+function eventoVigente(iso, hoy = new Date()) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return false;
+  const fecha = new Date(iso + 'T12:00:00');
+  return !Number.isNaN(fecha.getTime()) && fecha.toLocaleDateString('sv-SE') === iso
+    && iso >= hoy.toLocaleDateString('sv-SE');
+}
+
+// Pide el consenso y el estado de las fuentes a NUESTRO servidor, que responde
+// desde caché/SQLite sin esperar a la red. Nunca le pide nada a Betano: Betano
+// sigue con su ciclo de 10 min y EN VIVO de 10 s, que le entregan sus cuotas a
+// la capa por su cuenta. Si algo falla, la cartelera queda como estaba.
+async function cargarMercado() {
+  if (MERCADO.enCurso || !S.datos) return;
+  const conCartelera = MERCADO.mostrar;
+  const conEstado = !!S.origen && !S.corte;
+  if (!conCartelera && !conEstado) return;
+  MERCADO.enCurso = true;
+  MERCADO.pedido = Date.now();
+  const clave = S.claveCartelera;
+  const [cart, est] = await Promise.allSettled([
+    conCartelera ? api('/api/mercado/cartelera') : Promise.resolve(null),
+    conEstado ? api('/api/mercado/estado') : Promise.resolve(null),
+  ]);
+  MERCADO.enCurso = false;
+  if (est.status === 'fulfilled' && est.value) MERCADO.estado = est.value;
+  else if (est.status === 'rejected') MERCADO.estado = null;
+  // Si mientras tanto se cargó otra cartelera, la respuesta es de la anterior:
+  // se descarta y se vuelve a pedir para la nueva.
+  if (clave !== S.claveCartelera) { cargarMercado(); return; }
+  if (conCartelera) {
+    if (cart.status === 'fulfilled' && cart.value && typeof cart.value.peleas === 'object') {
+      MERCADO.peleas = cart.value.peleas || {};
+      MERCADO.error = false;
+    } else {
+      // Un fallo pasajero no borra lo último que se vio: solo sin datos previos
+      // se avisa que no se pudo leer.
+      MERCADO.error = true;
+    }
+    pintarConsenso({ animar:true });
+  }
+  reloj();
+}
+// Cada minuto basta: es nuestro servidor local y las fuentes más rápidas fuera
+// de un evento (Polymarket, BFO) refrescan cada 15-30 min.
+setInterval(() => { if (!document.hidden) cargarMercado(); }, 60000);
+
+// Llena las ranuras del consenso. Solo toca la que cambió (así no se pierde el
+// foco del botón ni el detalle abierto) y la cifra que cambia entra como en
+// EN VIVO: desde abajo y con destello (resaltarCambios).
+const HTML_CONSENSO = new WeakMap();
+function pintarConsenso({ animar = true } = {}) {
+  const raiz = $('#cartelera-contenido');
+  if (!raiz || !S.datos) return;
+  const antes = animar ? capturarCifras(raiz) : null;
+  const porId = new Map((S.datos.peleas || []).map(p => [String(p.id), p]));
+  const llenar = (el, html) => {
+    if (HTML_CONSENSO.get(el) === html) return;
+    const conFoco = el.contains(document.activeElement) ? document.activeElement.dataset.consBoton : null;
+    el.innerHTML = html;
+    HTML_CONSENSO.set(el, html);
+    if (conFoco != null) el.querySelector('[data-cons-boton]')?.focus({ preventScroll:true });
+  };
+  raiz.querySelectorAll('[data-consenso-cab]').forEach(el => {
+    const p = porId.get(el.dataset.consensoCab);
+    if (p) llenar(el, cabConsenso(p));
+  });
+  raiz.querySelectorAll('[data-consenso-cuerpo]').forEach(el => {
+    const p = porId.get(el.dataset.consensoCuerpo);
+    const destino = el.querySelector('.cons-contenido');
+    if (p && destino) {
+      llenar(destino, cuerpoConsenso(p));
+      detalleConsenso(String(p.id), false);
+    }
+  });
+  raiz.querySelectorAll('[data-consenso-tabla]').forEach(el => {
+    const p = porId.get(el.dataset.consensoTabla);
+    if (p) llenar(el, tablaConsenso(p));
+  });
+  if (antes) resaltarCambios(raiz, antes);
+}
+
+// La capa superior del popover no se recorta por la jaula ni por la altura que
+// anima un details. Si no cabe debajo, queda arriba del botón; una lista larga
+// se desplaza dentro del panel, sin salirse de una ventana de 390 px.
+function situarDetalleConsenso(boton, panel) {
+  const margen = 12, separacion = 5;
+  const ancho = document.documentElement.clientWidth;
+  const alto = window.innerHeight;
+  panel.style.maxHeight = Math.max(0, alto - margen * 2) + 'px';
+  const ancla = boton.getBoundingClientRect();
+  const caja = panel.getBoundingClientRect();
+  const arriba = ancla.top - separacion - margen;
+  const abajo = alto - ancla.bottom - separacion - margen;
+  const haciaArriba = caja.height > abajo && arriba > abajo;
+  const x = Math.max(margen, Math.min(ancla.left + (ancla.width - caja.width) / 2,
+    ancho - margen - caja.width));
+  const y = haciaArriba ? ancla.top - separacion - caja.height : ancla.bottom + separacion;
+  panel.style.left = x + 'px';
+  panel.style.top = Math.max(margen, Math.min(y, alto - margen - caja.height)) + 'px';
+  panel.dataset.direccion = haciaArriba ? 'arriba' : 'abajo';
+}
+
+// El detalle por fuente se abre de tres maneras: al pasar el mouse (vistazo),
+// con clic o toque en el botón (queda abierto hasta cerrarlo) y con Enter o
+// Espacio (es un botón real). Esc lo cierra y devuelve el foco al botón.
+function detalleConsenso(id, abrir, { fijar = false } = {}) {
+  const raiz = $('#cartelera-contenido');
+  if (fijar) { if (abrir) MERCADO.abiertas.add(id); else MERCADO.abiertas.delete(id); }
+  const visible = MERCADO.abiertas.has(id) || MERCADO.hover === id;
+  if (!raiz) return;
+  raiz.querySelectorAll(`[data-cons-boton="${CSS.escape(id)}"]`).forEach(b => {
+    const panel = document.getElementById(b.getAttribute('aria-controls'));
+    if (!panel) return;
+    const estaba = !panel.hidden;
+    b.toggleAttribute('data-sin-movimiento', porTeclado);
+    b.setAttribute('aria-expanded', String(visible));
+    panel.hidden = !visible;
+    if (!visible) {
+      panel.getAnimations().forEach(a => a.cancel());
+      if (typeof panel.hidePopover === 'function' && panel.matches(':popover-open')) panel.hidePopover();
+      return;
+    }
+    if (typeof panel.showPopover === 'function' && !panel.matches(':popover-open')) panel.showPopover();
+    situarDetalleConsenso(b, panel);
+    // El vistazo frecuente con el mouse es instantáneo. Solo el clic/toque
+    // tiene una entrada de 160 ms; con menos movimiento queda un fundido.
+    if (fijar && !estaba && !porTeclado) {
+      const desde = panel.dataset.direccion === 'arriba' ? 'translateY(4px)' : 'translateY(-4px)';
+      panel.animate(reducir() ? [{ opacity:0 }, { opacity:1 }]
+        : [{ opacity:0, transform:desde }, { opacity:1, transform:'none' }],
+        { duration:reducir() ? 100 : 160, easing:EASE_OUT });
+    }
+  });
+}
+function cerrarDetallesConsenso() {
+  clearTimeout(esperaConsenso);
+  clearTimeout(salidaConsenso);
+  const abiertos = new Set(MERCADO.abiertas);
+  if (MERCADO.hover != null) abiertos.add(MERCADO.hover);
+  MERCADO.hover = null;
+  abiertos.forEach(id => detalleConsenso(id, false, { fijar:true }));
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('[data-cons-boton]');
+  if (b) {
+    const id = b.dataset.consBoton;
+    // Si estaba abierto solo por el mouse, el clic lo deja fijo en vez de cerrarlo.
+    const fijo = MERCADO.abiertas.has(id);
+    clearTimeout(esperaConsenso);
+    if (MERCADO.hover != null && MERCADO.hover !== id) {
+      const anterior = MERCADO.hover;
+      MERCADO.hover = null;
+      detalleConsenso(anterior, false);
+    } else MERCADO.hover = null;
+    detalleConsenso(id, !fijo, { fijar:true });
+    return;
+  }
+  // Un clic fuera cierra los que quedaron fijos (no si es dentro del detalle).
+  if (!e.target.closest?.('.consenso')) cerrarDetallesConsenso();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (document.querySelector('#modal:not(.oculto)')) return;
+  const dentro = document.activeElement?.closest?.('.consenso')?.querySelector('[data-cons-boton]');
+  const habia = MERCADO.abiertas.size || MERCADO.hover != null;
+  cerrarDetallesConsenso();
+  if (habia) dentro?.focus({ preventScroll:true });
+});
+// El vistazo con el mouse: solo con un puntero que de verdad pasa por encima
+// (en táctil, el toque abre con el clic). Un respiro de 120 ms evita que se
+// abran detalles al cruzar la página con el mouse.
+let esperaConsenso, salidaConsenso;
+document.addEventListener('pointerover', (e) => {
+  if (e.pointerType !== 'mouse' || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+  const sec = e.target.closest?.('.consenso');
+  const b = sec?.querySelector('[data-cons-boton]');
+  if (!b || (!e.target.closest?.('[data-cons-boton], .cons-detalle') && MERCADO.hover !== b.dataset.consBoton)) return;
+  const id = b.dataset.consBoton;
+  clearTimeout(salidaConsenso);
+  if (MERCADO.hover === id) return;
+  clearTimeout(esperaConsenso);
+  esperaConsenso = setTimeout(() => { MERCADO.hover = id; detalleConsenso(id, true); }, 120);
+});
+document.addEventListener('pointerout', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const sec = e.target.closest?.('.consenso');
+  if (!sec || sec.contains(e.relatedTarget)) return;
+  clearTimeout(esperaConsenso);
+  const id = sec.querySelector('[data-cons-boton]')?.dataset.consBoton;
+  if (id != null && MERCADO.hover === id) {
+    // El espacio entre el botón y el panel no debe cerrarlo al cruzarlo.
+    salidaConsenso = setTimeout(() => {
+      if (MERCADO.hover !== id) return;
+      MERCADO.hover = null;
+      detalleConsenso(id, false);
+    }, 120);
+  }
+});
+// Al desplazar la página o cambiar el tamaño, el panel sigue a su botón. El
+// rAF agrupa las lecturas; no se recalcula el layout por cada evento de scroll.
+let reposicionConsenso = false;
+function recolocarDetallesConsenso() {
+  if (reposicionConsenso || (!MERCADO.abiertas.size && MERCADO.hover == null)) return;
+  reposicionConsenso = true;
+  requestAnimationFrame(() => {
+    reposicionConsenso = false;
+    $('#cartelera-contenido')?.querySelectorAll('[data-cons-boton][aria-expanded="true"]').forEach(b => {
+      const panel = document.getElementById(b.getAttribute('aria-controls'));
+      if (panel && !panel.hidden) situarDetalleConsenso(b, panel);
+    });
+  });
+}
+addEventListener('resize', recolocarDetallesConsenso);
+addEventListener('scroll', recolocarDetallesConsenso, { passive:true, capture:true });
 
 // Abrir un combate es el momento de mostrarlo: ahí cada barra se llena desde
 // su esquina (la de A desde la izquierda, la de B desde la derecha). Antes se
@@ -1031,18 +1313,12 @@ function contar(el, delay, duracion) {
   requestAnimationFrame(paso);
 }
 
-// El resultado entra como el zócalo de la tele después de la pelea: se
-// descubre de izquierda a derecha y el sello cae al final.
+// El pie entra completo, sin golpes de sello que compitan con la predicción.
 function revelarResultado(art, delay) {
   const r = art.querySelector('.resultado-real');
   if (!r) return;
-  r.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],
-    { duration: 380, delay, easing: EASE_OUT, fill: 'backwards' });
-  r.querySelector('.rr-sello')?.animate([{ opacity: 0, scale: 1.3 }, { opacity: 1, scale: 1 }],
-    { duration: 220, delay: delay + 240, easing: EASE_OUT, fill: 'backwards' });
-  // Después del ganador, el veredicto del método: segundo timbre, más chico.
-  r.querySelector('.rr-metodo')?.animate([{ opacity: 0, translate: '-6px 0' }, { opacity: 1, translate: '0 0' }],
-    { duration: 260, delay: delay + 420, easing: EASE_OUT, fill: 'backwards' });
+  r.animate([{ opacity: 0, translate: '0 2px' }, { opacity: 1, translate: '0 0' }],
+    { duration: 200, delay, easing: EASE_OUT, fill: 'backwards' });
 }
 
 // Una cartelera nueva entra como la presentación de la noche: las cifras de la
@@ -1223,7 +1499,7 @@ function textoResultado(r, corto = false) {
   if (!r.ganador) return { titulo: r.como === 'sin resultado' ? (corto ? 'Sin resultado' : 'Sin resultado (no contest)') : 'Empate', detalle };
   return { titulo: `Ganó ${corto ? apellidoDe(r.ganador) : r.ganador}`, detalle };
 }
-// El zócalo del resultado, en la tarjeta y como placa en la lona del octágono.
+// El pie del resultado: ganador y detalle, con los dos veredictos separados.
 function resultadoReal(p, enLona = false) {
   if (!enRepeticion(p)) return '';
   const est = estadoResultado(p);
@@ -1233,11 +1509,11 @@ function resultadoReal(p, enLona = false) {
   const icono = est.clave === 'si' ? 'ok' : est.clave === 'no' ? 'no' : 'duda';
   // El sello habla del ganador; el método va aparte, con su propio veredicto.
   const am = aciertoMetodo(p);
-  const metodo = !am ? '' : `<span class="rr-metodo" data-metodo="${am.acierto ? 'si' : 'no'}">${ico(am.acierto ? 'ok' : 'no')}${
-    am.acierto ? 'Acertó el método' : `Falló el método${enLona ? '' : `: veía ${esc(METODOS.find(([k]) => k === am.top)[1].toLowerCase())}`}`}</span>`;
-  return `<div class="resultado-real${enLona ? ' j-todo j-resultado' : ''}" data-acierto="${est.clave}">
-    <span class="rr-sello">${ico(icono)}${esc(est.texto)}</span>
-    <span class="rr-que"><small>Resultado real${r && !enLona ? ' · ' + esc(fechaCorta(r.fecha)) : ''}</small><b${r?.lado ? ` data-lado="${r.lado}"` : ''}>${esc(t.titulo)}</b>${t.detalle ? `<span>${esc(t.detalle)}</span>` : ''}${metodo}</span>
+  const metodo = !am ? '' : `<span class="rr-metodo" data-metodo="${am.acierto ? 'si' : 'no'}" title="${am.acierto ? 'Acertó el método' : `Falló el método: veía ${esc(METODOS.find(([k]) => k === am.top)[1].toLowerCase())}`}">${ico(am.acierto ? 'ok' : 'no')}${am.acierto ? 'Acertó el método' : 'Falló el método'}</span>`;
+  const detalle = [t.detalle, r && !enLona ? fechaCorta(r.fecha) : ''].filter(Boolean).join(' · ');
+  return `<div class="resultado-real${enLona ? ' j-todo j-resultado' : ''}" data-acierto="${est.clave}" role="group" aria-label="Resultado real">
+    <span class="rr-que"><b${r?.lado ? ` data-lado="${r.lado}"` : ''}>${esc(t.titulo)}</b>${detalle ? `<span>${esc(detalle)}</span>` : ''}</span>
+    <span class="rr-veredictos"><span class="rr-sello" title="Resultado de la predicción del ganador">${ico(icono)}${esc(est.texto)}</span>${metodo}</span>
   </div>`;
 }
 // En el encabezado plegable: se sabe cómo terminó sin abrir el combate, el
@@ -1387,6 +1663,150 @@ function etiquetaTitulo(p) {
   return p.es_titulo === true ? '<span class="pelea-cinturon">Por el título</span>' : '';
 }
 
+/* ======================= CONSENSO DEL MERCADO ========================= */
+// Las cuotas de consenso (capa src/cuotas, GET /api/mercado/cartelera) en una
+// cartelera que todavía no ocurre. Es lo que dice el mercado, no una
+// recomendación: el proyecto no le gana al mercado de ganador, así que acá no
+// se compara nada con el modelo ni se marca "valor".
+//
+// El estado vive aparte de S porque estas vistas se prueban sin navegador
+// (tests/ui_cards.test.cjs carga solo este tramo del archivo).
+//   mostrar: la cartelera es futura y no es una repetición.
+//   peleas:  {"<a>|<b>": Pelea | null} tal cual el endpoint; null = no se ha
+//            pedido todavía. Una clave que falta = esa pelea aún no se consultó.
+//   error:   el endpoint falló (la cartelera se pinta igual, sin consenso).
+//   abiertas: las peleas con el detalle por fuente abierto a propósito (clic o
+//            teclado); sobreviven a los repintados de EN VIVO.
+const MERCADO = { mostrar:false, peleas:null, error:false, estado:null, pedido:0,
+                  enCurso:false, clave:'', abiertas:new Set(), hover:null };
+const FUENTES_NOMBRE = { betano:'Betano', bfo:'BestFightOdds', odds_api:'The Odds API', polymarket:'Polymarket', simulada:'Simulada' };
+
+// +135 / −135 con el signo menos tipográfico, como en una pizarra de cuotas.
+// Sin punto de miles: una cuota americana se lee "+1200", no "+1.200".
+const americana = (n) => {
+  if (n == null || typeof n === 'boolean' || String(n).trim() === '') return '—';
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v)) return '—';
+  return v > 0 ? `+${v}` : v < 0 ? `−${Math.abs(v)}` : '±0';
+};
+// La palabra va siempre escrita; la intensidad (regla de tinta, tinta, tenue)
+// solo la refuerza. No usa los colores de confianza ni el rojo de peligro.
+const etqConsenso = (lado) => {
+  const t = String(lado?.etiqueta || '');
+  const k = { Favorito:'favorito', Underdog:'underdog', Pareja:'pareja' }[t];
+  return k ? `<span class="cons-etq" data-etq="${k}">${esc(t)}</span>` : '';
+};
+// Qué sabemos del consenso de una pelea: 'cargando' (aún no hay respuesta),
+// 'error', 'sin' (sin cuotas publicadas) u 'ok'.
+function consensoDe(p) {
+  if (MERCADO.error && !MERCADO.peleas) return { estado:'error' };
+  const datos = MERCADO.peleas;
+  const k = `${p.a}|${p.b}`;
+  if (!datos || !Object.prototype.hasOwnProperty.call(datos, k)) return { estado:'cargando' };
+  const pelea = datos[k];
+  if (!pelea || !pelea.consenso) return { estado:'sin', pelea:pelea || null };
+  return { estado:'ok', pelea };
+}
+const SIN_CUOTAS = 'Sin cuotas publicadas todavía';
+
+// En el encabezado plegable: el consenso en una línea, sin botón (un control
+// dentro de <summary> no se puede usar con teclado). El detalle está adentro.
+function cabConsenso(p) {
+  const c = consensoDe(p);
+  if (c.estado === 'cargando' || c.estado === 'error') return '';
+  const rot = '<span class="cons-rot">Mercado</span>';
+  if (c.estado === 'sin') return `${rot}<span class="cons-vacio">${SIN_CUOTAS.toLowerCase()}</span>`;
+  const k = c.pelea.consenso;
+  const lado = (l, nombre) => `<span class="cons-par"><span class="sr">${esc(nombre)}: </span><b data-num="cons-cab:${esc(p.id)}:${l.toUpperCase()}">${americana(k[l]?.americana)}</b>${k.pareja ? '' : etqConsenso(k[l])}</span>`;
+  // En una pareja la palabra va una vez: "−110 / +105 PAREJA" se lee mejor que
+  // repetirla en los dos lados de una línea tan corta.
+  return `${rot}${lado('a', p.a)}<span class="cons-sep" aria-hidden="true">/</span>${lado('b', p.b)}${k.pareja ? etqConsenso(k.a) : ''}`;
+}
+
+// La hora de una cotización, en 24 h; si no es de hoy, con el día delante.
+function horaCuota(ts) {
+  const d = new Date(ts);
+  if (!ts || Number.isNaN(d.getTime())) return '—';
+  const hora = d.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+  return d.toDateString() === new Date().toDateString() ? hora
+    : `${d.toLocaleDateString('es-CL', { day:'numeric', month:'short' }).replace('.', '')} ${hora}`;
+}
+
+// El detalle por fuente: cada casa con su cuota y su hora, y Polymarket
+// aparte, porque es un mercado de predicción y no una casa (su precio es el
+// punto medio del libro: no entra en "mejor cuota").
+function detalleCuotas(p, pelea) {
+  const cots = Array.isArray(pelea.cotizaciones) ? pelea.cotizaciones : [];
+  const mejor = pelea.mejor || {};
+  const nombreFuente = (f) => MERCADO.estado?.fuentes?.find(x => x.clave === f)?.nombre || FUENTES_NOMBRE[f] || f;
+  const celda = (c, l) => {
+    const v = c[l] || {};
+    const top = c.tipo === 'casa' && mejor[l] && v.americana === mejor[l].americana;
+    const precio = c.tipo === 'mercado_prediccion' && Number.isFinite(v.prob_implicita)
+      ? `<small class="cons-precio">${pct(v.prob_implicita)}</small>` : '';
+    return `<td class="num${top ? ' cons-top' : ''}"><b>${americana(v.americana)}</b>${top ? '<small class="cons-mejor">mejor</small>' : ''}${precio}</td>`;
+  };
+  const fila = (c) => {
+    const via = c.tipo === 'casa' && String(c.casa).toLowerCase() !== String(nombreFuente(c.fuente)).toLowerCase()
+      ? `<small>vía ${esc(nombreFuente(c.fuente))}</small>` : '';
+    const cuando = c.visto && c.visto !== c.timestamp
+      ? `Cuota desde las ${horaCuota(c.timestamp)}; confirmada a las ${horaCuota(c.visto)}` : `Cuota de las ${horaCuota(c.timestamp)}`;
+    return `<tr><th scope="row">${esc(c.casa)}${via}</th>${celda(c, 'a')}${celda(c, 'b')}<td class="num cons-hora" title="${esc(cuando)}">${horaCuota(c.visto || c.timestamp)}</td></tr>`;
+  };
+  const casas = cots.filter(c => c.tipo !== 'mercado_prediccion');
+  const prediccion = cots.filter(c => c.tipo === 'mercado_prediccion');
+  const grupo = (titulo, lista) => lista.length
+    ? `<tr class="cons-grupo"><th colspan="4" scope="colgroup">${titulo}</th></tr>${lista.map(fila).join('')}` : '';
+  const n = pelea.consenso?.n_cotizaciones || 0;
+  return `<table class="cons-tabla">
+      <caption class="sr">Cuotas por fuente de ${esc(p.a)} frente a ${esc(p.b)}</caption>
+      <thead><tr><th scope="col">Fuente</th><th scope="col" class="num">${esc(apellidoDe(p.a))}</th><th scope="col" class="num">${esc(apellidoDe(p.b))}</th><th scope="col" class="num">Hora</th></tr></thead>
+      <tbody>${grupo('Casas de apuestas', casas)}${grupo('Mercado de predicción', prediccion)}</tbody>
+    </table>
+    <p class="cons-nota">Consenso: promedio sin margen de ${n} ${n === 1 ? 'cotización' : 'cotizaciones'}, una por casa. Es el precio del mercado, no una recomendación.${
+      casas.length ? ' «Mejor» es la cuota que más paga entre las casas.' : ''}</p>`;
+}
+
+// Dentro de la tarjeta, la jaula o el acta: las dos cuotas en espejo, con la
+// etiqueta debajo, y al medio el botón que abre el detalle por fuente.
+function cuerpoConsenso(p) {
+  const c = consensoDe(p);
+  if (c.estado === 'cargando') return `<p class="cons-vacio">Consultando el mercado…</p>`;
+  if (c.estado === 'error') return `<p class="cons-vacio">No pude leer las cuotas del mercado. El resto del pronóstico no depende de ellas.</p>`;
+  if (c.estado === 'sin') return `<div class="cons-fila cons-sin"><span class="cons-rotulo">Consenso del mercado</span><p class="cons-vacio">${SIN_CUOTAS}</p></div>`;
+  const k = c.pelea.consenso;
+  const id = `cons-det-${encodeURIComponent(String(p.id))}`;
+  const abierta = MERCADO.abiertas.has(String(p.id)) || MERCADO.hover === String(p.id);
+  const n = k.n_cotizaciones || 0;
+  const lado = (l, nombre) => `<span class="cons-lado" data-lado="${l}"><span class="sr">${esc(nombre)}: </span><b data-num="cons:${esc(p.id)}:${l.toUpperCase()}">${americana(k[l]?.americana)}</b>${etqConsenso(k[l])}</span>`;
+  return `<div class="cons-fila">
+      ${lado('a', p.a)}
+      <button type="button" class="cons-boton" data-cons-boton="${esc(p.id)}" aria-expanded="${abierta}" aria-controls="${id}"
+        aria-label="Cuotas por fuente de ${esc(p.a)} frente a ${esc(p.b)}"><span>Consenso del mercado</span><small>${n} ${n === 1 ? 'cuota' : 'cuotas'}</small><svg class="cons-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></button>
+      ${lado('b', p.b)}
+    </div>
+    <div class="cons-detalle" id="${id}" popover="manual" role="region" aria-label="Cuotas por fuente"${abierta ? '' : ' hidden'}>${detalleCuotas(p, c.pelea)}</div>${
+      MERCADO.error ? '<p class="cons-vacio cons-error">No pude actualizar las cuotas. Se conserva la última captura disponible.</p>' : ''}`;
+}
+
+// En la vista de tabla: las dos cuotas y sus etiquetas, sin detalle.
+function tablaConsenso(p) {
+  const c = consensoDe(p);
+  if (c.estado === 'cargando') return '…';
+  if (c.estado === 'error') return '—';
+  if (c.estado === 'sin') return `<span class="cons-vacio">${SIN_CUOTAS.toLowerCase()}</span>`;
+  const k = c.pelea.consenso;
+  const lado = (l) => `<span class="cons-par"><span data-num="cons-t:${esc(p.id)}:${l.toUpperCase()}">${americana(k[l]?.americana)}</span> ${etqConsenso(k[l])}</span>`;
+  return `${lado('a')} <span class="cons-sep">/</span> ${lado('b')}`;
+}
+
+// Las ranuras que se dejan al pintar la cartelera; pintarConsenso() las llena
+// (y las vuelve a llenar cada minuto sin repintar toda la cartelera).
+const ranuraCab = (p) => MERCADO.mostrar ? `<span class="cab-mercado" data-consenso-cab="${esc(p.id)}"></span>` : '';
+const ranuraCuerpo = (p, titulo = false) => MERCADO.mostrar
+  ? `<section class="consenso${titulo ? ' consenso-aside' : ''}" data-consenso-cuerpo="${esc(p.id)}" aria-label="Consenso del mercado">${
+      titulo ? '<h3>Consenso del mercado</h3>' : ''}<div class="cons-contenido"></div></section>` : '';
+
 // En la fila plegada, el reparto en chico: quién es favorito y por cuánto se
 // lee sin abrir cada pelea. Es el mismo dato y la misma barra de adentro; al
 // abrir el combate se apaga, porque la grande ya lo dice.
@@ -1397,12 +1817,20 @@ function repartoPlegado(p) {
   // los dos nombres con su porcentaje en la descripción de la barra.
   return `<span class="combate-reparto"><span data-lado="a" class="${favA ? '' : 'menos'}" aria-hidden="true">${pct(p.p_a, 0)}</span>${barraDuelo(p)}<span data-lado="b" class="${favA ? 'menos' : ''}" aria-hidden="true">${pct(p.p_b, 0)}</span></span>`;
 }
+// La línea chica bajo los nombres: el segmento y, en una cartelera futura, el
+// consenso del mercado al lado, separado por un filete.
+function etiquetasCab(p, etiqueta) {
+  const segmento = etiqueta || p.es_titulo === true
+    ? `<span class="combate-segmento">${esc(etiqueta || '')}${p.es_titulo === true ? `${etiqueta ? ' · ' : ''}Por el título` : ''}</span>` : '';
+  const mercado = ranuraCab(p);
+  return segmento || mercado ? `<span class="combate-etiquetas">${segmento}${mercado}</span>` : '';
+}
 function combatePlegable(p, contenido, tipo = '', abierto = false) {
   const titulo = p.es_titulo === true;
   const etiqueta = tipo === 'estelar' ? 'Pelea estelar' : tipo === 'coestelar' ? 'Co-estelar' : p.segmento;
   return `<details class="combate-desplegable ${titulo ? 'combate-titulo' : ''}" data-combate="${esc(p.id)}"${abierto ? ' open' : ''}>
-    <summary class="combate-cab"><span class="combate-rotulo"><span class="combate-nombres"><b data-lado="a">${esc(p.a)}</b><small>vs</small><b data-lado="b">${esc(p.b)}</b></span>
-      ${etiqueta || p.es_titulo === true ? `<span class="combate-etiquetas">${esc(etiqueta || '')}${p.es_titulo === true ? `${etiqueta ? ' · ' : ''}Por el título` : ''}</span>` : ''}</span>
+    <summary class="combate-cab"><span class="combate-rotulo"><span class="combate-nombres"><b data-lado="a">${esc(p.a)}${insigniasIdentidad(p.identidad_a)}</b><small>vs</small><b data-lado="b">${esc(p.b)}${insigniasIdentidad(p.identidad_b)}</b></span>
+      ${etiquetasCab(p, etiqueta)}</span>
       ${repartoPlegado(p)}<span class="pill ${claseConf(p.confianza)}">${esc(p.confianza)}</span>${pillResultado(p)}<svg class="combate-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg>
     </summary><div class="combate-contenido">${contenido}</div></details>`;
 }
@@ -1422,7 +1850,9 @@ function desplegarCombate(detalle, abierto, { abrir = 340, cerrar = 340 } = {}) 
   detalle.style.height = '';
   detalle.style.overflow = '';
   detalle.removeAttribute('data-cerrando');
-  if (reducir() || typeof detalle.animate !== 'function') {
+  if (porTeclado) detalle.setAttribute('data-sin-movimiento', '');
+  else detalle.removeAttribute('data-sin-movimiento');
+  if (reducir() || porTeclado || typeof detalle.animate !== 'function') {
     detalle.open = abierto;
     return;
   }
@@ -1467,12 +1897,13 @@ function tarjetaPelea(p, mov, tipo = '') {
     <div class="cara">
       ${retrato(p.a, 'a')}
       <div class="centro">
-        <div class="vs-nombres"><span class="n" data-lado="a">${esc(p.a)}</span><span class="x">vs</span><span class="n b" data-lado="b">${esc(p.b)}</span></div>
+        <div class="vs-nombres"><span class="n" data-lado="a">${esc(p.a)}${insigniasIdentidad(p.identidad_a)}</span><span class="x">vs</span><span class="n b" data-lado="b">${esc(p.b)}${insigniasIdentidad(p.identidad_b)}</span></div>
         <div class="vs-sub"><span>${peleasUFC(p.info_a)}</span><span>${peleasUFC(p.info_b)}</span></div>
         ${historialReciente(p)}
         <div class="pcts"><span class="${favA ? '' : 'menos'}" data-lado="a" data-num="${p.id}:pA">${pct(p.p_a)}</span><span class="${favA ? 'menos' : ''}" data-lado="b" data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
         ${barraDuelo(p)}
         ${espejo(p, mov)}
+        ${ranuraCuerpo(p)}
       </div>
       ${retrato(p.b, 'b')}
     </div>
@@ -1524,9 +1955,9 @@ function jaula(p, mov, tipo) {
         <div class="lona-impresion" aria-hidden="true">${marcaLona()}</div>
         ${retrato(p.a, 'a').replace('class="retrato"', 'class="retrato a"')}
         ${retrato(p.b, 'b').replace('class="retrato"', 'class="retrato b"')}
-        <div class="j-a j-nombre" data-lado="a">${esc(p.a)}<small>${peleasUFC(p.info_a)}</small></div>
+        <div class="j-a j-nombre" data-lado="a">${esc(p.a)}${insigniasIdentidad(p.identidad_a)}<small>${peleasUFC(p.info_a)}</small></div>
         <div class="j-lomo j-vs">vs</div>
-        <div class="j-b j-nombre" data-lado="b">${esc(p.b)}<small>${peleasUFC(p.info_b)}</small></div>
+        <div class="j-b j-nombre" data-lado="b">${esc(p.b)}${insigniasIdentidad(p.identidad_b)}<small>${peleasUFC(p.info_b)}</small></div>
         ${historialReciente(p, true)}
         <div class="j-a j-pct ${favA ? '' : 'menos'}" data-lado="a"><span data-lado="a" data-num="${p.id}:pA">${pct(p.p_a)}</span></div>
         <div class="j-b j-pct ${favA ? 'menos' : ''}" data-lado="b"><span data-lado="b" data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
@@ -1536,6 +1967,7 @@ function jaula(p, mov, tipo) {
     </div></div>
     <aside class="estelar-datos" aria-label="Estadísticas del combate">
       ${datosJaula(p, mov)}
+      ${ranuraCuerpo(p, true)}
       <section class="estelar-metodos" aria-label="Métodos de finalización"><h3>Cómo puede terminar</h3>${metodoFila(p)}</section>
       ${piePelea(p)}
     </aside></div>
@@ -1569,7 +2001,7 @@ function actaPelea(p, mov, tipo, n, total) {
   const peleador = (lado, nombre, info, fav) => `
       <div class="ac-peleador ${lado} ${fav ? 'fav' : ''}" data-lado="${lado}">
         <div class="ac-foto">${retrato(nombre, lado)}${tipo === 'estelar' ? `<span class="ac-clip">${ico('clip')}</span>` : ''}</div>
-        <div class="ac-id"><small>Peleador</small><b data-lado="${lado}">${esc(nombre)}</b><span>${peleasUFC(info) || '&nbsp;'}</span></div>
+        <div class="ac-id"><small>Peleador</small><b data-lado="${lado}">${esc(nombre)}${insigniasIdentidad(p['identidad_' + lado])}</b><span>${peleasUFC(info) || '&nbsp;'}</span></div>
       </div>`;
   const conLapiz = !SIN_LAPIZ.includes(p.confianza);
   const tendencia = p.tendencia === 'pelea promedio'
@@ -1591,7 +2023,8 @@ function actaPelea(p, mov, tipo, n, total) {
         ${m ? fila('cuota', 'cuota', cuota(m.cuota_a) + flecha(mov, p.id, 'A'), cuota(m.cuota_b) + flecha(mov, p.id, 'B'))
             + fila('casa', 'le da la casa', pct(m.p_mercado_a), pct(1 - m.p_mercado_a))
             + fila('modelo', 'el modelo solo', pct(m.p_modelo_a), pct(1 - m.p_modelo_a))
-            : '<p class="ac-sin">Sin cuotas: solo la probabilidad del modelo.</p>'}
+            : '<p class="ac-sin">Sin cuota usada por el pronóstico: solo la probabilidad del modelo.</p>'}
+        ${ranuraCuerpo(p)}
       </div>
     </div>
     <div class="ac-metodo"><small class="ac-tit">Cómo termina</small>${metodoFila(p)}</div>
@@ -2364,6 +2797,9 @@ $$('.seg[data-prox]').forEach(b => b.onclick = () => {
 
 /* ============================== CARGAR ================================ */
 $('#btn-refresh').onclick = async () => {
+  // El consenso se pide a nuestro servidor (responde desde caché): refrescar
+  // la cartelera también lo trae al día, sin tocar Betano.
+  cargarMercado();
   try { await post('/api/refrescar'); await tick(); }
   catch (e) { barra(e.message,'error'); }
 };

@@ -605,7 +605,47 @@ def bajar_cuotas(query: str, destino: Path | None = None,
     # ("UFC Fight Night" puede ser dos fines de semana distintos).
     ruta = bs.scrape_card(query, str(destino) if destino else None, fecha=fecha,
                           progreso=avance)
-    return Path(ruta), titulo
+    ruta = Path(ruta)
+    if DB.exists(ruta):
+        import hashlib
+        import pandas as pd
+        from src import cartelera_completa as completa
+        from src import cuotas_fuentes as Q
+        crudo = DB.read_bytes(ruta)
+        sha = hashlib.sha256(crudo).hexdigest()
+        original = C.DATA_RAW / f"cuotas_betano_{sha[:24]}.csv"
+        if not DB.exists(original):
+            DB.write_bytes(original, crudo)
+        df = DB.read_csv(ruta)
+        peleas = []
+        for r in df.to_dict("records"):
+            if pd.notna(r.get("odds_a")) and pd.notna(r.get("odds_b")):
+                peleas.append({"id": "|".join(sorted((str(r["fighter_a"]), str(r["fighter_b"])))),
+                    "a": r["fighter_a"], "b": r["fighter_b"], "casas": {"betano": {
+                        "casa": "Betano", "a": r["odds_a"], "b": r["odds_b"]}}})
+        Q._guardar("betano", [{"id": sha, "titulo": titulo, "fecha": fecha,
+            "fuente": "https://www.betano.cl", "peleas": peleas}])
+        _entregar_a_capa([(p["a"], p["b"], p["casas"]["betano"]["a"], p["casas"]["betano"]["b"])
+                          for p in peleas], titulo, fecha)
+        completo = completa.completar_betano(df, query, fecha)
+        if not completo.equals(df):
+            firma = hashlib.sha256(completo.to_csv(index=False).encode()).hexdigest()[:24]
+            ruta = C.DATA_PROCESSED / f"cartelera_betano_{firma}.csv"
+            DB.to_csv(completo, ruta, index=False)
+    return ruta, titulo
+
+
+def _entregar_a_capa(cuotas, evento: str | None, fecha: str | None = None) -> None:
+    """Le pasa a la capa de mercado (src/cuotas) lo que este ciclo YA bajó de Betano.
+
+    Betano es fuente pasiva: la capa nunca le pide nada, así se mantiene UNA
+    petición por ciclo. Si la capa falla, el ciclo de Betano sigue igual.
+    """
+    try:
+        from src.cuotas import capa
+        capa.recibir_betano(cuotas, evento, fecha)
+    except Exception:                                       # noqa: BLE001
+        pass
 
 
 def _claves_cuotas(datos: dict) -> dict[str, float]:
@@ -620,6 +660,22 @@ def _claves_cuotas(datos: dict) -> dict[str, float]:
         for op in pl.get("metodo6", []):
             out[f"{pl['id']}:MET:{op['clase']}"] = op["cuota_decimal"]
     return out
+
+
+def _archivar_linea(cuotas, titulo, url):
+    """Una captura por cambio; el refresco en vivo no repite datos idénticos."""
+    from src import cuotas_fuentes as Q
+    peleas = [{"id": str(i), "a": a, "b": b,
+        "casas": {"betano": {"casa": "Betano", "a": ca, "b": cb}}}
+        for i, (a, b, ca, cb) in cuotas.items()]
+    def precios(eventos):
+        return sorted((p["a"], p["b"], c["a"], c["b"]) for e in eventos
+            for p in e["peleas"] for c in p["casas"].values())
+    eventos = [{"id": url, "titulo": titulo, "fecha": None, "fuente": url, "peleas": peleas}]
+    anterior = Q.guardado("betano")
+    if anterior and precios(anterior["eventos"]) == precios(eventos):
+        return
+    Q._guardar("betano", eventos)
 
 
 # --------------------------------------------------------------------------- #
@@ -644,7 +700,8 @@ def _predecir_sync(csv_path: Path, progreso: Callable[[dict], None] | None = Non
 
 def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
            refrescar_cuotas: bool = True, fecha: str | None = None,
-           corte: str | None = None) -> None:
+           corte: str | None = None, fuente_cuotas: dict | None = None,
+           titulo_fuente: str | None = None) -> None:
     """
     Arranca la carga de una cartelera en segundo plano. La UI hace polling a
     /api/estado mientras tanto.
@@ -685,6 +742,11 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
             res = _predecir_sync(ruta, progreso=avance, **({"corte": corte} if corte else {}))
             avance({"etapa": "serializando", "detalle": "Preparando los resultados para mostrarlos…"})
             datos, patas = _serializar(res, ruta)
+            if fuente_cuotas:
+                datos["fuente_cuotas"] = fuente_cuotas
+                titulo = titulo_fuente or titulo
+                from datetime import datetime
+                cuotas_en = datetime.fromisoformat(fuente_cuotas["capturado"]).timestamp()
 
             with ESTADO.lock:
                 # Movimiento de línea contra el snapshot anterior
@@ -764,13 +826,16 @@ def refrescar() -> str:
         if ESTADO.cargando:
             return "Ya hay una carga en curso."
         origen, consulta, ruta, corte = ESTADO.origen, ESTADO.consulta, ESTADO.csv_path, ESTADO.corte
+        fuente = (ESTADO.datos or {}).get("fuente_cuotas")
+        titulo = ESTADO.titulo if fuente else None
     if not origen:
         return "No hay ninguna cartelera cargada todavía."
     if origen == "demo":
         return "Modo demo: no hay cuotas que refrescar."
     # Una repetición se vuelve a predecir con el MISMO corte: refrescar no
     # puede convertirla en una predicción de hoy.
-    cargar(origen, consulta, ruta, corte=corte)
+    opciones = {"fuente_cuotas": fuente, "titulo_fuente": titulo} if fuente else {}
+    cargar(origen, consulta, ruta, corte=corte, **opciones)
     return ""
 
 
@@ -812,15 +877,18 @@ def refrescar_linea() -> str:
         frescas = B.cuotas_rapidas(card["url"])
         if not frescas:
             return "sin respuesta de Betano"
+        _archivar_linea(frescas, consulta, card["url"])
+        _entregar_a_capa(list(frescas.values()), consulta)
 
-        # Índice por apellidos: el id de pelea de Betano no viaja en `datos`.
-        def apellido(nombre: str) -> str:
-            return _slug(nombre.split()[-1])
-
+        # Los apellidos no identifican a una persona: cruce exacto de los
+        # dos nombres completos y ninguna elección arbitraria entre duplicados.
         def clave(a: str, b: str) -> frozenset:
-            return frozenset({apellido(a), apellido(b)})
+            return frozenset({a, b})
 
-        por_par = {clave(a, b): (a, ca, cb) for (a, b, ca, cb) in frescas.values()}
+        grupos = {}
+        for a, b, ca, cb in frescas.values():
+            grupos.setdefault(clave(a, b), []).append((a, ca, cb))
+        por_par = {k: v[0] for k, v in grupos.items() if len(v) == 1}
         cal = value.cargar_calibrador()
 
         movidas = 0
@@ -836,7 +904,7 @@ def refrescar_linea() -> str:
                 # El conjunto de apellidos no dice quién es quién: si Betano lista
                 # la pelea al revés que el CSV, cada cuota iría al peleador
                 # equivocado. Se orienta por el nombre que acompaña a la cuota.
-                if apellido(primero) == apellido(pl["b"]) != apellido(pl["a"]):
+                if primero == pl["b"] != pl["a"]:
                     ca, cb = cb, ca
                 if m.get("cuota_a") == ca and m.get("cuota_b") == cb:
                     continue

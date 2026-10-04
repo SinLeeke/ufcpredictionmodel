@@ -46,6 +46,7 @@
   /* La barra del canal: igual en los dos temas, como en la tele. */
   --cab-bg:#0b0a09; --cab-sup:#1a1715; --cab-linea:#2e2a25;
   --cab-txt:#efe9df; --cab-tenue:#a39a8c; --cab-rojo:#c41230; --cab-regla:#e8293d;
+  --cab-alerta:#e4a83a;                /* un aviso en la barra (créditos bajos): el ámbar de alerta del oscuro */
 
   --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
   --texto:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -465,11 +466,12 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
 .combate-nombres{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;font:800 22px/1.15 var(--display);text-transform:uppercase;color:var(--txt)}
 .combate-nombres b{font-weight:800;overflow-wrap:anywhere}
 .combate-nombres small{font:600 13px/1 var(--display);color:var(--tenue)}
-.combate-etiquetas{display:block;margin-top:3px;font:600 12px/1.2 var(--texto);color:var(--tenue)}
+.combate-etiquetas{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:12px;row-gap:3px;margin-top:3px;font:600 12px/1.2 var(--texto);color:var(--tenue)}
 .combate-flecha{flex:none;width:20px;height:20px;fill:none;stroke:var(--tenue);stroke-width:1.8;transition:transform .2s ease}
 .combate-desplegable[open]>.combate-cab{border-bottom:1px solid var(--linea)}
 .combate-desplegable[open]>.combate-cab .combate-flecha{transform:rotate(180deg)}
 .combate-desplegable[data-cerrando]>.combate-cab .combate-flecha{transform:rotate(0)}
+[data-sin-movimiento]>summary svg{transition:none}
 .combate-titulo,.estelar-titulo{--estelar-tinta:var(--titulo-tinta);--estelar-tenue:var(--titulo-tenue);
   --estelar-reja:var(--titulo-reja);--estelar-hilo:var(--titulo-hilo);--estelar-metal:var(--titulo-metal)}
 .combate-titulo>.combate-cab{border-top:3px solid var(--estelar-tinta);border-image:var(--titulo-metal) 1;background:color-mix(in srgb,var(--estelar-tinta) 5%,var(--sup))}
@@ -1080,45 +1082,34 @@ summary.res-cab:focus-visible{outline:2px solid var(--marca);outline-offset:-2px
 .mt-nd{background:var(--sup2);color:var(--tenue)}
 .marcador.sin-datos{grid-template-columns:minmax(0,1fr)}
 
-/* El resultado real: un zócalo con el sello a la izquierda. El sello dice
-   "Acertó" o "Falló" con palabra e ícono; el color solo lo refuerza. */
-.resultado-real{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:stretch;min-height:58px;
-  background:var(--sup2);border-top:1px solid var(--linea)}
-.rr-sello{display:flex;align-items:center;gap:7px;padding:0 24px 0 16px;white-space:nowrap;
-  font:800 15px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;
-  clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
-.rr-sello .ico{width:16px;height:16px}
-[data-acierto="si"] .rr-sello{background:var(--ok);color:var(--sobre-solido)}
-[data-acierto="no"] .rr-sello{background:var(--error);color:var(--sobre-solido)}
-[data-acierto="nd"] .rr-sello{background:var(--linea);color:var(--txt2)}
-.rr-que{display:grid;align-content:center;gap:3px;padding:9px 16px;min-width:0}
-.rr-que small{font:700 12px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--tenue)}
-.rr-que b{font:800 21px/1.05 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
-.rr-que>span{font-size:13.5px;line-height:1.3;color:var(--txt2)}
-.combate-desplegable:not(.combate-titulo) .rr-que b[data-lado="a"]{color:var(--esquina-roja)}
-.combate-desplegable:not(.combate-titulo) .rr-que b[data-lado="b"]{color:var(--esquina-azul)}
+/* Pie del resultado: el ganador lleva la jerarquía; los aciertos se leen
+   como anotaciones de tinta, con palabra e ícono además del color. */
+.resultado-real{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 24px;
+  padding:12px 16px;background:var(--sup);border-top:1px solid var(--linea)}
+.rr-veredictos{display:grid;gap:6px;justify-items:start}
+.rr-sello,.rr-metodo{display:inline-flex;align-items:center;gap:5px;
+  font:700 13px/1.15 var(--display);letter-spacing:.025em}
+.rr-sello .ico,.rr-metodo .ico{width:13px;height:13px;flex:none}
+[data-acierto="si"] .rr-sello,.rr-metodo[data-metodo="si"]{color:var(--ok)}
+[data-acierto="no"] .rr-sello,.rr-metodo[data-metodo="no"]{color:var(--error)}
+[data-acierto="nd"] .rr-sello{color:var(--txt2)}
+.rr-que{display:grid;gap:4px;min-width:0}
+.rr-que b{font:800 21px/1.05 var(--display);text-transform:uppercase;overflow-wrap:anywhere;color:var(--txt)}
+.rr-que>span{font-size:13px;line-height:1.3;color:var(--txt2)}
 /* En la jaula, la placa ocupa la lona libre bajo la barra. Va centrada y más
    angosta que la barra: a esa altura los chaflanes de abajo cierran 1cqw por
    cada 1cqw que se baja, y su esquina inferior tiene que quedar adentro de la
    línea pintada (medido: a y=89 la línea pasa por x=26). */
-.j-resultado{grid-row:6;align-self:start;justify-self:center;width:44cqw;margin-top:1.6cqw;min-height:0;
-  grid-template-columns:auto minmax(0,1fr);background:color-mix(in srgb,var(--sup) 86%,transparent);border:0}
-.j-resultado .rr-sello{padding:0 2.2cqw 0 1.4cqw;font-size:max(2.2cqw,11px);gap:.7cqw;clip-path:polygon(0 0,100% 0,calc(100% - 1.3cqw) 100%,0 100%)}
-.j-resultado .rr-sello .ico{width:max(2.2cqw,11px);height:max(2.2cqw,11px)}
-.j-resultado .rr-que{padding:.8cqw 1.6cqw;gap:.2cqw}
-.j-resultado .rr-que small{font-size:max(2cqw,10px)}
+.j-resultado{grid-row:6;align-self:start;justify-self:center;width:48cqw;margin-top:1.1cqw;
+  grid-template-columns:minmax(0,1fr);gap:.7cqw;padding:.7cqw 0 0;text-align:center;
+  background:transparent;border-top:1px solid var(--linea)}
+.j-resultado .rr-que{gap:.3cqw}
 .j-resultado .rr-que b{font-size:max(2.8cqw,13px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.j-resultado .rr-que>span{font-size:max(2.2cqw,10.5px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.j-resultado .rr-que>span{font-size:max(2.1cqw,10px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.j-resultado .rr-veredictos{display:flex;justify-content:center;flex-wrap:wrap;gap:.4cqw 1.5cqw}
+.j-resultado .rr-sello,.j-resultado .rr-metodo{font-size:max(1.9cqw,10px);gap:.4cqw}
+.j-resultado .ico{width:max(1.9cqw,10px);height:max(1.9cqw,10px)}
 .lona:has(.j-resultado) .lona-impresion{opacity:.045}
-/* El veredicto del método, debajo de cómo terminó: el sello de la izquierda
-   habla solo del ganador. */
-.rr-que>.rr-metodo{display:inline-flex;align-items:center;gap:5px;width:fit-content;margin-top:2px;
-  font:800 12.5px/1.1 var(--display);letter-spacing:.06em;text-transform:uppercase}
-.rr-metodo .ico{width:13px;height:13px;flex:none}
-.rr-que>.rr-metodo[data-metodo="si"]{color:var(--ok)}
-.rr-que>.rr-metodo[data-metodo="no"]{color:var(--error)}
-.j-resultado .rr-que>.rr-metodo{font-size:max(1.9cqw,10px);gap:.6cqw;margin-top:.2cqw}
-.j-resultado .rr-metodo .ico{width:max(1.9cqw,10px);height:max(1.9cqw,10px)}
 /* En el encabezado de cada combate: tinta sólida con el ícono del resultado,
    para no confundirse con los sellos de confianza que van al lado. */
 .pill.res{display:inline-flex;align-items:center;gap:5px;background:var(--probado);border-color:var(--probado);color:var(--sobre-probado)}
@@ -1134,7 +1125,8 @@ summary.res-cab:focus-visible{outline:2px solid var(--marca);outline-offset:-2px
   .marcador{grid-template-columns:minmax(0,1fr);padding:16px}
   .marcador-cifra b{font-size:52px}
   .marcador-tira a{width:44px;height:44px}
-  .rr-sello{padding:0 18px 0 12px;font-size:13px}
+  .resultado-real:not(.j-resultado){grid-template-columns:minmax(0,1fr);gap:9px;padding:12px}
+  .resultado-real:not(.j-resultado) .rr-veredictos{display:flex;flex-wrap:wrap;gap:6px 16px}
   .rr-que b{font-size:18px}
 }
 
@@ -2027,9 +2019,10 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
 [data-estilo="juez"] .marcador-cifra b{font:700 56px/.9 var(--maquina);letter-spacing:-.06em}
 [data-estilo="juez"] .marcador-tira a{border:1.5px solid currentColor}
 [data-estilo="juez"] .resultado-real{background:transparent;border-top:1px solid var(--forma);margin-top:4px}
-[data-estilo="juez"] .rr-sello{clip-path:none;align-self:center;margin:8px 4px 8px 0;padding:7px 10px 6px;transform:rotate(-3deg);
-  -webkit-mask-image:var(--grano);mask-image:var(--grano);-webkit-mask-size:140px;mask-size:140px}
+[data-estilo="juez"] .rr-sello,[data-estilo="juez"] .rr-metodo{font:700 11px/1.25 var(--maquina);letter-spacing:-.02em}
 [data-estilo="juez"] .rr-que b{font:700 17px/1.15 var(--maquina);letter-spacing:-.01em}
+[data-estilo="juez"] .j-resultado .rr-que b{font-size:max(2.4cqw,12px)}
+[data-estilo="juez"] .j-resultado .rr-sello,[data-estilo="juez"] .j-resultado .rr-metodo{font-size:max(1.7cqw,9px)}
 [data-estilo="juez"] .repe-caja{clip-path:none;border:1.5px solid var(--cab-txt)}
 
 /* --- Mantenimiento: el parte de estado y la pauta de tareas --- */
@@ -2230,3 +2223,102 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
   .tabs{flex:none}
   .cartelera-caja{flex:1 1 0}
 }
+
+/* ------------------------- consenso del mercado ------------------------ */
+/* Las cuotas de consenso de la capa src/cuotas, solo en una cartelera futura.
+   Es el mercado, no una recomendación: por eso no lleva color de veredicto.
+   Favorito / Underdog / Pareja se dicen con la palabra y con la intensidad de
+   la tinta (regla gruesa, tinta, tenue), nunca con el verde/ámbar de la
+   confianza ni con el rojo, que es marca y peligro. */
+.cons-etq{display:inline-block;font:800 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;
+  padding-bottom:2px;border-bottom:2px solid transparent;white-space:nowrap}
+.cons-etq[data-etq="favorito"]{color:var(--txt);border-bottom-color:var(--txt)}
+.cons-etq[data-etq="underdog"]{color:var(--tenue)}
+.cons-etq[data-etq="pareja"]{color:var(--txt2);border-bottom-color:var(--tenue)}
+
+/* En el encabezado plegable, al lado del segmento y separado por un filete. */
+.cab-mercado{display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:3px 7px;
+  font:700 13px/1.25 var(--display);letter-spacing:.03em;text-transform:uppercase;color:var(--txt2)}
+.cab-mercado:empty{display:none}
+.combate-segmento+.cab-mercado{padding-left:12px;border-left:1px solid var(--linea)}
+.cab-mercado .cons-rot{font-weight:600;letter-spacing:.07em;color:var(--tenue)}
+.cab-mercado b{font-weight:800;color:var(--txt)}
+.cab-mercado .cons-vacio{font-weight:600;color:var(--tenue)}
+.cons-par{display:inline-flex;align-items:baseline;gap:5px;white-space:nowrap}
+.cons-sep{color:var(--tenue)}
+
+/* Dentro del combate: una fila más del espejo (cuota de cada lado, rótulo al
+   medio), así se lee junto a la cuota de la casa sin otra caja. */
+.consenso{position:relative;width:100%;max-width:600px;margin:8px auto 0;border-top:1px solid var(--linea)}
+.espejo+.consenso{margin-top:0;border-top:0}
+.cons-fila{display:grid;grid-template-columns:minmax(0,1fr) minmax(100px,1.2fr) minmax(0,1fr);
+  align-items:center;gap:10px;min-height:34px;padding:7px 0;border-bottom:1px solid var(--linea)}
+.cons-lado{display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.cons-lado b{font:700 23px/1.1 var(--display);white-space:nowrap;color:var(--txt)}
+.cons-boton{justify-self:center;display:inline-flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:2px 6px;
+  min-height:40px;max-width:100%;padding:6px 10px;background:transparent;border:1.5px solid var(--tenue);color:var(--txt2);
+  font:700 13px/1.1 var(--display);letter-spacing:.05em;text-transform:uppercase;text-align:center}
+.cons-boton small{font:600 12px/1.1 var(--display);letter-spacing:.04em;color:var(--tenue)}
+.cons-boton[aria-expanded="true"]{border-color:var(--txt);color:var(--txt)}
+@media (hover:hover) and (pointer:fine){.cons-boton:hover:not(:disabled){border-color:var(--txt);color:var(--txt)}}
+.cons-flecha{width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s var(--ease-out)}
+.cons-boton[aria-expanded="true"] .cons-flecha{transform:rotate(180deg)}
+.cons-boton[data-sin-movimiento] .cons-flecha{transition:none}
+.cons-sin{display:flex;flex-wrap:wrap;justify-content:center;align-items:baseline;gap:4px 12px;padding:10px 0}
+.cons-rotulo{font:600 14px/1.2 var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--tenue)}
+p.cons-vacio{margin:0;padding:9px 0;font-size:14px;line-height:1.4;color:var(--txt2);text-align:center}
+.cons-sin p.cons-vacio{padding:0}
+p.cons-error{color:var(--alerta)}
+
+/* El popover va en la capa superior y se ancla desde JS para no recortarse en
+   la última pelea. Sin sombra: lo separa una regla gruesa de tinta. */
+.cons-detalle{position:fixed;z-index:8;inset:auto;margin:0;width:min(460px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;
+  background:var(--sup);color:var(--txt);border:1.5px solid var(--txt);border-top-width:3px;padding:8px 14px 12px;text-align:left}
+.cons-detalle[hidden]{display:none}
+.cons-tabla{width:100%;table-layout:fixed;border-collapse:collapse;font-size:14px}
+.cons-tabla th,.cons-tabla td{padding:6px 6px;border-bottom:1px solid var(--linea);text-align:left;vertical-align:baseline}
+.cons-tabla th:first-child{padding-left:0}
+.cons-tabla thead th:first-child{width:36%}
+.cons-tabla thead th:last-child{width:24%}
+.cons-tabla th:last-child,.cons-tabla td:last-child{padding-right:0}
+.cons-tabla thead th{font:700 12px/1.2 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--tenue);border-bottom:1.5px solid var(--txt)}
+.cons-tabla .num{text-align:right}
+.cons-tabla td b{white-space:nowrap}
+.cons-tabla thead th{overflow-wrap:anywhere}
+.cons-tabla tbody th{font:600 14px/1.25 var(--texto);color:var(--txt);overflow-wrap:anywhere}
+.cons-tabla tbody th small{display:block;font-size:12px;font-weight:400;color:var(--tenue)}
+.cons-tabla td b{font:700 17px/1 var(--display);color:var(--txt)}
+.cons-tabla .cons-grupo th{padding:10px 0 5px;font:800 12px/1.2 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--txt2)}
+/* La mejor cuota de cada lado: subrayada con regla de tinta y dicha con palabra. */
+.cons-top b{text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.cons-mejor,.cons-precio{display:block;margin-top:4px}
+.cons-mejor{font:800 10.5px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--txt)}
+.cons-precio{font-size:12px;color:var(--tenue)}
+.cons-hora{font-size:13px;color:var(--tenue)}
+.cons-nota{margin:8px 0 0;font-size:12.5px;line-height:1.45;color:var(--txt2)}
+
+/* En la jaula, una sección más de la columna de datos. */
+.estelar-datos .consenso{max-width:none;margin:0;border-top:0}
+.consenso-aside .cons-fila{border-top:1px solid var(--linea)}
+/* En la tabla, en una línea por lado si cabe. */
+.cons-celda{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:2px 6px}
+
+/* El aviso de la barra: créditos de The Odds API por acabarse. */
+.reloj-aviso{color:var(--cab-alerta);font-weight:600}
+
+/* Estilo C: las cuotas también van a máquina, y el detalle es una hoja más. */
+[data-estilo="juez"] .cons-lado b,[data-estilo="juez"] .cab-mercado b,[data-estilo="juez"] .cons-tabla td b{
+  font-family:var(--maquina);letter-spacing:-.05em}
+[data-estilo="juez"] .cons-lado b{font-size:20px}
+.acta .consenso{max-width:none;margin:0;border-top:0}
+[data-estilo="juez"] .cons-detalle{border-color:var(--forma)}
+[data-estilo="juez"] .cons-tabla thead th{border-bottom-color:var(--forma)}
+
+@media (max-width:640px){
+  .combate-segmento+.cab-mercado{padding-left:0;border-left:0}
+  .cons-lado b{font-size:21px}
+  .cons-fila{gap:6px;grid-template-columns:minmax(0,1fr) minmax(88px,1.2fr) minmax(0,1fr)}
+  .cons-boton{min-height:44px;padding-inline:6px}
+  .cons-detalle{padding-inline:10px}
+}
+@media (prefers-reduced-motion:reduce){.cons-flecha{transition:none}}
