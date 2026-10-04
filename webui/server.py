@@ -392,6 +392,15 @@ def modo_vivo(encender: bool = True):
             "intervalo_seg": engine.INTERVALO_VIVO_SEG}
 
 
+@app.post("/api/carga/cancelar")
+def cancelar_carga():
+    """Detiene la carga en curso sin dejar nada a medias (engine.cancelar_carga)."""
+    err = engine.cancelar_carga()
+    if err:
+        raise HTTPException(409, err)
+    return {"ok": True}
+
+
 @app.post("/api/limpiar")
 def limpiar_cartelera():
     """Suelta la cartelera activa para poder elegir otra desde cero."""

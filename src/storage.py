@@ -31,6 +31,99 @@ _MEMO_LOCK = threading.RLock()
 _MEMO_LIMIT = 64 * 1024 * 1024
 
 
+# --------------------------------------------------------------------------- #
+# Diario de una operación que se puede deshacer
+# --------------------------------------------------------------------------- #
+# Una carga de cartelera escribe cachés, el CSV de cards/ y la cartelera
+# completada mientras corre. Si el usuario la cancela, todo eso tiene que
+# volver a como estaba (webui/engine.py). Mientras un Diario está activo en un
+# hilo, la primera escritura de cada ruta guarda su estado anterior; revertir()
+# lo repone. Solo cuenta lo que escribe ESE hilo, y una ruta que otro hilo
+# reescribió después no se pisa. Apagado (lo normal), no cambia nada.
+_DIARIO = threading.local()
+
+
+def _ruta_diario(path):
+    return ("db", key(path)) if key(path) is not None else ("archivo", str(Path(path).resolve()))
+
+
+def _firma_diario(path):
+    if key(path) is None:
+        p = Path(path)
+        return hashlib.sha256(p.read_bytes()).hexdigest() if p.is_file() else None
+    with connect() as con:
+        r = con.execute("SELECT sha256 FROM _resources WHERE path=?", (key(path),)).fetchone()
+    return r[0] if r else None
+
+
+class Diario:
+    def __init__(self):
+        self.previos = {}      # ruta -> (path, tipo, contenido, mtime_ns) o (path, None, None, None)
+        self.escritos = {}     # ruta -> firma que dejó la última escritura de este hilo
+
+    def __enter__(self):
+        _DIARIO.actual = self
+        return self
+
+    def __exit__(self, *exc):
+        if getattr(_DIARIO, "actual", None) is self:
+            _DIARIO.actual = None
+        return False
+
+    def anotar(self, path):
+        ruta = _ruta_diario(path)
+        if ruta in self.previos:
+            return
+        if key(path) is None:
+            p = Path(path)
+            self.previos[ruta] = (path, "archivo", p.read_bytes(), None) if p.is_file() else (path, None, None, None)
+            return
+        try:
+            tipo, contenido, _, mtime, *_ = _resource(path)     # materializa un json pendiente
+        except FileNotFoundError:
+            self.previos[ruta] = (path, None, None, None)
+        else:
+            self.previos[ruta] = (path, tipo, bytes(contenido), mtime)
+
+    def revertir(self):
+        """Repone cada ruta escrita a su estado previo. Devuelve las que otro hilo cambió."""
+        if getattr(_DIARIO, "actual", None) is self:
+            _DIARIO.actual = None
+        ajenas = []
+        for ruta, (path, tipo, contenido, mtime) in reversed(list(self.previos.items())):
+            if _firma_diario(path) != self.escritos.get(ruta):
+                ajenas.append(str(path))       # otro hilo escribió después: su versión manda
+                continue
+            if tipo is None:
+                unlink(path, missing_ok=True)
+            elif tipo == "archivo":
+                Path(path).write_bytes(contenido)
+            elif tipo == "csv":
+                write_csv_bytes(path, contenido, mtime_ns=mtime)
+            elif tipo == "json":
+                write_text(path, contenido.decode("utf-8"), mtime_ns=mtime)
+            else:
+                write_bytes(path, contenido, mtime_ns=mtime)
+        self.previos.clear()
+        self.escritos.clear()
+        return ajenas
+
+
+def _registrado(funcion):
+    """Anota en el Diario activo del hilo, si hay uno, antes y después de escribir."""
+    def envoltura(path, *args, **kwargs):
+        d = getattr(_DIARIO, "actual", None)
+        if d is None or path is None:
+            return funcion(path, *args, **kwargs)
+        d.anotar(path)
+        try:
+            return funcion(path, *args, **kwargs)
+        finally:
+            d.escritos[_ruta_diario(path)] = _firma_diario(path)
+    envoltura.__name__, envoltura.__doc__ = funcion.__name__, funcion.__doc__
+    return envoltura
+
+
 def _memo_key(kind, path, sha):
     return kind, str(db_path().resolve()), key(path), sha
 
@@ -166,6 +259,7 @@ def _table_name(path):
     return "csv_" + k.replace("/", "__").replace(".", "_")
 
 
+@_registrado
 def write_csv_bytes(path, content, mtime_ns=None):
     df = pd.read_csv(io.BytesIO(content))
     schema = json.dumps([(str(c), str(df[c].dtype)) for c in df.columns])
@@ -235,6 +329,8 @@ def read_csv(path, **kwargs):
 
 
 def to_csv(df, path=None, **kwargs):
+    if path is not None and getattr(_DIARIO, "actual", None) is not None and key(path) is None:
+        return _registrado(lambda ruta: df.to_csv(ruta, **kwargs))(path)
     if key(path) is None:
         return df.to_csv(path, **kwargs)
     text = df.to_csv(None, **kwargs)
@@ -263,6 +359,7 @@ def read_json(path):
     return value
 
 
+@_registrado
 def write_text(path, text, encoding="utf-8", mtime_ns=None, **kwargs):
     if key(path) is None:
         return Path(path).write_text(text, encoding=encoding, **kwargs)
@@ -285,6 +382,7 @@ def read_bytes(path):
     return Path(path).read_bytes() if key(path) is None else _resource(path)[1]
 
 
+@_registrado
 def write_bytes(path, content, mtime_ns=None):
     if key(path) is None:
         return Path(path).write_bytes(content)
@@ -296,8 +394,15 @@ def write_bytes(path, content, mtime_ns=None):
 @contextmanager
 def open_file(path, mode="r", *args, **kwargs):
     if key(path) is None:
-        with builtins.open(path, mode, *args, **kwargs) as stream:
-            yield stream
+        d = getattr(_DIARIO, "actual", None) if any(m in mode for m in "wax+") else None
+        if d is not None:
+            d.anotar(path)
+        try:
+            with builtins.open(path, mode, *args, **kwargs) as stream:
+                yield stream
+        finally:
+            if d is not None:
+                d.escritos[_ruta_diario(path)] = _firma_diario(path)
         return
     if mode not in ("rb", "wb"):
         raise ValueError("Los modelos SQLite se abren únicamente como rb/wb")
@@ -310,6 +415,7 @@ def open_file(path, mode="r", *args, **kwargs):
         stream.close()
 
 
+@_registrado
 def unlink(path, missing_ok=False):
     if key(path) is None:
         return Path(path).unlink(missing_ok=missing_ok)
@@ -322,6 +428,7 @@ def unlink(path, missing_ok=False):
         con.execute("DELETE FROM _resources WHERE path=?", (key(path),))
 
 
+@_registrado
 def put_json_entry(path, entry_key, value):
     """Checkpoint por página descargada, sin esperar al fin del ciclo."""
     if key(path) is None:

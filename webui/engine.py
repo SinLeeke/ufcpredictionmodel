@@ -184,6 +184,11 @@ class Estado:
         # eso solo tiene sentido cuando estás mirando la cartelera en pantalla.
         self.vivo = False
         self.vivo_en: float | None = None
+        # Cancelación de la carga en curso (cancelar_carga): el hilo la revisa
+        # en cada aviso de progreso. `cancelada` es la hora en que una carga
+        # cancelada terminó de deshacerse, para que la UI lo diga una vez.
+        self.cancelar = threading.Event()
+        self.cancelada: float | None = None
 
     # -- lectura para la UI ------------------------------------------------ #
     def snapshot(self) -> dict:
@@ -191,7 +196,8 @@ class Estado:
             return {
                 "cargando": self.cargando,
                 "progreso": self.progreso,
-                "carga": self.carga.snapshot(),
+                "carga": {**self.carga.snapshot(), "cancelando": self.cargando and self.cancelar.is_set()},
+                "cancelada": self.cancelada,
                 "error": self.error,
                 "log": self.log[-40:],
                 "origen": self.origen,
@@ -587,11 +593,17 @@ def listar_carteleras() -> dict:
 
 def bajar_cuotas(query: str, destino: Path | None = None,
                  fecha: str | None = None,
-                 progreso: Callable[[dict], None] | None = None) -> tuple[Path, str]:
+                 progreso: Callable[[dict], None] | None = None,
+                 diferidos: list | None = None) -> tuple[Path, str]:
     """
     Baja las cuotas de una cartelera de Betano y las deja en un CSV.
     Devuelve (ruta, titulo). Reutiliza `scrape_card`, que ya resuelve el lío de
     los eventos mezclados bajo la misma liga "UFC Fight Night".
+
+    diferidos: si se pasa una lista, la captura guardada y la entrega a la capa
+    de mercado (tablas que el diario de storage no cubre) se agregan ahí en vez
+    de ejecutarse: cargar() las corre solo si la carga termina bien. Es la
+    misma única petición a Betano; solo cambia cuándo se guarda lo bajado.
     """
     from src import betano_scraper as bs
     titulo = query
@@ -623,10 +635,16 @@ def bajar_cuotas(query: str, destino: Path | None = None,
                 peleas.append({"id": "|".join(sorted((str(r["fighter_a"]), str(r["fighter_b"])))),
                     "a": r["fighter_a"], "b": r["fighter_b"], "casas": {"betano": {
                         "casa": "Betano", "a": r["odds_a"], "b": r["odds_b"]}}})
-        Q._guardar("betano", [{"id": sha, "titulo": titulo, "fecha": fecha,
-            "fuente": "https://www.betano.cl", "peleas": peleas}])
-        _entregar_a_capa([(p["a"], p["b"], p["casas"]["betano"]["a"], p["casas"]["betano"]["b"])
-                          for p in peleas], titulo, fecha)
+        efectos = [
+            lambda: Q._guardar("betano", [{"id": sha, "titulo": titulo, "fecha": fecha,
+                                           "fuente": "https://www.betano.cl", "peleas": peleas}]),
+            lambda: _entregar_a_capa([(p["a"], p["b"], p["casas"]["betano"]["a"], p["casas"]["betano"]["b"])
+                                      for p in peleas], titulo, fecha)]
+        if diferidos is None:
+            for efecto in efectos:
+                efecto()
+        else:
+            diferidos.extend(efectos)
         completo = completa.completar_betano(df, query, fecha)
         if not completo.equals(df):
             firma = hashlib.sha256(completo.to_csv(index=False).encode()).hexdigest()[:24]
@@ -712,7 +730,10 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
     with ESTADO.lock:
         if ESTADO.cargando:
             return
+        # Lo que la UI veía antes: si la carga se cancela, vuelve tal cual.
+        previo = (ESTADO.error, list(ESTADO.log), ESTADO.progreso, ESTADO.carga, ESTADO.proximo_auto)
         ESTADO.cargando = True
+        ESTADO.cancelar.clear()
         ESTADO.error = ""
         ESTADO.log = []
         ESTADO.progreso = "empezando…"
@@ -720,28 +741,47 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
         ESTADO.carga.iniciar()
 
     def avance(evento: dict) -> None:
+        # Cada aviso de progreso es un punto donde la carga se puede detener: antes
+        # de cada ficha, después de cada pelea, en cada etapa y en cada evento
+        # del scraper de Betano.
+        if ESTADO.cancelar.is_set():
+            raise CargaCancelada()
         with ESTADO.lock:
             ESTADO.carga.actualizar(evento)
             ESTADO._log(evento["detalle"])
 
     def _run() -> None:
+        cancelada = False
+        diferidos: list = []
+        respaldo = None
+        diario = DB.Diario()
         try:
-            ruta = csv_path
-            titulo = ruta.stem if ruta is not None else ""
-            cuotas_en = None
-            if origen == "betano":
-                ruta, titulo = bajar_cuotas(consulta, destino=ruta, fecha=fecha, progreso=avance)
-                cuotas_en = time.time()
-            elif refrescar_cuotas and ESTADO.origen == "betano" and ESTADO.consulta:
-                pass
+            with diario:
+                ruta = csv_path
+                titulo = ruta.stem if ruta is not None else ""
+                cuotas_en = None
+                if origen == "betano":
+                    ruta, titulo = bajar_cuotas(consulta, destino=ruta, fecha=fecha, progreso=avance,
+                                                diferidos=diferidos)
+                    cuotas_en = time.time()
+                elif refrescar_cuotas and ESTADO.origen == "betano" and ESTADO.consulta:
+                    pass
 
-            if ruta is None:
-                raise RuntimeError("No hay cartelera que cargar.")
+                if ruta is None:
+                    raise RuntimeError("No hay cartelera que cargar.")
 
-            avance({"etapa": "preparando", "detalle": f"Cargando modelos para {ruta.name}…"})
-            res = _predecir_sync(ruta, progreso=avance, **({"corte": corte} if corte else {}))
-            avance({"etapa": "serializando", "detalle": "Preparando los resultados para mostrarlos…"})
-            datos, patas = _serializar(res, ruta)
+                avance({"etapa": "preparando", "detalle": f"Cargando modelos para {ruta.name}…"})
+                respaldo = _respaldar_informes(ruta)
+                res = _predecir_sync(ruta, progreso=avance, **({"corte": corte} if corte else {}))
+                avance({"etapa": "serializando", "detalle": "Preparando los resultados para mostrarlos…"})
+                datos, patas = _serializar(res, ruta)
+                if ESTADO.cancelar.is_set():
+                    raise CargaCancelada()
+            # Terminó bien: recién ahora se guarda lo que el ciclo de Betano bajó.
+            for efecto in diferidos:
+                efecto()
+            if respaldo is not None:
+                respaldo.descartar()
             if fuente_cuotas:
                 datos["fuente_cuotas"] = fuente_cuotas
                 titulo = titulo_fuente or titulo
@@ -774,7 +814,19 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
                 ESTADO.carga.terminar()
                 if mov:
                     ESTADO.log.append(f"[i] {len(mov)} cuotas se movieron desde el refresh anterior")
+        except CargaCancelada:
+            # Nada de lo que escribió esta carga queda: el diario repone cachés,
+            # CSV y cartelera completada, y los informes vuelven a su versión.
+            cancelada = True
+            diario.revertir()
+            if respaldo is not None:
+                respaldo.restaurar()
+            with ESTADO.lock:
+                ESTADO.error, ESTADO.log, ESTADO.progreso, ESTADO.carga, ESTADO.proximo_auto = previo
+                ESTADO.cancelada = time.time()
         except (Exception, SystemExit) as e:         # noqa: BLE001
+            if respaldo is not None:
+                respaldo.descartar()
             with ESTADO.lock:
                 mensaje = str(e) or f"No se pudo completar la carga ({type(e).__name__})."
                 if isinstance(e, SystemExit) and (not mensaje or mensaje.isdigit()):
@@ -785,9 +837,75 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
         finally:
             with ESTADO.lock:
                 ESTADO.cargando = False
-                ESTADO.proximo_auto = (time.time() + INTERVALO_AUTO_SEG) if ESTADO.auto else None
+                ESTADO.cancelar.clear()
+                if not cancelada:
+                    ESTADO.proximo_auto = (time.time() + INTERVALO_AUTO_SEG) if ESTADO.auto else None
 
     threading.Thread(target=_run, daemon=True).start()
+
+
+class CargaCancelada(BaseException):
+    """La persona canceló la carga. BaseException y no Exception: en el camino
+    hay varios `except Exception: pass` (fichas de Sherdog, títulos) que se la
+    tragarían y la carga seguiría como si nada."""
+
+
+def cancelar_carga() -> str:
+    """Pide detener la carga en curso. "" si se pidió; el motivo si no aplica.
+
+    La carga se detiene en su próximo aviso de progreso. Un paso largo sin
+    avisos (entrenar el modelo de una fecha) termina antes de que se note.
+    """
+    with ESTADO.lock:
+        if not ESTADO.cargando:
+            return "No hay ninguna carga en curso."
+        ESTADO.cancelar.set()
+        ESTADO._log("Cancelando: se detiene en el próximo paso y no se guarda nada.")
+    return ""
+
+
+class _Respaldo:
+    """Copia de los informes de outputs/ que una carga puede reescribir.
+
+    visuals.build_report escribe un HTML por pelea a medida que avanza: una
+    carga cancelada dejaría la mitad. Se copian antes las carpetas de esa
+    cartelera (la normal y las de sus repeticiones) y, al cancelar, cada una
+    vuelve a su versión o desaparece si no existía.
+    """
+
+    def __init__(self, base: Path, prefijo: str) -> None:
+        import tempfile
+        self.base, self.prefijo = base, prefijo
+        self.tmp = Path(tempfile.mkdtemp(prefix="ufc_respaldo_"))
+        self.previas = set()
+        if base.is_dir():
+            for d in base.iterdir():
+                if self._suya(d):
+                    import shutil
+                    shutil.copytree(d, self.tmp / d.name)
+                    self.previas.add(d.name)
+
+    def _suya(self, d: Path) -> bool:
+        return d.is_dir() and (d.name == self.prefijo or d.name.startswith(self.prefijo + "_corte_"))
+
+    def restaurar(self) -> None:
+        import shutil
+        if self.base.is_dir():
+            for d in self.base.iterdir():
+                if self._suya(d):
+                    shutil.rmtree(d, ignore_errors=True)
+        for nombre in self.previas:
+            shutil.copytree(self.tmp / nombre, self.base / nombre)
+        self.descartar()
+
+    def descartar(self) -> None:
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+def _respaldar_informes(ruta: Path) -> _Respaldo:
+    from src.card import _slug as slug_card
+    return _Respaldo(C.OUTPUTS, slug_card(Path(ruta).stem))
 
 
 def limpiar() -> None:
