@@ -110,6 +110,9 @@
 
 <section id="carga-cartelera" class="carga-cartelera oculto" aria-labelledby="carga-titulo">
   <p class="carga-rotulo">Cargando cartelera</p>
+  <!-- Detiene la carga de verdad y deja todo como estaba (engine.cancelar_carga).
+       Ya en la etapa del modelo pide confirmación: ahí se pierde más. -->
+  <button id="btn-cancelar-carga" class="secundario carga-cancelar" type="button">Cancelar</button>
   <h2 id="carga-titulo">Preparando…</h2>
   <!-- Las etapas de la carga, como el rótulo de "a continuación" de la tele:
        las hechas con visto, la actual marcada y las que faltan apagadas. -->

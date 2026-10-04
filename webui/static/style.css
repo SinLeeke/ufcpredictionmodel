@@ -362,7 +362,23 @@ main{padding:30px 28px 70px;max-width:1300px;margin:0 auto;width:100%;flex:1 0 a
 #carga-transcurrido{color:var(--tenue)}
 .carga-aviso{color:var(--txt2);font-size:13px;margin:12px 0 0}
 .carga-cartelera[data-estado="error"]{border-color:var(--error)}
-@media(max-width:600px){.carga-cartelera{padding:16px}.carga-medida{gap:8px;align-items:flex-start}}
+/* Cancelar: arriba a la derecha, lejos del progreso. Mientras se cancela, el
+   panel se apaga a tinta tenue (ya no es una carga) y el botón dice qué pasa. */
+.carga-cancelar{position:absolute;top:14px;right:16px;min-height:40px;padding:8px 16px}
+.carga-rotulo,#carga-titulo{margin-right:120px}
+.carga-cartelera[data-estado="error"] .carga-cancelar,.carga-cartelera.lista .carga-cancelar{display:none}
+.carga-cartelera[data-cancelando]{border-top-color:var(--tenue)}
+.carga-cartelera[data-cancelando] .carga-pista::after,.carga-cartelera[data-cancelando] .carga-etapas li.actual::before{animation:none}
+.carga-cartelera[data-cancelando] .carga-etapas li.actual{background:var(--tenue)}
+.carga-cartelera[data-cancelando] #carga-barra::-webkit-progress-value{background:var(--tenue)}
+.carga-cartelera[data-cancelando] #carga-barra::-moz-progress-bar{background:var(--tenue)}
+.carga-cartelera[data-cancelando] .carga-indeterminada{background:var(--tenue)}
+/* Combinada no aplica a una repetición (las cuotas son de cierre) ni mientras
+   se mira una pelea del historial; <html> lleva el atributo y app.js mueve a
+   Cartelera si estaba abierta. */
+:root[data-repeticion] .tab[data-tab="parlay"],:root[data-historial-abierto] .tab[data-tab="parlay"]{display:none}
+@media(max-width:600px){.carga-cartelera{padding:16px}.carga-medida{gap:8px;align-items:flex-start}
+  .carga-cancelar{top:10px;right:10px;min-height:44px}}
 @media(prefers-reduced-motion:reduce){#carga-barra:indeterminate + .carga-indeterminada{animation:none;transform:translateX(110%)}#carga-barra::-webkit-progress-value{transition:none}}
 .panel{display:none}
 /* Al cambiar de pestaña, solo entra la nueva (nunca hay que esperar que la

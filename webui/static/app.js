@@ -224,6 +224,13 @@ $$('.tab').forEach(t => t.onclick = () => {
   if (t.dataset.tab === 'inicio') cargarInicio();
 });
 $$('[data-ir]').forEach(b => b.onclick = () => irA(b.dataset.ir));
+// Combinada se esconde (CSS) en una repetición y mientras está abierto el
+// modal del historial. Si era la pestaña abierta, se pasa a Cartelera: una
+// pestaña activa que no se ve dejaría a la persona sin saber dónde está.
+new MutationObserver(() => {
+  const oculta = raizDoc.hasAttribute('data-repeticion') || raizDoc.hasAttribute('data-historial-abierto');
+  if (oculta && $('.tab[data-tab="parlay"]').classList.contains('activa')) irA('cartelera');
+}).observe(raizDoc, { attributes: true, attributeFilter: ['data-repeticion', 'data-historial-abierto'] });
 
 $$('.seg[data-vista]').forEach(b => b.onclick = () => {
   $$('.seg[data-vista]').forEach(x => x.classList.remove('activa'));
@@ -390,6 +397,27 @@ const PASO_CARGA = { buscando:0, cuotas:0, guardando:0, preparando:1, prediccion
 // antes de recogerse: sin eso, desaparecía de golpe y no se sabía si había
 // terminado bien. Las cifras que cambian suben como las de EN VIVO.
 function pintarCarga(e) {
+  // Una carga cancelada ya se deshizo en el servidor: el panel se va sin la
+  // despedida de "Cartelera lista" (la carga anterior quedó como estaba) y
+  // un aviso dice que no se guardó nada. Una sola vez por cancelación.
+  const panel0 = $('#carga-cartelera');
+  if (e.cancelada && e.cancelada !== S.canceladaVista) {
+    const primera = S.canceladaVista === undefined;
+    S.canceladaVista = e.cancelada;
+    if (!primera) {
+      S.cargaSaliendo = false;
+      delete panel0.dataset.cancelando;
+      const fin = () => panel0.classList.add('oculto');
+      // Solo opacidad: también con menos movimiento. Con teclado, en el acto.
+      if (!panel0.classList.contains('oculto') && !porTeclado)
+        panel0.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOV.salida, easing: EASE_OUT }).onfinish = fin;
+      else fin();
+      barra('Carga cancelada: no se guardó nada y todo quedó como estaba.');
+      S.carga = e.carga || null;
+      return;
+    }
+  }
+  S.canceladaVista ??= e.cancelada || null;
   const anterior = S.carga?.estado;
   S.carga = e.carga || (e.cargando ? {
     estado:'cargando', etapa:'preparando', detalle:e.progreso || 'Preparando la cartelera…',
@@ -418,15 +446,22 @@ function pintarCarga(e) {
       { duration: 320, easing: EASE_OUT });
   }
   panel.dataset.estado = c.estado;
+  const cancelando = !!c.cancelando;
+  panel.toggleAttribute('data-cancelando', cancelando);
+  const boton = $('#btn-cancelar-carga');
+  boton.disabled = cancelando;
+  boton.textContent = cancelando ? 'Cancelando…' : 'Cancelar';
   const titulo = c.estado === 'error'
-    ? 'No se pudo cargar la cartelera' : ETAPAS_CARGA[c.etapa] || 'Cargando la cartelera';
+    ? 'No se pudo cargar la cartelera' : cancelando ? 'Cancelando la carga' : ETAPAS_CARGA[c.etapa] || 'Cargando la cartelera';
   if ($('#carga-titulo').textContent !== titulo) {
     $('#carga-titulo').textContent = titulo;
     if (estabaVisible && !reducir()) $('#carga-titulo').animate(
       [{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 360, easing: EASE_OUT });
   }
   pintarPasosCarga(c);
-  const detalle = c.detalle || e.progreso || '';
+  const detalle = cancelando
+    ? 'Se detiene al terminar el paso en curso y deshace lo que alcanzó a guardar. Si está entrenando el modelo de esa fecha, termina ese paso primero.'
+    : c.detalle || e.progreso || '';
   if ($('#carga-detalle').textContent !== detalle) {
     $('#carga-detalle').textContent = detalle;
     if (estabaVisible && !reducir()) $('#carga-detalle').animate(
@@ -490,6 +525,25 @@ function despedirCarga(panel, c) {
     setTimeout(cerrar, 600);       // por si la ventana está en segundo plano
   }, 900);
 }
+// Antes de la etapa del modelo (buscando, bajando o guardando cuotas) se
+// cancela en el acto: no se pierde nada. Desde que entra al modelo hay trabajo
+// hecho que se descarta, así que se pregunta una vez.
+async function pedirCancelacion() {
+  try { await post('/api/carga/cancelar'); }
+  catch (err) { barra(err.message || 'No pude cancelar la carga.', 'error'); }
+  tick();
+}
+$('#btn-cancelar-carga').onclick = () => {
+  const etapa = S.carga?.etapa;
+  if ((PASO_CARGA[etapa] ?? 1) < 1) { pedirCancelacion(); return; }
+  modal(`<h2>¿Cancelar el análisis?</h2>
+    <p>Ya está en la etapa del modelo. Si cancelas, se descarta lo calculado, no se guarda nada de esta carga y la cartelera queda como estaba.</p>
+    <div class="bienvenida-botones confirmar-botones"><button type="button" class="peligro" data-confirmar-cancelar>Sí, cancelar</button>
+    <button type="button" class="secundario" data-seguir>Seguir con el análisis</button></div>`);
+  $('#modal-cuerpo [data-confirmar-cancelar]').onclick = () => { cerrarModal(true); pedirCancelacion(); };
+  $('#modal-cuerpo [data-seguir]').onclick = () => cerrarModal();
+};
+
 function pintarTiempoCarga() {
   const c = S.carga;
   if (!c || $('#carga-cartelera').classList.contains('oculto')) return;
@@ -515,6 +569,7 @@ async function tick() {
   try {
     const e = await api('/api/estado');
     S.proximoAuto = e.proximo_auto; S.origen = e.origen; S.vivo = e.vivo; S.corte = e.corte || null;
+    raizDoc.toggleAttribute('data-repeticion', !!S.corte);
     const hayCartelera = !!(e.titulo || e.csv);
     const ev = evento(e);
     S.evento = ev;
