@@ -43,7 +43,7 @@ const banderaRanking = p => p.pais && /^[A-Z]{2}$/.test(String(p.pais.bandera ||
 // cargarFotos() de app.js: misma caché, misma silueta mientras llega o si no hay.
 const fotoCampeon = nombre => {
   const url = FOTOS.get(nombre);
-  return `<span class="rk-oct" aria-hidden="true"><span class="rk-lona"><span class="retrato rk-foto" data-foto="${esc(nombre)}">${
+  return `<span class="rk-oct" aria-hidden="true"><span class="rk-brillo"></span><span class="rk-lona"><span class="retrato rk-foto" data-foto="${esc(nombre)}">${
     url ? `<img src="${url}" alt="" decoding="async">` : SILUETA}</span></span></span>`;
 };
 // «Campeón» o «Campeona» según la división (la del cinturón o la que se mira).
@@ -188,33 +188,58 @@ function pintarRanking(animar) {
   if (animar) entrarRanking(caja);
 }
 
-// Cambiar de categoría: el título se descubre de izquierda a derecha como un
-// zócalo, las filas suben 8 px una tras otra (28 ms, se corta en la fila 12
-// para que la cola no se sienta lenta) y el marco dorado del campeón se asienta
-// girando desde 22,5°, como la jaula que se arma. Todo con transform, opacity
-// y clip-path. Al volver a pintar, el HTML viejo se reemplaza y sus
-// animaciones mueren con él: nada queda a medias. Con teclado no se anima;
-// con menos movimiento quedan solo los fundidos.
+// Al cargar y al cambiar de categoría: el título se descubre de lado como un
+// zócalo y las filas suben MOV.desplaza px una tras otra (MOV.escalon, cortado
+// en la fila MOV.escalonMax para que la cola no se sienta lenta). El #1 (el
+// campeón, o el número uno del libra por libra) entra primero y con más
+// presencia: el marco del octágono se asienta, el sello del puesto se estampa,
+// el nombre se barre de izquierda a derecha y, ya quieto el marco, un brillo
+// cruza una sola vez el metal dorado (MOV.brillo), como la luz sobre el
+// cinturón. Todo es interrumpible: cambiar de peso corta lo anterior (y el
+// HTML viejo se va con sus animaciones), una tecla termina la entrada en el
+// acto y pasar el mouse por el campeón apaga el brillo. Con teclado no se
+// anima; con menos movimiento quedan solo los fundidos, sin brillo.
+function cortarRanking() {
+  (EXP.animRanking || []).forEach(a => a.finish());
+  EXP.brilloRanking?.cancel();
+  EXP.animRanking = []; EXP.brilloRanking = null;
+}
+addEventListener('keydown', () => { if (EXP.animRanking?.length || EXP.brilloRanking) cortarRanking(); }, true);
+
 function entrarRanking(caja) {
+  cortarRanking();
   if (porTeclado) return;
   const quieto = reducir();
   // El cuadro final lleva solo las propiedades que se animan: un clip-path
   // de más en el final recortaría lo que se sale de la fila a mitad de camino.
   const FINAL = {opacity: 1, transform: 'none', clipPath: 'inset(0 0 0 0)'};
-  const fundido = (el, desde, opts) => el && el.animate(quieto ? [{opacity: 0}, {opacity: 1}]
-    : [desde, Object.fromEntries(Object.keys(desde).map(k => [k, FINAL[k]]))], {easing: EASE_OUT, fill: 'backwards', ...opts,
-      ...(quieto ? {duration: 150, delay: 0} : {})});
-  fundido(caja.querySelector('.rk-cab h2'), {opacity: 0, transform: 'translateX(-6px)'}, {duration: 240});
-  fundido(caja.querySelector('.rk-genero'), {opacity: 0, transform: 'translateX(-8px)'}, {duration: 220, delay: 120});
-  caja.querySelectorAll('.rk-fila').forEach((li, i) =>
-    fundido(li, {opacity: 0, transform: 'translateY(8px)'}, {duration: 240, delay: (quieto ? 0 : Math.min(i, 12) * 28)}));
+  const fundido = (el, desde, opts) => {
+    if (!el) return;
+    const a = el.animate(quieto ? [{opacity: 0}, {opacity: 1}]
+      : [desde, Object.fromEntries(Object.keys(desde).map(k => [k, FINAL[k]]))], {easing: EASE_OUT, fill: 'backwards',
+        duration: MOV.entrada, ...opts, ...(quieto ? {duration: 150, delay: 0} : {})});
+    EXP.animRanking.push(a);
+  };
+  fundido(caja.querySelector('.rk-cab h2'), {opacity: 0, clipPath: 'inset(0 100% 0 0)'});
+  fundido(caja.querySelector('.rk-genero'), {opacity: 0, transform: 'translateX(-8px)'}, {delay: 120});
+  const filas = Array.from(caja.querySelectorAll('.rk-fila'));
   const estrella = caja.querySelector('.rk-estrella');
+  // El #1 abre la lista; los demás le siguen corridos un escalón.
+  filas.forEach((li, i) => li !== estrella && fundido(li, {opacity: 0, transform: `translateY(${MOV.desplaza}px)`},
+    {delay: Math.min(i + (estrella ? 1 : 0), MOV.escalonMax) * MOV.escalon}));
   if (!estrella) return;
-  // Cambiar de categoría se repite: el campeón acompaña a las filas sin
-  // quedarse animando después de que la persona ya empezó a leerlas.
-  fundido(estrella.querySelector('.rk-oct'), {opacity: 0, transform: 'scale(.95)'}, {duration: 240, delay: 40});
-  fundido(estrella.querySelector('.rk-foto'), {opacity: 0, transform: 'translateY(4px)'}, {duration: 220, delay: 60});
-  fundido(estrella.querySelector('.rk-nombre-txt'), {opacity: 0, transform: 'translateX(-6px)'}, {duration: 220, delay: 40});
+  fundido(estrella, {opacity: 0});
+  fundido(estrella.querySelector('.rk-oct'), {opacity: 0, transform: 'scale(.94)'}, {delay: 40});
+  fundido(estrella.querySelector('.rk-foto'), {opacity: 0, transform: 'translateY(6px)'}, {delay: 90});
+  fundido(estrella.querySelector('.rk-num'), {opacity: 0, transform: 'scale(.86)'}, {duration: MOV.press, delay: 60});
+  fundido(estrella.querySelector('.rk-nombre-txt'), {opacity: 0, clipPath: 'inset(0 100% 0 0)'}, {delay: 80});
+  fundido(estrella.querySelector('.rk-rotulo'), {opacity: 0, transform: 'translateY(4px)'}, {delay: 160});
+  const brillo = estrella.querySelector('.rk-brillo');
+  if (quieto || !brillo) return;
+  EXP.brilloRanking = brillo.animate([{transform: 'translateX(-110%)', opacity: 1}, {transform: 'translateX(110%)', opacity: 1}],
+    {duration: MOV.brillo, delay: 40 + MOV.entrada, easing: EASE_IN_OUT});
+  EXP.brilloRanking.onfinish = () => { EXP.brilloRanking = null; };
+  estrella.addEventListener('pointerenter', () => { EXP.brilloRanking?.cancel(); EXP.brilloRanking = null; }, {once: true});
 }
 
 function abrirCatalogo() {

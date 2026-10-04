@@ -81,6 +81,9 @@
 /* Toda la fila lleva a la ficha: el enlace se estira sobre ella. La bandera
    queda encima del velo para que su title (el país) se vea al pasar el mouse. */
 .rk-nombre::after{content:"";position:absolute;inset:0}
+/* En bloque en línea para que el barrido de entrada (clip-path) se aplique: en
+   un span en línea común no hace nada. */
+.rk-nombre-txt{display:inline-block}
 .rk-nombre:focus-visible{outline:none}
 .rk-fila:has(.rk-nombre:focus-visible){outline:2px solid var(--marca);outline-offset:-2px}
 .rk-bandera{position:relative;z-index:1;display:inline-block;width:24px;height:18px;margin-left:9px;vertical-align:-1px;
@@ -111,6 +114,11 @@
 .rk-oct{position:relative;display:block;width:112px;aspect-ratio:1;background:var(--titulo-metal);clip-path:var(--rk-oct)}
 .rk-lona{position:absolute;inset:4px;overflow:hidden;clip-path:var(--rk-oct);
   background:color-mix(in srgb,var(--titulo-tinta) 14%,var(--sil-fondo))}
+/* El brillo: una franja de luz que cruza el metal una vez al entrar (ver
+   entrarRanking). Va debajo de la lona, así que solo se ve en el filete
+   dorado y nunca encima de la cara. Quieta, queda fuera del marco. */
+.rk-brillo{position:absolute;inset:0;pointer-events:none;transform:translateX(-110%);opacity:0;
+  background:linear-gradient(115deg,transparent 38%,rgba(255,255,255,.55) 45%,#fff 50%,rgba(255,255,255,.55) 55%,transparent 62%)}
 .rk-foto{position:absolute;inset:0;background:transparent}
 .rk-foto img{object-fit:cover;object-position:50% 12%}
 
