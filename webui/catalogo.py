@@ -108,8 +108,10 @@ def buscar(q="", limite=40, offset=0):
     rows = [r for normalizado, _, r in indice if not consulta or consulta in normalizado]
     from webui import identidad_visual as I
     seleccion = [dict(r) for r in rows[offset:offset + limite]]
+    campeones = campeones_por_id()
     for r in seleccion:
         r["identidad_visual"] = I.metadatos(r["nombre"], r["id"], r["peso"])
+        r["campeon"] = campeones.get(r["id"])
     return {"total": len(rows), "peleadores": seleccion, "offset": offset}
 
 
@@ -189,7 +191,35 @@ def perfil(identidad):
         "metricas": metricas, "metricas_fuente": fuente, "muestra": n,
         "zonas": {k: totales[f"{k}_landed"] for k in ("head", "body", "leg")} if n else {},
         "posiciones": {k: totales[f"{k}_landed"] for k in ("distance", "clinch", "ground")} if n else {},
-        "victorias": dict(metodos), "actualizado": max((r["date"] for r in h), default=None)}
+        "victorias": dict(metodos), "actualizado": max((r["date"] for r in h), default=None),
+        "campeon": campeones_por_id().get(identidad)}
+
+
+_campeones_cache = (None, {})
+
+
+def campeones_por_id():
+    """{ID de UFCStats: campeón} según la última captura de rankings oficiales.
+
+    El listado y el perfil lo usan para el fondo dorado de la foto. Sale de
+    rankings(), que ya resolvió cada fila con identidad exacta (ficha UFC y
+    nombre, sin adivinar entre homónimos): una fila sin ID no marca a nadie.
+    Solo cuenta el puesto C de una división, nunca el libra por libra. Se
+    recalcula cuando cambia la captura o el catálogo, no en cada búsqueda.
+    """
+    global _campeones_cache
+    firma = (DB.signature(RANKINGS) if DB.exists(RANKINGS) else "0", _firma)
+    if _campeones_cache[0] == firma:
+        return _campeones_cache[1]
+    mapa = {}
+    for division in rankings()["divisiones"]:
+        if division.get("p4p"):
+            continue
+        for r in division["peleadores"]:
+            if r.get("puesto") == 0 and r.get("id") and r.get("campeon"):
+                mapa.setdefault(r["id"], r["campeon"])
+    _campeones_cache = (firma, mapa)
+    return mapa
 
 
 # Nombre canónico en inglés de cada clasificación (docs/contrato-datos.md). La
