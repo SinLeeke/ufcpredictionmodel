@@ -208,8 +208,19 @@ cargarse y quedan en caché; si no están disponibles, aparece una silueta.
 
 Un clon nuevo contiene el código, las demos y `cards/ejemplo_con_cuotas.csv`.
 **`data/`, `models/` y `outputs/` no se versionan**: los comandos siguientes los generan
-en tu equipo. El almacenamiento de datos sigue siendo local, con CSV, JSON y modelos
-en archivos `.pkl`.
+en tu equipo. Los datos operativos, cachés, índices y modelos se guardan en un único
+archivo SQLite: `data/ufc.db`. Las rutas CSV/JSON/PKL que aparecen en los mensajes
+identifican recursos dentro de la base. [Migración y verificación](docs/sqlite.md).
+
+Si ya tienes datos, cierra la UI y ejecuta primero:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.migrate_sqlite
+```
+
+Cada original se copia a `data/originales/` y se verifica con SHA256. Los archivos
+anteriores permanecen intactos; la app consulta SQLite y no los usa como respaldo
+automático si falta una tabla.
 
 ### Construir la base para predecir carteleras nuevas
 
@@ -229,12 +240,12 @@ Ejecuta estos comandos desde la raíz, usando el mismo entorno de la instalació
 peleadores y ELO. Si Kaggle pide autenticación, configura
 `C:\Users\<tu-usuario>\.kaggle\kaggle.json`. También puedes descargar `data.csv` del
 [dataset público](https://www.kaggle.com/datasets/mdabbert/ultimate-ufc-dataset), renombrarlo
-como `kaggle_ufc.csv` y guardarlo en `data\raw\` antes de ejecutar `src.scraper`.
+como `kaggle_ufc.csv`, guardarlo en `data\raw\` y ejecutar `src.migrate_sqlite`
+antes de `src.scraper`.
 Nunca subas tus credenciales al repositorio.
 
-Los scrapers guardan cachés y retoman las descargas incompletas. Los resultados quedan
-en `data/processed/`; el entrenamiento genera `winner_xgb.pkl`, `method_xgb.pkl` y el
-modelo de medición `winner_xgb_split.pkl` en `models/`.
+Los scrapers guardan cachés y retoman las descargas incompletas desde SQLite. Los
+resultados y los modelos de producción y medición quedan dentro de `data/ufc.db`.
 
 Para habilitar la mezcla con el mercado y el análisis calibrado del método, genera sus
 modelos una vez y recalcula tras cambiar el entrenamiento:
@@ -756,6 +767,9 @@ devuelve sus estructuras en vez de imprimirlas y descartarlas.
 | **Inicio** | la portada, con la estructura de un sitio de liga: noticias de UFC Español al centro (nota de portada, destacadas y titulares por día), las próximas peleas confirmadas por UFC con su cuenta regresiva a la cartelera estelar o a las preliminares, y los eventos: próximos (con **Predecir**, sin cuotas), terminados y los últimos de tu base (con **Repetir**). Sale de una caché en disco (`ufc_oficial.py`): abre sin internet con lo último que se bajó |
 | **Carteleras solas** | las de **UFC** en Betano, con fecha, número de peleas y estelar. Un clic y predice. Las de otras ligas (Betano mete RIZIN o PFL en "Encuentros") se ocultan y se dice cuántas, salvo que sus peleas estén en una cartelera confirmada por UFC. Avisa cuando Betano todavía tiene pocas peleas montadas |
 | **Carga visible** | muestra etapa, detalle, unidades terminadas y tiempo transcurrido. El porcentaje y el tiempo restante corresponden a la etapa actual; la estimación aparece cuando hay avances medidos, y 100 % llega cuando los resultados están listos |
+| **Cartelera completa y cuotas conservadas** | en **Cargar → Comparar cuotas**, BestFightOdds funciona sin cuenta y The Odds API queda preparada para una clave del servidor. Las peleas anunciadas no desaparecen por no tener precio. Cada captura conserva cuotas y cartelera en SQLite, con fecha y casa; se puede reabrir desde **Ver capturas guardadas**. Sin cuota, solo modelo |
+| **Rankings oficiales** | captura oficial fechada por peso y libra por libra, con campeones y aspirantes enlazados al perfil local. Importación explícita; sin refresco automático de rankings |
+| **Peleadores** | buscador local, biografía, golpeo, grappling, control e historial de peleas registradas en UFC. Las fichas con nombres ambiguos no comparten estadísticas |
 | **Estelar y coestelar** | la estelar y cualquier pelea de campeonato usan octágono en ambos estilos, de hasta 460 px, con retratos y cifras proporcionados para conservar su tamaño. En escritorio queda a la izquierda, con cuotas, modelo, métodos y datos del combate a la derecha; en pantallas estrechas se apilan. Los títulos confirmados conservan metal dorado en marco y barra, nombres en dorado sólido y cifras en tinta del tema para mejorar el contraste. Una coestelar sin título conserva la tarjeta normal. Los CSV manuales pueden indicar `segment` para identificar sus principales |
 | **Retratos verificados** | ESPN, fichas oficiales de UFC y retratos del directorio de Sherdog. Las tarjetas normales usan cajas simétricas 4:3 apoyadas sobre una base de su esquina; dentro del octágono los retratos tienen más espacio, sin recortar la cabeza. Wang Cong y Josh Hokit tienen fichas explícitas; ante otros nombres ambiguos aparece una silueta |
 | **Combates desplegables** | cada encabezado muestra «Peleador 1 vs Peleador 2». Todos los combates empiezan plegados; un clic despliega la tarjeta u octágono con una animación de altura al abrir y cerrar. Conservan su estado al refrescar y respetan movimiento reducido |
@@ -777,6 +791,10 @@ ESPN también reconoce **Ian Garry → Ian Machado Garry**. Las fotos exigen nom
 completo, deporte e ID coincidentes; no se elige a alguien solo porque comparta apellido.
 Los criterios y los casos revisados están en la
 [auditoría de identidades](docs/auditoria-identidades.md).
+
+La integración y los límites de las fuentes, planes gratuitos y permisos para publicar
+se describen en [Fuentes, cuotas y publicación](docs/fuentes-y-uso.md).
+La licencia del código no concede derechos sobre fotos o contenidos de terceros.
 
 Una ficha sin historial descargado se muestra como **historial de UFC no disponible**.
 Eso no equivale a cero peleas ni activa el aviso de debutante. Un debut confirmado
