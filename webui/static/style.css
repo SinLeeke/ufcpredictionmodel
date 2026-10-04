@@ -67,6 +67,7 @@
   --dur-conteo:560ms;     /* una cifra que corre hasta su valor */
   --dur-brillo:700ms;     /* el destello que cruza un marco dorado, una sola vez */
   --escalon:28ms;         /* desfase entre filas; se corta en la fila 12 */
+  --dur-viaje:300ms;      /* lo que viaja por la pantalla: pestañas, menú, foto al perfil */
 
   /* Fondo de las fotos de peleador: un panel de cartel, oscuro en los dos
      temas (como la cabecera), para que el PNG recortado se lea igual sobre
@@ -2362,6 +2363,14 @@ p.cons-error{color:var(--alerta)}
 .foto-cartel::before{background:var(--fc-regla);opacity:.5}
 .foto-cartel::after{background:var(--fc-fondo);width:calc(var(--fc-oct) - 3px)}
 .foto-cartel>img,.foto-cartel>svg,.foto-cartel>.retrato{position:relative;z-index:1}
+/* La silueta, sin su caja clara: la figura en hueso tenue sobre el cartel. */
+.foto-cartel{--sil-fondo:var(--fc-fondo);--sil-fig:color-mix(in srgb,var(--cartel-tinta) 16%,var(--fc-fondo))}
+.foto-cartel .retrato{background:transparent}
+.foto-cartel .retrato svg rect{fill:transparent}
+/* Un retrato sin fondo transparente (X-Fondo: opaco) no se apoya en el cartel
+   como un rectángulo pegado: lo llena entero, como una foto enmarcada, con la
+   cara arriba del centro. */
+.foto-cartel [data-fondo="opaco"] img{width:100%;height:100%;object-fit:cover;object-position:50% 18%}
 .foto-cartel.oro{--fc-fondo:var(--oro-fondo);--fc-hilo:var(--oro-hilo);--fc-regla:var(--oro-regla);
   color:var(--oro-tinta);border-bottom:0;border-image:var(--titulo-metal) 1;border-style:solid;border-width:0 0 3px}
 .foto-cartel.oro::before{opacity:.65}

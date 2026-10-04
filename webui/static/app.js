@@ -66,7 +66,10 @@ const reducir = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // sueltos. `desplaza` es cuánto sube lo que entra; `escalonMax` corta el
 // desfase para que la cola de una lista larga no se sienta lenta.
 const MOV = Object.freeze({ press: 160, entrada: 240, salida: 160, modalIn: 200, modalOut: 140,
-  conteo: 560, brillo: 700, escalon: 28, escalonMax: 12, desplaza: 8 });
+  conteo: 560, brillo: 700, escalon: 28, escalonMax: 12, desplaza: 8,
+  // Lo que viaja de un lugar a otro de la pantalla (la etiqueta de las
+  // pestañas, el recorte del menú de Rankings, la foto del listado al perfil).
+  viaje: 300 });
 // Lo que se hace con el teclado no se anima: se repite tanto que el movimiento
 // lo haría sentir lento. Se anota con qué se hizo lo último (tecla o puntero)
 // y las acciones del usuario lo consultan. Lo que hace el sistema solo (EN
@@ -243,16 +246,29 @@ $$('.seg[data-vista]').forEach(b => b.onclick = () => {
 // Al abrir se lleva el foco a la × y al cerrar se devuelve a quien lo abrió:
 // sin eso, con teclado, el foco quedaba detrás del velo.
 let focoAntesDelModal = null;
+// Variante y aviso de cierre del modal abierto. El del historial del perfil es
+// más ancho (clase) y le avisa a quien lo abrió cuando se cierra, venga de
+// donde venga el cierre (Esc, la ×, un clic afuera u otro modal encima).
+let modalActual = { clase: '', alCerrar: null };
+function soltarModalActual() {
+  const { clase, alCerrar } = modalActual;
+  modalActual = { clase: '', alCerrar: null };
+  if (clase) $('#modal').classList.remove(clase);
+  alCerrar?.();
+}
 // Entra con el velo fundiéndose y la caja creciendo apenas desde el centro (es
 // un modal: no sale de ningún botón). Sale más rápido de lo que entra. Con el
 // teclado (Esc, o Enter sobre un botón) abre y cierra al instante.
-function modal(html) {
+function modal(html, { clase = '', alCerrar = null } = {}) {
   const m = $('#modal');
   // Si se abre mientras el anterior todavía sale, esa salida se corta: al
   // terminar habría escondido el modal nuevo.
   m.getAnimations({ subtree: true }).forEach(a => a.cancel());
   delete m.dataset.cerrando;
   if (m.classList.contains('oculto')) focoAntesDelModal = document.activeElement;
+  soltarModalActual();
+  modalActual = { clase, alCerrar };
+  if (clase) m.classList.add(clase);
   $('#modal-cuerpo').innerHTML = html;
   // El título del modal es su primer encabezado: es lo que lee un lector de
   // pantalla al abrirlo (antes leía el cuerpo entero).
@@ -266,7 +282,7 @@ function modal(html) {
   m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: EASE_OUT });
   if (!reducir()) $('.modal-caja').animate(
     [{ opacity: 0, transform: 'scale(0.97)' }, { opacity: 1, transform: 'none' }],
-    { duration: 200, easing: EASE_OUT });
+    { duration: MOV.modalIn, easing: EASE_OUT });
 }
 function cerrarModal(alInstante = false) {
   const m = $('#modal');
@@ -274,14 +290,29 @@ function cerrarModal(alInstante = false) {
   const fin = () => {
     m.classList.add('oculto'); delete m.dataset.cerrando;
     $$('body > *').forEach(e => { e.inert = false; });
+    soltarModalActual();
     focoAntesDelModal?.focus?.();
   };
   if (alInstante || porTeclado) { m.getAnimations({ subtree: true }).forEach(a => a.cancel()); fin(); return; }
   m.dataset.cerrando = '1';
   if (!reducir()) $('.modal-caja').animate([{ transform: 'none' }, { transform: 'scale(0.98)' }],
-    { duration: 140, easing: EASE_OUT });
-  m.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: EASE_OUT }).onfinish = fin;
+    { duration: MOV.modalOut, easing: EASE_OUT });
+  m.animate([{ opacity: 1 }, { opacity: 0 }], { duration: MOV.modalOut, easing: EASE_OUT }).onfinish = fin;
 }
+// El foco no sale del modal: lo de atrás ya está inerte, pero después del
+// último control el Tab se iba a la barra del navegador y volvía al documento
+// fuera del velo. Se da la vuelta entre el primero y el último.
+document.addEventListener('keydown', (e) => {
+  const m = $('#modal');
+  if (e.key !== 'Tab' || m.classList.contains('oculto')) return;
+  const focos = Array.from(m.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea, summary, [tabindex]:not([tabindex="-1"])'))
+    .filter(el => el.offsetParent !== null || el === document.activeElement);
+  if (!focos.length) { e.preventDefault(); return; }
+  const primero = focos[0], ultimo = focos[focos.length - 1];
+  if (!m.contains(document.activeElement)) { e.preventDefault(); primero.focus(); }
+  else if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo.focus(); }
+  else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero.focus(); }
+});
 $('.modal-cerrar').onclick = () => cerrarModal();
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') cerrarModal(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(true); });
@@ -628,29 +659,40 @@ const SILUETA = `<svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid slice"
 // nombre -> URL de la foto, o null mientras se pide / si no hay. Así un
 // repintado (EN VIVO) no vuelve a pedirla ni la hace parpadear.
 const FOTOS = new Map();
+// Si el archivo trae fondo transparente (cabecera X-Fondo del servidor). Un
+// retrato opaco se ajusta distinto sobre el fondo de cartel, para que no se
+// vea un rectángulo pegado encima (ver .foto-cartel en style.css).
+const FONDOS = new Map();
 // Cambiar la versión evita reutilizar retratos antiguos del navegador después
 // de corregir una identificación en las fuentes del servidor.
 const FOTO_VERSION = '3';
-const retrato = (nombre, lado = '') => {
-  const url = FOTOS.get(nombre);
-  return `<figure class="retrato"${lado ? ` data-lado="${esc(lado)}"` : ''} data-foto="${esc(nombre)}">${
-    url ? `<img src="${url}" alt="${esc(nombre)}" decoding="async">` : SILUETA}</figure>`;
+// alta: el retrato de estudio de UFC a resolución completa (perfil, listado y
+// Rankings). Se guarda aparte del normal: son dos archivos distintos.
+const claveFoto = (nombre, alta) => alta ? 'alta:' + nombre : nombre;
+const urlFoto = (nombre, alta) => '/api/foto/' + encodeURIComponent(nombre) + '?v=' + FOTO_VERSION + (alta ? '&calidad=alta' : '');
+const retrato = (nombre, lado = '', { alta = false } = {}) => {
+  const clave = claveFoto(nombre, alta), url = FOTOS.get(clave), fondo = FONDOS.get(clave);
+  return `<figure class="retrato"${lado ? ` data-lado="${esc(lado)}"` : ''} data-foto="${esc(nombre)}"${alta ? ' data-calidad="alta"' : ''}${
+    url && fondo ? ` data-fondo="${fondo}"` : ''}>${url ? `<img src="${url}" alt="${esc(nombre)}" decoding="async">` : SILUETA}</figure>`;
 };
 function cargarFotos(raiz) {
   raiz.querySelectorAll('[data-foto]').forEach(f => {
-    const n = f.dataset.foto;
-    if (FOTOS.has(n)) return;
-    FOTOS.set(n, null);
-    const url = '/api/foto/' + encodeURIComponent(n) + '?v=' + FOTO_VERSION;
+    const n = f.dataset.foto, alta = f.dataset.calidad === 'alta', clave = claveFoto(n, alta);
+    if (FOTOS.has(clave)) return;
+    FOTOS.set(clave, null);
+    const url = urlFoto(n, alta);
     // 204 = no hay foto: queda la silueta, que ya está puesta.
     fetch(url).then(r => {
       if (r.status !== 200) return;
-      FOTOS.set(n, url);
+      const fondo = r.headers.get('X-Fondo') === 'opaco' ? 'opaco' : 'transparente';
+      FOTOS.set(clave, url); FONDOS.set(clave, fondo);
       document.querySelectorAll(`[data-foto="${CSS.escape(n)}"]`)
         .forEach(x => {
+          if ((x.dataset.calidad === 'alta') !== alta) return;
+          x.dataset.fondo = fondo;
           x.innerHTML = `<img src="${url}" alt="${esc(n)}" decoding="async">`;
           const img = x.querySelector('img');
-          img.onerror = () => { FOTOS.set(n, null); x.innerHTML = SILUETA; };
+          img.onerror = () => { FOTOS.set(clave, null); delete x.dataset.fondo; x.innerHTML = SILUETA; };
           if (!reducir()) img.animate([{opacity:0}, {opacity:1}], {duration:320});
         });
     }).catch(() => {});
@@ -1573,6 +1615,9 @@ const METODOS = [['KO/TKO','KO/TKO'],['Submission','Sumisión'],['Decision','Dec
 // tiene un método claro (un empate o un "sin resultado" no se cuenta).
 function aciertoMetodo(p) {
   const real = p.resultado?.metodo;
+  // Sin proyección de método (una pelea del historial sin modelo de ese día)
+  // no hay nada contra qué comparar.
+  if (!p.metodo) return null;
   if (!enRepeticion(p) || !p.resultado?.ganador || !METODOS.some(([k]) => k === real)) return null;
   const top = METODOS.reduce((a, [k]) => (p.metodo[k] || 0) > (p.metodo[a] || 0) ? k : a, 'KO/TKO');
   return { real, acierto: top === real, top };
@@ -1949,12 +1994,17 @@ function marcaLona() {
 
 // Los retratos y el historial comparten la lona. La zona superior tiene
 // margen suficiente para que las cabezas no alcancen los bordes diagonales.
-function jaula(p, mov, tipo) {
+// La escena de la jaula (reja, baranda, postes y lona con los dos peleadores).
+// La usan la estelar de la cartelera y el modal de una pelea del historial
+// (explorar.js), así que el octágono, el dorado del título y las esquinas son
+// los mismos. cifras=false deja la lona sin porcentajes ni barra: una pelea
+// pasada sin modelo de ese día no tiene probabilidad que mostrar. resultado
+// pone la placa del resultado real en la lona (la cartelera; el modal lo
+// muestra aparte, después de las estadísticas).
+function escenaJaula(p, { cifras = true, resultado = true } = {}) {
   const favA = p.p_a >= p.p_b;
   const postes = [1,2,3,4,5,6,7,8].map(n => `<i class="poste p${n}"></i>`).join('');
-  return `
-  <article class="estelar ${p.es_titulo === true ? 'estelar-titulo' : ''}" data-pelea="${p.id}">
-    <div class="estelar-distribucion"><div class="jaula-escena"><div class="jaula">
+  return `<div class="jaula-escena"><div class="jaula">
       <div class="reja-sombra"><div class="reja"></div></div><div class="baranda"></div>${postes}
       <div class="lona">
         ${lineaLona(p)}
@@ -1965,12 +2015,18 @@ function jaula(p, mov, tipo) {
         <div class="j-lomo j-vs">vs</div>
         <div class="j-b j-nombre" data-lado="b">${esc(p.b)}${insigniasIdentidad(p.identidad_b)}<small>${peleasUFC(p.info_b)}</small></div>
         ${historialReciente(p, true)}
-        <div class="j-a j-pct ${favA ? '' : 'menos'}" data-lado="a"><span data-lado="a" data-num="${p.id}:pA">${pct(p.p_a)}</span></div>
+        ${cifras ? `<div class="j-a j-pct ${favA ? '' : 'menos'}" data-lado="a"><span data-lado="a" data-num="${p.id}:pA">${pct(p.p_a)}</span></div>
         <div class="j-b j-pct ${favA ? 'menos' : ''}" data-lado="b"><span data-lado="b" data-num="${p.id}:pB">${pct(p.p_b)}</span></div>
-        <div class="j-todo j-barra">${barraDuelo(p)}</div>
-        ${resultadoReal(p, true)}
+        <div class="j-todo j-barra">${barraDuelo(p)}</div>` : ''}
+        ${resultado ? resultadoReal(p, true) : ''}
       </div>
-    </div></div>
+    </div></div>`;
+}
+
+function jaula(p, mov, tipo) {
+  return `
+  <article class="estelar ${p.es_titulo === true ? 'estelar-titulo' : ''}" data-pelea="${p.id}">
+    <div class="estelar-distribucion">${escenaJaula(p)}
     <aside class="estelar-datos" aria-label="Estadísticas del combate">
       ${datosJaula(p, mov)}
       ${ranuraCuerpo(p, true)}

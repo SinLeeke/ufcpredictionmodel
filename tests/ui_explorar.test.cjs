@@ -126,7 +126,10 @@ test('la ficha identifica medidas, conserva ceros reales y mantiene el alcance d
 test('el historial real queda accesible como despliegue nativo abierto y tabla con encabezados', () => {
   const html = contexto.vistaPerfil(perfil());
   assert.match(html, /<details class="perfil-desplegable" open><summary><h2>Historial en UFC/);
-  assert.match(html, /<span>1 pelea<\/span>/);
+  assert.match(html, /<span>1 pelea<small>Elige una para verla como se veía ese día<\/small><\/span>/);
+  // Cada fila abre su pelea: un botón real con nombre accesible, y el rival sigue siendo su enlace.
+  assert.match(html, /<button type="button" class="hist-abrir" data-hist="0" aria-label="Ver UFC 259 frente a Uros Medic como se veía ese día">/);
+  assert.match(html, /href="#peleador-5678"/);
   assert.equal((html.match(/scope="col"/g) || []).length, 5);
   assert.match(html, /res-P">Derrota/);
   assert.match(html, /KO\/TKO/);
@@ -173,4 +176,49 @@ test('teclado no anima la exploración y movimiento reducido conserva un fundido
   assert.equal(animaciones[0].opciones.delay, 0);
   assert.ok(animaciones[0].frames.every(f => Object.keys(f).length === 1 && 'opacity' in f));
   contexto.movimientoReducido = false;
+});
+
+
+test('la foto del perfil va en su cartel: grafito para todos, dorado y con su sello para el campeón', () => {
+  const normal = contexto.vistaPerfil(perfil());
+  assert.match(normal, /class="perfil-retrato foto-cartel"><figure class="retrato" data-foto="Aalon Cruz" data-calidad="alta">/);
+  assert.doesNotMatch(normal, /perfil-cinturon|foto-cartel oro/);
+  const campeon = contexto.vistaPerfil(perfil({campeon:{clave:'Lightweight', division:'Ligero', interino:false}}));
+  assert.match(campeon, /class="perfil-retrato foto-cartel oro"/);
+  assert.match(campeon, /<p class="perfil-cinturon">Campeón peso ligero<\/p>/);
+});
+
+// El modal de una pelea del historial, con el octágono y el análisis de app.js
+// y analisis.js simulados: aquí se prueba qué se le pide a cada uno y el orden.
+const modal = vm.createContext({esc:vm.runInContext('esc', contexto), fechaExplorar:vm.runInContext('fechaExplorar', contexto), ico:()=>'<svg></svg>', pedidos:[],
+  escenaJaula:(p, o) => { modal.pedidos.push(o); return `<div class="jaula" data-cifras="${o.cifras}"></div>`; },
+  analisisContenido:p => '<div class="analisis-contenido">ANALISIS</div>',
+  textoResultado:r => ({titulo:'Ganó ' + r.ganador, detalle:r.como}),
+  resultadoReal:p => `<div class="resultado-real" data-acierto="${p.resultado.acierto ? 'si' : 'no'}">REAL</div>`});
+vm.runInContext(explorar.slice(explorar.indexOf('function resultadoHistorialPelea('), explorar.indexOf('async function abrirPeleaHistorial(')), modal);
+
+test('el modal pone el octágono arriba, las estadísticas abajo y el resultado después, aparte', () => {
+  const base = {id:'h1', a:'Ana Arco', b:'Bia Bravo', es_titulo:false, p_a:null, p_b:null, metodo:null};
+  const sinModelo = modal.vistaHistorialPelea({pelea:base, corte:{fecha:'2024-06-15', motivo:'Sin modelo de ese día.'},
+    resultado:{ganador:'Bia Bravo', lado:'b', como:'decisión unánime', acierto:null}});
+  assert.equal(modal.pedidos.at(-1).cifras, false);          // sin modelo no hay porcentajes inventados
+  assert.equal(modal.pedidos.at(-1).resultado, false);       // ni la placa del resultado en la lona
+  const [oct, stats, real] = ['class="jaula"', 'ANALISIS', 'Ganó Bia Bravo'].map(t => sinModelo.indexOf(t));
+  assert.ok(oct >= 0 && oct < stats && stats < real, 'octágono, estadísticas y después el resultado');
+  assert.match(sinModelo, /class="hist-seccion hist-final"><h3>Cómo terminó<\/h3>/);
+  assert.match(sinModelo, /Sin modelo de ese día\./);
+  assert.doesNotMatch(sinModelo, /estelar-titulo/);
+  const conModelo = modal.vistaHistorialPelea({pelea:{...base, es_titulo:true, p_a:.6, p_b:.4, metodo:{}},
+    corte:{fecha:'2024-06-15', modelo:'reentrenado'}, resultado:{ganador:'Ana Arco', lado:'a', acierto:true}});
+  assert.equal(modal.pedidos.at(-1).cifras, true);
+  assert.match(conModelo, /class="estelar hist-oct estelar-titulo"/);      // dorado si fue por el título
+  assert.match(conModelo, /data-acierto="si">REAL/);
+  assert.match(conModelo, /entrenado solo con las peleas anteriores/);
+});
+
+test('sin pelea reconstruible se dice por qué, y aun así cómo terminó', () => {
+  const html = modal.vistaHistorialPelea({pelea:null, corte:{motivo:'La base no alcanza para antes de 2013.'},
+    resultado:{ganador:'Ana Arco', lado:'a', como:'KO/TKO'}});
+  assert.match(html, /La base no alcanza para antes de 2013\./);
+  assert.match(html, /Ganó Ana Arco/);
 });

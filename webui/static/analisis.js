@@ -92,7 +92,14 @@
     return `<section class="analisis-panel analisis-resultados"><h4>Método de cada peleador</h4><p class="analisis-ayuda">Probabilidad de que cada peleador gane por ese método.</p><div class="analisis-metodos-peleadores">${['A', 'B'].map(lado => `<div class="analisis-metodos-lado esquina-${lado.toLowerCase()}"><div class="analisis-metodos-nombre"><i aria-hidden="true"></i><strong>${escapar(p[lado.toLowerCase()])}</strong></div><p class="analisis-metodo-principal">Más probable: <b>${metodoPrincipal(lado).nombre}</b></p>${barras(lado)}</div>`).join('')}</div><p class="analisis-fuente">Modelo por resultado · Seis resultados posibles. Se calcula de forma independiente al pronóstico combinado de victoria y a la proyección de tres métodos.</p></section>`;
   }
 
+  // El contenido del análisis, sin el desplegable: lo usa la cartelera dentro
+  // de su <details> y el modal de una pelea del historial (explorar.js), que
+  // muestra las mismas gráficas abiertas. Un solo componente para los dos.
+  globalThis.analisisContenido = function analisisContenido(p) {
+    return `<div class="analisis-contenido">${leyendaEsquinas(p)}<div class="analisis-graficos">${victoria(p)}${metodosHistoricos(p)}</div>${resultados(p)}</div>`;
+  };
+
   globalThis.analisisPelea = function analisisPelea(p, abierta = false) {
-    return `<details class="analisis-pelea" data-analisis="${escapar(p.id)}"${abierta ? ' open' : ''}><summary><span class="analisis-summary-titulo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16V9M10 16V4M17 16V7"/></svg>Explorar análisis</span><span class="analisis-summary-datos">Victoria · Historial · Métodos</span><svg class="analisis-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></summary><div class="analisis-contenido">${leyendaEsquinas(p)}<div class="analisis-graficos">${victoria(p)}${metodosHistoricos(p)}</div>${resultados(p)}</div></details>`;
+    return `<details class="analisis-pelea" data-analisis="${escapar(p.id)}"${abierta ? ' open' : ''}><summary><span class="analisis-summary-titulo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16V9M10 16V4M17 16V7"/></svg>Explorar análisis</span><span class="analisis-summary-datos">Victoria · Historial · Métodos</span><svg class="analisis-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></summary>${globalThis.analisisContenido(p)}</details>`;
   };
 })();

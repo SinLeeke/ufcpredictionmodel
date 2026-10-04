@@ -188,9 +188,29 @@
 .perfil-record dd{margin:0;font:800 36px/1 var(--display);color:var(--txt)}
 .perfil-cab .perfil-record-nota{margin:10px 0 0;font-size:12.5px;color:var(--tenue)}
 .perfil-cab .perfil-procedencia{margin:16px 0 0;font-size:13px}
-.perfil-retrato{align-self:end;min-width:0;border-bottom:3px solid var(--txt)}
-.perfil-retrato .retrato{width:100%;aspect-ratio:4/5;background:var(--sup2)}
+.perfil-retrato{align-self:end;min-width:0}
+.perfil-retrato .retrato{width:100%;aspect-ratio:4/5;background:transparent}
 .perfil-retrato img{width:100%;height:100%;object-fit:contain;object-position:center bottom}
+/* El foco que se lleva al nombre al abrir la ficha es para el lector de
+   pantalla; un encabezado no es un control y el recuadro rojo sobraba. */
+#perfil-vista h1[tabindex="-1"]:focus{outline:none}
+/* Campeón vigente: el sello dorado de los puestos C, con su peso. */
+.perfil-cinturon{display:inline-block;margin:0 0 10px;padding:6px 14px 5px;font:800 13px/1 var(--display);letter-spacing:.08em;
+  text-transform:uppercase;background:#cfb05a;color:#17130a;clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+[data-estilo="juez"] .perfil-cinturon{clip-path:none;font-family:var(--maquina);letter-spacing:-.03em}
+.perfil-cab .perfil-cinturon{color:#17130a}
+/* Cada pelea del historial abre su detalle: el botón de la fecha se estira
+   sobre la fila (como el nombre en Rankings) y el rival sigue siendo su propio
+   enlace, por encima. */
+.hist-fila{position:relative;transition:background-color var(--dur-press) ease}
+.hist-abrir{display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;
+  letter-spacing:inherit;text-transform:none;cursor:pointer;min-height:0;justify-content:flex-start}
+.hist-abrir::after{content:"";position:absolute;inset:0}
+.hist-abrir:focus-visible{outline:none}
+.hist-fila:has(.hist-abrir:focus-visible){outline:2px solid var(--marca);outline-offset:-2px}
+.hist-fila .enlace-peleador{position:relative;z-index:1}
+@media(hover:hover) and (pointer:fine){.hist-fila:hover{background:color-mix(in srgb,var(--txt) 4%,var(--sup))}}
+.perfil-desplegable>summary span small{display:block;margin-top:3px;font:400 12.5px/1.3 var(--texto);color:var(--tenue);text-align:right;white-space:normal}
 .perfil-aviso{background:var(--alerta-sup);color:var(--alerta);padding:16px 20px;border:1px solid currentColor;max-width:75ch}
 .perfil-fuente{margin:0 0 24px;max-width:75ch}
 .perfil-estadisticas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
@@ -309,3 +329,56 @@
 [data-estilo="juez"] .catalogo-identidad .enlace-peleador,[data-estilo="juez"] .catalogo-registro b,
 [data-estilo="juez"] .perfil-record dd,[data-estilo="juez"] .perfil-metricas dd{font-family:var(--maquina);letter-spacing:-.04em}
 [data-estilo="juez"] .perfil-cab,[data-estilo="juez"] .perfil-estadisticas section,[data-estilo="juez"] .perfil-desplegable{border-top-color:var(--forma)}
+
+/* ---------------------- Modal: una pelea del historial ---------------------- */
+/* Más ancho que el modal común y en tres tiempos: arriba el octágono, abajo
+   las estadísticas de ese día y, al final y aparte (otra regla y otro fondo),
+   cómo terminó. En el celular ocupa la pantalla entera y la × queda pegada
+   arriba mientras se baja. */
+.modal-historial .modal-caja{max-width:920px;padding:0}
+.modal-historial .modal-cerrar{position:sticky;top:8px;z-index:3;display:flex;margin:8px 8px -52px auto;background:var(--sup)}
+.hist-cab{padding:24px 28px 18px}
+.hist-evento{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 52px 12px 0;
+  font:700 13px/1 var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--tenue)}
+.hist-sello{padding:5px 12px 4px;background:var(--txt);color:var(--sup);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+.modal-historial .hist-cab h2{margin:0 0 10px;font:800 clamp(26px,4vw,40px)/1 var(--display);text-transform:uppercase;text-wrap:balance}
+.hist-cab h2 small{font-size:.5em;color:var(--tenue);vertical-align:.25em;padding:0 .2em}
+.hist-nota{margin:0;max-width:65ch;font-size:14px;color:var(--txt2)}
+.hist-oct{background:transparent;container:none}
+.hist-oct .jaula-escena{padding:18px 16px 22px}
+.hist-cinturon{margin:0;padding:8px;text-align:center;font:800 13px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;
+  color:var(--titulo-tinta);background:var(--sup2)}
+.hist-seccion{padding:20px 28px 24px;border-top:3px solid var(--txt)}
+.hist-seccion>h3{margin:0 0 6px;font:800 22px/1.1 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.hist-corte{margin:0 0 14px;font-size:13.5px;color:var(--tenue)}
+.hist-aviso-modelo{margin:0 0 16px;padding:10px 14px;max-width:75ch;font-size:13.5px;line-height:1.5;color:var(--txt2);background:var(--sup2)}
+.hist-analisis{border-top:0;background:transparent}
+.hist-analisis .analisis-contenido{padding:0}
+.hist-final{background:var(--sup2)}
+.hist-final .resultado-real{margin:0}
+.hist-res{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;padding:12px 0 0}
+.hist-res b{font:800 26px/1.05 var(--display);text-transform:uppercase}
+.hist-res span{color:var(--txt2)}
+.hist-sin-res{margin:0;color:var(--txt2)}
+.hist-aviso{display:flex;gap:12px;align-items:flex-start;margin:0;padding:20px 28px;border-top:3px solid var(--alerta);background:var(--alerta-sup);color:var(--txt)}
+.hist-aviso .ico{flex:none;width:20px;height:20px;color:var(--alerta)}
+.hist-aviso p{margin:0;max-width:65ch}
+/* Mientras llega: el octágono vacío con el brillo de los esqueletos. */
+.hist-cargando{display:grid;justify-items:center;gap:14px;padding:26px 20px 34px;border-top:1px solid var(--linea);color:var(--tenue)}
+.hist-cargando p{margin:0;font-size:14px}
+.hist-oct-esqueleto{position:relative;overflow:hidden;width:min(70%,300px);aspect-ratio:1;background:var(--sup2);
+  clip-path:polygon(29.29% 0,70.71% 0,100% 29.29%,100% 70.71%,70.71% 100%,29.29% 100%,0 70.71%,0 29.29%)}
+.hist-oct-esqueleto::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--sup) 70%,transparent) 50%,transparent 70%);
+  translate:-100% 0;animation:brillo 1.3s var(--ease-in-out) infinite}
+[data-estilo="juez"] .hist-sello{clip-path:none;font-family:var(--maquina);letter-spacing:-.03em}
+[data-estilo="juez"] .hist-seccion{border-top-color:var(--forma)}
+@media(prefers-reduced-motion:reduce){.hist-oct-esqueleto::after{animation:none;translate:none;background:none}}
+@media(max-width:560px){
+  .modal.modal-historial{padding:0;place-items:stretch}
+  .modal-historial .modal-caja{max-width:none;max-height:100dvh;height:100dvh;border-top-width:3px}
+  .hist-cab{padding:18px 16px 14px}
+  .hist-seccion{padding:16px 16px 20px}
+  .hist-aviso{padding:16px}
+  .hist-oct .jaula-escena{padding:12px 8px 16px}
+}

@@ -1,5 +1,6 @@
 /* Rankings importados y catálogo local. La navegación no consume los scrapers. */
-const EXP = { rankings: null, division: 0, q: '', offset: 0, request: 0, cuotas: null };
+const EXP = { rankings: null, division: 0, q: '', offset: 0, request: 0, cuotas: null, pedidoHistorial: 0,
+  perfil: null, origenPerfil: null };
 const pesosEs = {"Men's Pound-for-Pound":'Libra por libra · hombres', "Women's Pound-for-Pound":'Libra por libra · mujeres',
   'Flyweight':'Mosca','Bantamweight':'Gallo','Featherweight':'Pluma','Lightweight':'Ligero',
   'Welterweight':'Wélter','Middleweight':'Medio','Light Heavyweight':'Semipesado','Heavyweight':'Pesado',
@@ -320,17 +321,18 @@ function vistaPerfil(d) {
     : '<p class="nota">Récord UFC sin atribución verificable.</p>';
   return `<button id="perfil-volver" class="secundario">${ico('ir', 'perfil-retorno-ico')}Volver a peleadores</button>
       <header class="perfil-cab"><div class="perfil-identidad"><h1>${esc(d.nombre)}${insigniasIdentidad(d.identidad_visual)}</h1>
+      ${d.campeon ? `<p class="perfil-cinturon">${esc(rotuloCampeon(d.campeon, null, true))}</p>` : ''}
       <p class="perfil-division">${d.peso ? `${esc(d.peso)} <small>· última división registrada</small>` : 'División no disponible'}</p>
       ${bio ? `<dl class="perfil-bio">${bio}</dl>` : ''}${record}
       <p class="nota perfil-procedencia">${d.actualizado ? 'Última pelea: ' + esc(fechaExplorar(d.actualizado)) : 'Sin fecha de última pelea'}${b.fighter_url ? ` · <a href="${esc(b.fighter_url)}" target="_blank" rel="noopener">Ficha fuente UFCStats</a>` : ''}</p></div>
-      ${d.homonimo ? '' : `<div class="perfil-retrato">${retrato(d.nombre)}</div>`}</header>
+      ${d.homonimo ? '' : `<div class="perfil-retrato foto-cartel${d.campeon ? ' oro' : ''}">${retrato(d.nombre, '', {alta: true})}</div>`}</header>
       ${d.homonimo ? `<p class="perfil-aviso">Hay varias fichas llamadas ${esc(d.nombre)}. El historial antiguo usa nombres y no permite separar sus peleas: no se mezcla ni se atribuye aquí.</p>` : ''}
       <p class="nota perfil-fuente">${esc(d.metricas_fuente)}${d.muestra ? ' · ' + miles(d.muestra) + ' peleas en la muestra' : ''}. Una raya significa que no hay datos suficientes.</p>
       <div class="perfil-estadisticas"><section><h2>Golpeo</h2>${listaMetricas(m,[['slpm','Conectados','Significativos por minuto'],['sapm','Recibidos','Significativos por minuto'],['str_acc','Precisión','Golpes conectados / intentados',true],['str_def','Defensa','Golpes del rival evitados',true],['kd_avg','Knockdowns','Por 15 minutos']])}
       <h3>Dónde conecta</h3>${repartoPerfil(d.zonas,{head:'Cabeza',body:'Cuerpo',leg:'Piernas'})}</section>
       <section><h2>Grappling</h2>${listaMetricas(m,[['td_avg','Derribos','Completados por 15 minutos'],['td_acc','Precisión','Derribos completados / intentados',true],['td_def','Defensa','Derribos del rival evitados',true],['sub_avg','Sumisiones','Intentos por 15 minutos'],['ctrl_avg','Control','Minutos de control por 15 minutos']])}
       <h3>Posición del golpeo</h3>${repartoPerfil(d.posiciones,{distance:'Distancia',clinch:'Clinch',ground:'Suelo'})}</section></div>
-      <section class="perfil-historial">${historial.length ? `<details class="perfil-desplegable" open><summary><h2>Historial en UFC</h2><span>${historial.length} ${historial.length === 1 ? 'pelea' : 'peleas'}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></summary><div class="perfil-historial-contenido"><div class="tabla-scroll"><table><thead><tr><th scope="col">Fecha / evento</th><th scope="col">Rival</th><th scope="col">Resultado</th><th scope="col">Método</th><th scope="col">Asalto / tiempo</th></tr></thead><tbody>${historial.map(p=>`<tr><td>${esc(fechaExplorar(p.fecha))}<small>${esc(p.evento)}</small></td><td>${perfilEnlace(p.rival,p.rival_id)}</td><td><span class="perfil-res res-${esc(p.resultado)}">${{V:'Victoria',P:'Derrota',E:'Empate',NC:'Sin resultado','?':'Por confirmar'}[p.resultado] || 'Por confirmar'}</span></td><td>${esc(p.metodo)}</td><td>${esc(p.asalto)} · ${esc(p.tiempo)}</td></tr>`).join('')}</tbody></table></div></div></details>` : '<h2>Historial en UFC</h2><p class="nota">No hay peleas que se puedan atribuir a esta ficha con certeza.</p>'}</section>`;
+      <section class="perfil-historial">${historial.length ? `<details class="perfil-desplegable" open><summary><h2>Historial en UFC</h2><span>${historial.length} ${historial.length === 1 ? 'pelea' : 'peleas'}<small>Elige una para verla como se veía ese día</small></span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></summary><div class="perfil-historial-contenido"><div class="tabla-scroll"><table><thead><tr><th scope="col">Fecha / evento</th><th scope="col">Rival</th><th scope="col">Resultado</th><th scope="col">Método</th><th scope="col">Asalto / tiempo</th></tr></thead><tbody>${historial.map((p,i)=>`<tr class="hist-fila"><td><button type="button" class="hist-abrir" data-hist="${i}" aria-label="${esc(`Ver ${p.evento} frente a ${p.rival} como se veía ese día`)}">${esc(fechaExplorar(p.fecha))}<small>${esc(p.evento)}</small></button></td><td>${perfilEnlace(p.rival,p.rival_id)}</td><td><span class="perfil-res res-${esc(p.resultado)}">${{V:'Victoria',P:'Derrota',E:'Empate',NC:'Sin resultado','?':'Por confirmar'}[p.resultado] || 'Por confirmar'}</span></td><td>${esc(p.metodo)}</td><td>${esc(p.asalto)} · ${esc(p.tiempo)}</td></tr>`).join('')}</tbody></table></div></div></details>` : '<h2>Historial en UFC</h2><p class="nota">No hay peleas que se puedan atribuir a esta ficha con certeza.</p>'}</section>`;
 }
 
 function volverPeleadores() {
@@ -342,30 +344,178 @@ function volverPeleadores() {
   window.scrollTo({top:EXP.scrollCatalogo || 0, behavior:'auto'});
 }
 
-function activarPerfil() {
+// La ficha llega de una vez (una petición), pero no aparece de golpe: el panel
+// sube MOV.desplaza px, el contorno del octágono del cartel se asienta y la
+// foto entra un instante después desde abajo, y las cifras del récord corren
+// hasta su valor con el mismo contar() de la cartelera. Si se llegó desde el
+// listado (EXP.origenPerfil), la foto no entra: viaja desde donde estaba
+// (FLIP, MOV.viaje con --ease-in-out). Las estadísticas cuentan al entrar en
+// pantalla y las filas del historial bajan una tras otra al abrirlo. Con
+// teclado nada se anima; con menos movimiento quedan los fundidos, sin conteo.
+function activarPerfil(origen = null) {
   const perfil = $('#perfil-vista');
   EXP.perfilObs?.disconnect();
   $('#perfil-volver').onclick = volverPeleadores;
   cargarFotos(perfil);
-  entrarExploracion(perfil.querySelectorAll('.perfil-cab, .perfil-fuente'), {escalonar:false});
-  const secciones = perfil.querySelectorAll('.perfil-estadisticas > section, .perfil-historial');
-  if ('IntersectionObserver' in window && !porTeclado) {
-    const observador = new IntersectionObserver(entradas => entradas.forEach(entrada => {
-      if (!entrada.isIntersecting) return;
-      entrarExploracion([entrada.target], {escalonar:false});
-      observador.unobserve(entrada.target);
-    }), {threshold:.08});
-    EXP.perfilObs = observador;
-    secciones.forEach(sec => observador.observe(sec));
-  }
+  perfil.querySelectorAll('.hist-abrir').forEach(b => b.onclick = () => {
+    const h = EXP.perfil?.historial?.[Number(b.dataset.hist)];
+    if (h) abrirPeleaHistorial(EXP.perfil, h);
+  });
   const detalle = perfil.querySelector('.perfil-desplegable');
   detalle?.querySelector('summary').addEventListener('click', e => {
     e.preventDefault();
     desplegarCombate(detalle, !(transicionesCombate.get(detalle)?.abierto ?? detalle.open), {abrir:220, cerrar:160});
   });
   detalle?.addEventListener('toggle', () => {
-    if (detalle.open && !detalle.hasAttribute('data-cerrando')) entrarExploracion([detalle.querySelector('.perfil-historial-contenido')], {escalonar:false});
+    if (detalle.open && !detalle.hasAttribute('data-cerrando')) entrarFilasHistorial(detalle);
   });
+  if (porTeclado) return;
+  const quieto = reducir();
+  const entra = (el, desde, opts = {}) => el?.animate(quieto ? [{opacity: 0}, {opacity: 1}] : [desde, {opacity: 1, transform: 'none'}],
+    {duration: quieto ? 150 : MOV.entrada, easing: EASE_OUT, fill: 'backwards', ...opts, ...(quieto ? {delay: 0} : {})});
+  entra(perfil.querySelector('.perfil-cab'), {opacity: 0, transform: `translateY(${MOV.desplaza}px)`});
+  entra(perfil.querySelector('.perfil-fuente'), {opacity: 0}, {delay: 80});
+  const cartel = perfil.querySelector('.perfil-retrato');
+  if (cartel && !(origen && volarFoto(cartel, origen))) {
+    if (!quieto) cartel.animate([{transform: 'scale(.96)'}, {transform: 'none'}],
+      {duration: MOV.entrada, easing: EASE_OUT, pseudoElement: '::before', fill: 'backwards'});
+    entra(cartel.querySelector('.retrato'), {opacity: 0, transform: 'translateY(10px)'}, {delay: 60});
+  }
+  if (!quieto) perfil.querySelectorAll('.perfil-record dd').forEach((dd, i) => contar(dd, 120 + i * MOV.escalon, MOV.conteo));
+  const secciones = perfil.querySelectorAll('.perfil-estadisticas > section, .perfil-historial');
+  if (!('IntersectionObserver' in window)) return;
+  const observador = new IntersectionObserver(entradas => entradas.forEach(entrada => {
+    if (!entrada.isIntersecting) return;
+    observador.unobserve(entrada.target);
+    if (porTeclado) return;
+    entra(entrada.target, {opacity: 0, transform: `translateY(${MOV.desplaza}px)`});
+    if (!reducir()) entrada.target.querySelectorAll('.perfil-metricas dd').forEach((dd, i) =>
+      contar(dd, 80 + Math.min(i, MOV.escalonMax) * MOV.escalon, MOV.conteo));
+    if (entrada.target.classList.contains('perfil-historial') && detalle?.open) entrarFilasHistorial(detalle);
+  }), {threshold: .08});
+  EXP.perfilObs = observador;
+  secciones.forEach(sec => observador.observe(sec));
+}
+
+// Las filas del historial bajan una tras otra, cortadas en la fila 12: la
+// tabla se lee de arriba abajo, no como un bloque que aparece entero.
+function entrarFilasHistorial(detalle) {
+  if (porTeclado) return;
+  const quieto = reducir();
+  detalle.querySelectorAll('tbody tr').forEach((tr, i) => tr.animate(
+    quieto ? [{opacity: 0}, {opacity: 1}] : [{opacity: 0, transform: `translateY(${MOV.desplaza}px)`}, {opacity: 1, transform: 'none'}],
+    {duration: quieto ? 150 : MOV.entrada, delay: quieto ? 0 : Math.min(i, MOV.escalonMax) * MOV.escalon, easing: EASE_OUT, fill: 'backwards'}));
+}
+
+// FLIP: la foto parte del rectángulo que ocupaba en el listado y llega a su
+// lugar en el cartel del perfil. Escala uniforme (la del ancho) y centros
+// alineados: así no se deforma aunque la caja chica y la grande tengan otra
+// proporción. Devuelve false si no corresponde (otro peleador, sin medidas).
+function volarFoto(cartel, origen) {
+  const r0 = origen.rect, r1 = cartel.getBoundingClientRect();
+  if (!r0?.width || !r1.width || porTeclado) return false;
+  if (reducir()) { cartel.animate([{opacity: 0}, {opacity: 1}], {duration: 150, easing: EASE_OUT}); return true; }
+  const escala = r0.width / r1.width;
+  const dx = (r0.left + r0.width / 2) - (r1.left + r1.width / 2);
+  const dy = (r0.top + r0.height / 2) - (r1.top + r1.height / 2);
+  cartel.style.zIndex = '5';
+  const viaje = cartel.animate([{transform: `translate(${dx}px, ${dy}px) scale(${escala})`}, {transform: 'none'}],
+    {duration: MOV.viaje, easing: EASE_IN_OUT});
+  const fin = () => { cartel.style.zIndex = ''; };
+  viaje.onfinish = fin; viaje.oncancel = fin;
+  return true;
+}
+
+/* ===================== MODAL: UNA PELEA DEL HISTORIAL ===================== */
+// Al elegir una fila del historial se abre la pelea como se veía ESE día
+// (GET /api/peleadores/{id}/pelea, webui/historial.py): arriba el octágono de
+// la cartelera (escenaJaula, dorado si fue por el título y con las esquinas
+// roja y azul si no), abajo las estadísticas con el mismo componente del
+// análisis (analisisContenido) y, después y aparte, cómo terminó. El orden de
+// las esquinas lo decide el servidor sin mirar el resultado. Mientras está
+// abierto, <html> lleva data-historial-abierto (la cabecera esconde Combinada).
+const cuerpoHistorial = () => $('#modal-cuerpo .hist-cuerpo');
+
+function cabHistorial(h, perfil) {
+  return `<div class="hist"><header class="hist-cab">
+    <p class="hist-evento"><span class="hist-sello">${esc(h.evento)}</span><span>${esc(fechaExplorar(h.fecha))}</span></p>
+    <h2>${esc(perfil.nombre)} <small>vs</small> ${esc(h.rival)}</h2>
+    <p class="hist-nota">Como se veía antes de pelearse: récord, últimas cinco y estadísticas con solo lo que había hasta el día anterior.</p>
+  </header><div class="hist-cuerpo" aria-busy="true"><div class="hist-cargando" role="status">
+    <span class="hist-oct-esqueleto" aria-hidden="true"></span><p>Reconstruyendo la pelea con los datos de ese día…</p></div></div></div>`;
+}
+
+// El resultado real, separado de todo lo anterior. Con modelo de ese día va
+// el pie de la repetición (acertó o falló, y el método); sin modelo no hay
+// pronóstico contra qué comparar y se dice solo cómo terminó.
+function resultadoHistorialPelea(p, r, conModelo) {
+  if (!r) return `<p class="hist-sin-res">La base local todavía no tiene el resultado de esta pelea.</p>`;
+  if (conModelo) return resultadoReal({...p, resultado: r});
+  const t = textoResultado(r);
+  return `<div class="resultado-real hist-res" data-acierto="nd" role="group" aria-label="Resultado real">
+    <span class="rr-que"><b${r.lado ? ` data-lado="${r.lado}"` : ''}>${esc(t.titulo)}</b>${t.detalle ? `<span>${esc(t.detalle)}</span>` : ''}</span></div>`;
+}
+
+function vistaHistorialPelea(d) {
+  const p = d.pelea;
+  if (!p) return `<div class="hist-aviso">${ico('alerta')}<p>${esc(d.corte?.motivo || 'No se pudo reconstruir esta pelea.')}</p></div>
+    <section class="hist-seccion hist-final"><h3>Cómo terminó</h3>${resultadoHistorialPelea({}, d.resultado, false)}</section>`;
+  const conModelo = Number.isFinite(p.p_a) && Number.isFinite(p.p_b);
+  const corte = d.corte || {};
+  const titulo = p.es_titulo === true;
+  return `<article class="estelar hist-oct${titulo ? ' estelar-titulo' : ''}" data-pelea="${esc(p.id)}" aria-label="${esc(p.a)} frente a ${esc(p.b)}${titulo ? ', por el título' : ''}">
+      ${titulo ? '<p class="hist-cinturon">Por el título</p>' : ''}${escenaJaula(p, {cifras: conModelo, resultado: false})}</article>
+    <section class="hist-seccion"><h3>Estadísticas de ese día</h3>
+      <p class="hist-corte">Datos hasta el ${esc(fechaExplorar(corte.fecha))}${conModelo
+        ? ` · pronóstico de un modelo ${corte.modelo === 'reentrenado' ? 'entrenado solo con las peleas anteriores' : 'que ya había terminado de entrenar antes'}${p.mercado ? ', mezclado con las cuotas de cierre' : ''}.`
+        : '.'}</p>
+      ${corte.motivo ? `<p class="hist-aviso-modelo">${esc(corte.motivo)}</p>` : ''}
+      <div class="analisis-pelea hist-analisis">${analisisContenido(p)}</div></section>
+    <section class="hist-seccion hist-final"><h3>Cómo terminó</h3>${resultadoHistorialPelea(p, d.resultado, conModelo)}</section>`;
+}
+
+async function abrirPeleaHistorial(perfil, h) {
+  const pedido = ++EXP.pedidoHistorial;
+  modal(cabHistorial(h, perfil), {clase: 'modal-historial', alCerrar: () => {
+    delete raizDoc.dataset.historialAbierto;
+    EXP.pedidoHistorial++;                 // una respuesta tardía ya no pinta nada
+  }});
+  raizDoc.dataset.historialAbierto = '';
+  try {
+    const d = await api(`/api/peleadores/${encodeURIComponent(perfil.id)}/pelea?fecha=${encodeURIComponent(String(h.fecha).slice(0, 10))}&rival=${encodeURIComponent(h.rival)}`);
+    if (pedido !== EXP.pedidoHistorial || !cuerpoHistorial()) return;
+    const cuerpo = cuerpoHistorial();
+    cuerpo.innerHTML = vistaHistorialPelea(d);
+    cuerpo.setAttribute('aria-busy', 'false');
+    // Las últimas cinco de la lona abren otro modal en la cartelera; acá ya
+    // estamos en uno, así que quedan como lectura.
+    cuerpo.querySelectorAll('.historial-resumen').forEach(b => {
+      const s = document.createElement('span');
+      s.className = b.className; s.innerHTML = b.innerHTML; s.title = b.title;
+      b.replaceWith(s);
+    });
+    cargarFotos(cuerpo);
+    entrarHistorialPelea(cuerpo);
+  } catch (e) {
+    if (pedido !== EXP.pedidoHistorial || !cuerpoHistorial()) return;
+    cuerpoHistorial().setAttribute('aria-busy', 'false');
+    cuerpoHistorial().innerHTML = `<div class="hist-aviso">${ico('alerta')}<p>${esc(e.message || 'No pude abrir esta pelea.')}</p></div>`;
+  }
+}
+
+// La pelea llega como la estelar al abrirse: la jaula se arma (entradaJaula,
+// la misma de la cartelera), las barras del análisis se llenan desde su
+// esquina y el resultado aparece al final, ya separado. Con teclado, quieto;
+// con menos movimiento, solo un fundido.
+function entrarHistorialPelea(cuerpo) {
+  if (porTeclado) return;
+  if (reducir()) { cuerpo.animate([{opacity: 0}, {opacity: 1}], {duration: 150, easing: EASE_OUT}); return; }
+  const art = cuerpo.querySelector('.hist-oct');
+  if (art) entradaJaula(art);
+  cuerpo.querySelectorAll('.hist-seccion').forEach((s, i) => s.animate(
+    [{opacity: 0, transform: `translateY(${MOV.desplaza}px)`}, {opacity: 1, transform: 'none'}],
+    {duration: MOV.entrada, delay: 360 + i * 120, easing: EASE_OUT, fill: 'backwards'}));
+  cuerpo.querySelectorAll('.analisis-barra span').forEach((b, i) => llenarDesde(b, 'left', 480 + Math.min(i, 8) * MOV.escalon));
 }
 
 async function abrirPerfil(id) {
@@ -380,8 +530,12 @@ async function abrirPerfil(id) {
   try {
     const d = await api('/api/peleadores/' + encodeURIComponent(id));
     if (seq !== EXP.request) return;
+    EXP.perfil = d;
+    // El origen del viaje solo vale para este peleador y una sola vez.
+    const origen = EXP.origenPerfil?.id === id ? EXP.origenPerfil : null;
+    EXP.origenPerfil = null;
     $('#perfil-vista').innerHTML = vistaPerfil(d);
-    activarPerfil();
+    activarPerfil(origen);
     $('#perfil-vista h1').tabIndex = -1; $('#perfil-vista h1').focus({preventScroll:true});
   } catch(e) { if (seq === EXP.request) { $('#perfil-vista').innerHTML = '<p>No encontré esa ficha.</p><button id="perfil-volver" class="secundario">Volver al buscador</button>'; $('#perfil-volver').onclick = volverPeleadores; } }
 }
