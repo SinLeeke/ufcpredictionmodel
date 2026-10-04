@@ -209,6 +209,46 @@ class RankingsApi(unittest.TestCase):
         self.assertEqual(p4p[1]['pais']['nombre'], 'ES')      # cae al código, nunca a NaN
         self.assertEqual(p4p[2]['pais']['bandera'], 'BR')
 
+    def test_cada_campeon_del_p4p_es_el_puesto_c_de_su_division(self):
+        # El rótulo «Campeón peso wélter» de la UI sale de campeon.clave: tiene
+        # que ser la división donde ESA ficha es el puesto C de la misma captura,
+        # y nadie más del P4P puede llevarlo.
+        d = self.rankings()
+        titulares = {(r['perfil_ufc'], x['clave']) for x in d['divisiones'] if not x['p4p']
+                     for r in x['peleadores'] if r['puesto'] == 0}
+        marcados = 0
+        for x in d['divisiones']:
+            if not x['p4p']:
+                continue
+            for r in x['peleadores']:
+                if r['campeon'] is None:
+                    self.assertFalse(any(u == r['perfil_ufc'] for u, _ in titulares), r['nombre'])
+                    continue
+                marcados += 1
+                self.assertIn((r['perfil_ufc'], r['campeon']['clave']), titulares, r['nombre'])
+                self.assertEqual(r['campeon']['division'], next(
+                    y['nombre'] for y in d['divisiones'] if y['clave'] == r['campeon']['clave']))
+        self.assertEqual(marcados, 4)       # Makhachev, Gaethje, Shevchenko y Harrison
+
+    def test_la_api_manda_division_y_divisiones_en_cada_fila(self):
+        # «División no disponible» venía de un servidor viejo sin estas claves:
+        # la API actual las manda siempre, también como null o lista vacía.
+        from fastapi.testclient import TestClient
+        from webui import server
+        r = TestClient(server.app).get('/api/rankings')
+        self.assertEqual(r.status_code, 200)
+        d = r.json()
+        filas = [(x, p) for x in d['divisiones'] for p in x['peleadores']]
+        self.assertTrue(filas)
+        for x, p in filas:
+            self.assertIn('division', p, p['nombre'])
+            self.assertIsInstance(p['divisiones'], list, p['nombre'])
+            if not x['p4p']:
+                self.assertEqual(p['division']['clave'], x['clave'])
+        p4p = {p['nombre']: p for x, p in filas if x['clave'] == "Men's Pound-for-Pound"}
+        self.assertEqual(p4p['Islam Makhachev']['division']['nombre'], 'Peso welter')
+        self.assertEqual([c['clave'] for c in p4p['Ilia Topuria']['divisiones']], ['Featherweight', 'Lightweight'])
+
     def test_ranking_ausente_responde_vacio(self):
         DB.unlink(K.RANKINGS)
         d = self.rankings()
@@ -305,6 +345,16 @@ class RankingReal(unittest.TestCase):
                              for r in y['peleadores'] if r['puesto'] == 0}
                 self.assertEqual({r['perfil_ufc'] for r in x['peleadores'] if r['campeon']},
                                  {r['perfil_ufc'] for r in x['peleadores'] if r['perfil_ufc'] in titulares}, campeones)
+        # Captura revisada a mano por el dueño: los 11 puestos C, y cada uno con
+        # el cinturón de la división donde es C, no el de otra.
+        por_division = {(r['perfil_ufc'], y['clave']) for y in d['divisiones'] if not y['p4p']
+                        for r in y['peleadores'] if r['puesto'] == 0}
+        if d.get('fecha') == '2026-10-03':
+            self.assertEqual(len(por_division), 11)
+        for x in d['divisiones']:
+            for r in x['peleadores'] if x['p4p'] else []:
+                if r['campeon']:
+                    self.assertIn((r['perfil_ufc'], r['campeon']['clave']), por_division, r['nombre'])
 
 
 if __name__ == '__main__':
