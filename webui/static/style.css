@@ -75,9 +75,9 @@
      Grafito con filetes hueso para todos; dorado, como la baranda de los
      títulos, para el campeón. Se usan con .foto-cartel (final del archivo). */
   --cartel-fondo:#1c1a17; --cartel-hilo:rgba(239,233,223,.07);
-  --cartel-regla:rgba(239,233,223,.34); --cartel-tinta:#efe9df;
+  --cartel-regla:#64605b; --cartel-tinta:#efe9df;   /* regla: el filete del octágono */
   --oro-fondo:#231b0c; --oro-hilo:rgba(244,223,155,.12);
-  --oro-regla:#cfb05a; --oro-tinta:#f1d78d;
+  --oro-tinta:#f1d78d;   /* el filete del campeón es --titulo-metal */
 
   /* Nombres viejos, para las pestañas que todavía no se rediseñan. */
   --acento:var(--marca); --acento-sup:var(--error-sup); --mal:var(--error); --mal-sup:var(--error-sup);
@@ -2361,34 +2361,33 @@ p.cons-error{color:var(--alerta)}
 @media (prefers-reduced-motion:reduce){.cons-flecha{transition:none}}
 
 /* ======================= FONDO DE LA FOTO DEL PELEADOR ===================== */
-/* Componente compartido por el perfil, el listado de Peleadores y Rankings
-   (tokens --cartel-* y --oro-* en :root). Es el póster detrás del PNG: fondo
-   oscuro, filetes finos con la inclinación de la gráfica (12°) y el contorno
-   del octágono marcado en tenue, apoyado en una regla de 3 px que hace de
-   lona. La foto va encima (z-index 1); el componente no la recorta ni decide
-   cómo se ajusta: eso lo hace quien lo usa. Variante de campeón: .oro. */
-.foto-cartel{--fc-fondo:var(--cartel-fondo);--fc-hilo:var(--cartel-hilo);--fc-regla:var(--cartel-regla);--fc-oct:min(92%,420px);
-  position:relative;isolation:isolate;overflow:hidden;color:var(--cartel-tinta);
-  background:repeating-linear-gradient(102deg,transparent 0 9px,var(--fc-hilo) 9px 10px),var(--fc-fondo);
-  border-bottom:3px solid var(--fc-regla)}
-/* El octágono: dos polígonos iguales, el de afuera del color del filete y el de
-   adentro del fondo, dejan un contorno de 1,5 px sin SVG ni imagen. */
-.foto-cartel::before,.foto-cartel::after{content:"";position:absolute;z-index:-1;pointer-events:none;
-  left:50%;top:54%;width:var(--fc-oct);aspect-ratio:1;translate:-50% -50%;
-  clip-path:polygon(29.29% 0,70.71% 0,100% 29.29%,100% 70.71%,70.71% 100%,29.29% 100%,0 70.71%,0 29.29%)}
-.foto-cartel::before{background:var(--fc-regla);opacity:.5}
-.foto-cartel::after{background:var(--fc-fondo);width:calc(var(--fc-oct) - 3px)}
-.foto-cartel>img,.foto-cartel>svg,.foto-cartel>.retrato{position:relative;z-index:1}
+/* Componente compartido por el perfil y el listado de Peleadores (tokens
+   --cartel-* y --oro-* en :root), con la misma forma que el marco del campeón
+   en Rankings (.rk-oct): el cartel ES el octágono regular de la jaula. Afuera
+   el filete (::before, sólido), adentro la lona (::after, --fc-filete más
+   chica, con lo que el filete mide lo mismo en los ocho lados): fondo oscuro
+   con filetes finos inclinados 12°. La foto se recorta con la misma lona: el
+   peleador queda siempre dentro de la figura, encuadrado de la cintura a la
+   cabeza. Variante de campeón: .oro (filete en el metal de los títulos). */
+.foto-cartel{--fc-fondo:var(--cartel-fondo);--fc-hilo:var(--cartel-hilo);
+  --fc-regla:var(--cartel-regla);--fc-filete:3px;
+  --fc-oct:polygon(29.29% 0,70.71% 0,100% 29.29%,100% 70.71%,70.71% 100%,29.29% 100%,0 70.71%,0 29.29%);
+  position:relative;isolation:isolate;aspect-ratio:1;color:var(--cartel-tinta);clip-path:var(--fc-oct)}
+.foto-cartel::before,.foto-cartel::after,.foto-cartel>.retrato{position:absolute;clip-path:var(--fc-oct)}
+.foto-cartel::before,.foto-cartel::after{content:"";pointer-events:none}
+.foto-cartel::before{inset:0;z-index:-2;background:var(--fc-regla)}
+.foto-cartel::after{inset:var(--fc-filete);z-index:-1;
+  background:repeating-linear-gradient(102deg,transparent 0 9px,var(--fc-hilo) 9px 10px),var(--fc-fondo)}
+.foto-cartel>.retrato{inset:var(--fc-filete);z-index:1;width:auto;height:auto;aspect-ratio:auto}
 /* La silueta, sin su caja clara: la figura en hueso tenue sobre el cartel. */
 .foto-cartel{--sil-fondo:var(--fc-fondo);--sil-fig:color-mix(in srgb,var(--cartel-tinta) 16%,var(--fc-fondo))}
 .foto-cartel .retrato{background:transparent}
 .foto-cartel .retrato svg rect{fill:transparent}
-/* Un retrato sin fondo transparente (X-Fondo: opaco) no se apoya en el cartel
-   como un rectángulo pegado: lo llena entero, como una foto enmarcada, con la
-   cara arriba del centro. */
-.foto-cartel [data-fondo="opaco"] img{width:100%;height:100%;object-fit:cover;object-position:50% 18%}
-.foto-cartel.oro{--fc-fondo:var(--oro-fondo);--fc-hilo:var(--oro-hilo);--fc-regla:var(--oro-regla);
-  color:var(--oro-tinta);border-bottom:0;border-image:var(--titulo-metal) 1;border-style:solid;border-width:0 0 3px}
-.foto-cartel.oro::before{opacity:.65}
-@media(forced-colors:active){.foto-cartel{background:Canvas;border-bottom-color:CanvasText}
-  .foto-cartel.oro{border-image:none}.foto-cartel::before,.foto-cartel::after{display:none}}
+/* El recorte de estudio llena la lona con la cabeza arriba del centro; un
+   retrato opaco (X-Fondo: opaco), que trae más aire arriba, baja un poco más. */
+.foto-cartel .retrato img{object-fit:cover;object-position:50% 10%}
+.foto-cartel [data-fondo="opaco"] img{object-position:50% 18%}
+.foto-cartel.oro{--fc-fondo:var(--oro-fondo);--fc-hilo:var(--oro-hilo);color:var(--oro-tinta)}
+.foto-cartel.oro::before{background:var(--titulo-metal)}
+@media(forced-colors:active){.foto-cartel::before{forced-color-adjust:none;background:CanvasText}
+  .foto-cartel::after{forced-color-adjust:none;background:Canvas}}

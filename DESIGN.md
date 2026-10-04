@@ -431,11 +431,14 @@ estrechas. La coestelar sin título usa una tarjeta normal con su rótulo.
 Sin foto oficial, una silueta de peleador; nunca la foto de otro.
 
 ### Fondo de la foto (`.foto-cartel`)
-Fuera del combate (perfil, listado de Peleadores, Rankings), la foto se apoya en un
-panel de cartel, oscuro en los dos temas como la cabecera: grafito (`--cartel-*`) con
-filetes hueso inclinados 12° y el contorno del octágono en tenue, sobre una regla de
-3 px. El campeón usa la variante `.oro` (`--oro-*` y el metal de la baranda de los
-títulos). Sin rojo ni azul: esos colores son de las esquinas.
+Fuera del combate (perfil y listado de Peleadores), la foto va en un cartel que es el
+propio octágono regular de la jaula, igual que el marco del campeón en Rankings: un
+filete sólido (`--cartel-regla`; 2 px en el listado, 4 px en el perfil) y adentro la
+lona, oscura en los dos temas como la cabecera: grafito (`--cartel-*`) con filetes hueso
+inclinados 12°. La foto se recorta con la lona y la llena (cabeza arriba del centro):
+el peleador nunca se sale de la figura. El campeón usa la variante `.oro` (`--oro-*` y
+el metal de la baranda de los títulos en el filete). Sin rojo ni azul: esos colores son
+de las esquinas.
 
 Dentro de la lona, el bloque arranca a 10,5 cqw del borde y la barra mide el 84 % del
 ancho, centrada: la franja de ancho completo de la línea pintada va de y = 32 a y = 68

@@ -149,12 +149,8 @@
 .catalogo-lista{list-style:none;margin:0 0 20px;padding:0;border-top:3px solid var(--txt);background:var(--sup)}
 .catalogo-fila{position:relative;display:grid;grid-template-columns:72px minmax(0,1fr) auto 24px;gap:20px;align-items:center;
   min-height:88px;padding:12px 22px 12px 12px;border-bottom:1px solid var(--linea);transition:background-color var(--dur-press) ease}
-/* La foto, cuadrada, apoyada en la regla del cartel; la cabeza arriba. */
-.catalogo-foto{width:72px;aspect-ratio:1}
-.catalogo-foto .retrato{width:100%;height:100%}
-/* Un retrato recortado se encuadra como foto de carnet (cabeza y hombros); el
-   opaco ya lo resuelve .foto-cartel. */
-.catalogo-foto .retrato:not([data-fondo="opaco"]) img{width:100%;height:100%;object-fit:cover;object-position:50% 8%}
+/* La foto en su cartel octogonal, con el filete más fino que en el perfil. */
+.catalogo-foto{width:72px;--fc-filete:2px}
 .catalogo-identidad .catalogo-cinturon{margin-top:4px;font:800 12.5px/1.2 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--titulo-tinta)}
 .catalogo-identidad{min-width:0}
 .catalogo-identidad .enlace-peleador{font:800 25px/1.1 var(--display);text-transform:uppercase;letter-spacing:.01em}
@@ -204,9 +200,7 @@
 .perfil-record dd{margin:0;font:800 36px/1 var(--display);color:var(--txt)}
 .perfil-cab .perfil-record-nota{margin:10px 0 0;font-size:12.5px;color:var(--tenue)}
 .perfil-cab .perfil-procedencia{margin:16px 0 0;font-size:13px}
-.perfil-retrato{align-self:end;min-width:0}
-.perfil-retrato .retrato{width:100%;aspect-ratio:4/5;background:transparent}
-.perfil-retrato img{width:100%;height:100%;object-fit:contain;object-position:center bottom}
+.perfil-retrato{align-self:center;min-width:0;--fc-filete:4px}
 /* El foco que se lleva al nombre al abrir la ficha es para el lector de
    pantalla; un encabezado no es un control y el recuadro rojo sobraba. */
 #perfil-vista h1[tabindex="-1"]:focus{outline:none}
@@ -330,7 +324,7 @@
   .perfil-record{gap:10px}
   .perfil-record dd{font-size:30px}
   .perfil-cab .perfil-record-nota,.perfil-cab .perfil-procedencia{margin:0}
-  .perfil-retrato{grid-column:2;grid-row:1;align-self:start;width:96px}
+  .perfil-retrato{grid-column:2;grid-row:1;align-self:start;width:96px;--fc-filete:3px}
   .perfil-estadisticas{grid-template-columns:minmax(0,1fr);gap:30px}
   .perfil-estadisticas section{padding-inline:16px}
   .perfil-estadisticas h2{font-size:26px}
