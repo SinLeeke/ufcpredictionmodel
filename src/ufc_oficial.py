@@ -268,10 +268,28 @@ def parsear_evento(html: str) -> list[dict]:
         estado = " ".join([combate.get("data-status", ""), *combate.get("class", [])])
         if re.search(r"cancel|postpon|removed", estado, re.I):
             continue
-        nombres = []
+        nombres, paises, perfiles = [], [], []
         for esquina in ("red", "blue"):
             el = combate.select_one(f".c-listing-fight__corner-name--{esquina}")
             nombres.append(" ".join(el.get_text(" ", strip=True).split()) if el else "")
+            enlace = el.select_one('a[href]') if el else None
+            perfil = urljoin(BASE, enlace['href']) if enlace else ''
+            perfiles.append(perfil if _de_ufc(perfil) and urlsplit(perfil).path.startswith('/athlete/') else '')
+            # Es el país que UFC atribuye a ESTA esquina, nunca el del recinto.
+            bloque = combate.select_one(f'.c-listing-fight__country--{esquina}')
+            bandera = bloque.select_one('img[src]') if bloque else None
+            texto_pais = bloque.select_one('.c-listing-fight__country-text') if bloque else None
+            codigo = re.search(r'/flags/([A-Z]{2})\.(?:png|svg)(?:\?|$)',
+                               bandera.get('src', '') if bandera else '', re.I)
+            paises.append({'codigo': codigo[1].upper(),
+                           'nombre': texto_pais.get_text(' ', strip=True) if texto_pais else ''}
+                          if codigo and texto_pais and perfiles[-1] else None)
+            if paises[-1] and paises[-1]['codigo'] in ('EN', 'SC', 'WA', 'NI'):
+                # UFC diferencia territorios deportivos del Reino Unido. Su
+                # código de bandera no es un país ISO; se conservan ambos.
+                if paises[-1]['codigo'] != 'NI':
+                    paises[-1]['bandera'] = paises[-1]['codigo']
+                paises[-1]['codigo'] = 'GB'
         if not all(nombres) or canonical_key(nombres[0]) == canonical_key(nombres[1]):
             continue
         clase = combate.select_one(".c-listing-fight__class-text")
@@ -283,7 +301,9 @@ def parsear_evento(html: str) -> list[dict]:
         peleas.append({"a": nombres[0], "b": nombres[1], "peso": _peso(texto),
                        "titulo": _bandera_etiqueta(texto) is True, "seccion": seccion,
                        "rango_a": rangos[0] if len(rangos) == 2 else "",
-                       "rango_b": rangos[1] if len(rangos) == 2 else ""})
+                       "rango_b": rangos[1] if len(rangos) == 2 else "",
+                       "perfil_a": perfiles[0], "perfil_b": perfiles[1],
+                       "pais_a": paises[0], "pais_b": paises[1]})
     return peleas
 
 
@@ -322,6 +342,12 @@ def eventos(forzar: bool = False) -> dict:
         entrada = {"proximos": proximos, "recientes": recientes, "consultado": ahora}
         datos["eventos"] = entrada
         _guardar(datos)
+        # Conserva la identidad y el país aunque el evento deje de aparecer en
+        # próximos. Reutiliza el mismo HTML consultado, sin peticiones extra.
+        if DB.key(CACHE) is not None:
+            from webui import paises
+            if DB.key(paises.CACHE) is not None:
+                paises.guardar_eventos(proximos)
         _fallos.pop("eventos", None)
         return {**entrada, "desactualizado": False}
 
@@ -357,14 +383,22 @@ def cartelera_csv(id_evento: str) -> Path:
     filas = []
     for i, p in enumerate(e["peleas"]):
         segmento = "Estelar" if i == 0 else "Co-estelar" if i == 1 and p["seccion"] == "estelar" else ""
-        filas.append({"fighter_a": p["a"], "fighter_b": p["b"], "segment": segmento,
-                      "es_titulo": p["titulo"], "titulo_fuente": "UFC.com"})
+        fila = {"fighter_a": p["a"], "fighter_b": p["b"], "segment": segmento,
+                "es_titulo": p["titulo"], "titulo_fuente": "UFC.com", "weight_class": p['peso']}
+        for lado in ('a', 'b'):
+            fila['rango_' + lado] = p.get('rango_' + lado, '')
+            fila['perfil_' + lado] = p.get('perfil_' + lado, '')
+            pais = p.get('pais_' + lado) or {}
+            fila['pais_codigo_' + lado] = pais.get('codigo', '')
+            fila['pais_nombre_' + lado] = pais.get('nombre', '')
+            fila['pais_bandera_' + lado] = pais.get('bandera', pais.get('codigo', ''))
+        filas.append(fila)
     filas.reverse()                       # como Betano: preliminares arriba, estelar al final
     dia = dt.datetime.fromtimestamp(e["inicio"]["estelar"]).strftime("%Y-%m-%d")
     slug = re.sub(r"[^a-z0-9]+", "_", f"{e['nombre']} {e['titular']}".lower()).strip("_")
     destino = C.ROOT / "cards" / f"ufc_{dia}_{slug}.csv"
     destino.parent.mkdir(exist_ok=True)
-    pd.DataFrame(filas).to_csv(destino, index=False)
+    DB.to_csv(pd.DataFrame(filas), destino, index=False)
     return destino
 
 
