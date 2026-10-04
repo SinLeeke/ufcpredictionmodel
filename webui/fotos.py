@@ -55,7 +55,10 @@ PERFILES_UFC = {"josh hokit": ("josh-hokit", "Josh Hokit"),
                 "wang cong": ("wang-cong", "Wang Cong"),
                 "cong wang": ("wang-cong", "Wang Cong"),
                 "bobby green": ("king-green", "King Green"),
-                "ian garry": ("ian-machado-garry", "Ian Machado Garry")}
+                "ian garry": ("ian-machado-garry", "Ian Machado Garry"),
+                "jean silva": ("jean-silva", "Jean Silva"),
+                "jose delgado": ("jose-miguel-delgado", "Jose Miguel Delgado"),
+                "jose miguel delgado": ("jose-miguel-delgado", "Jose Miguel Delgado")}
 UFC_BASE = "https://www.ufc.com"
 # UFC redirige según la región y rechaza el Chrome antiguo de los scrapers del
 # proyecto. Identificar la aplicación permite consultar la ficha y su imagen.
@@ -342,12 +345,16 @@ def foto(nombre: str) -> Path | None:
     if not nombre_valido(nombre):
         return None
     clave = _norm(nombre)
+    # Una ficha recién verificada invalida solo el negativo de ese nombre.
+    # Los retratos ya guardados y los negativos del resto siguen reutilizándose.
+    identidad = PERFILES_UFC.get(clave) or ALIASES_ESPN.get(clave)
+    identidad = list(identidad) if identidad else None
     with _lock:
         ahora = time.time()
         idx = _indice()
         e = idx.get(clave)
         anterior = (CARPETA / e["archivo"]) if e and e.get("archivo") else None
-        if anterior and not anterior.exists():
+        if anterior and not DB.exists(anterior):
             anterior = None
         # No se borran archivos antiguos. Un retrato ESPN verificado sigue
         # sirviendo; los negativos, Wikipedia y favicon antiguos se reconsultan.
@@ -362,6 +369,7 @@ def foto(nombre: str) -> Path | None:
         if anterior and (espn_seguro and not vigente or e.get("prioridad_revisada")):
             return anterior
         if (vigente and e.get("prioridad_revisada") and not e.get("archivo")
+                and e.get("identidad_verificada") == identidad
                 and ahora - e.get("consultado", 0) < REINTENTO_SIN_FOTO_SEG):
             return None
         if ahora - _fallo_red.get(clave, 0) < ESPERA_TRAS_FALLO_RED_SEG:
@@ -396,6 +404,7 @@ def foto(nombre: str) -> Path | None:
         idx[clave] = {"nombre": nombre, "archivo": ruta.name if ruta else None,
                       "fuente": fuente, "url": url, "consultado": ahora,
                       "espn_revisado": espn_revisado,
-                      "version_retratos": VERSION_RETRATOS, "prioridad_revisada": not fallo}
+                      "version_retratos": VERSION_RETRATOS, "prioridad_revisada": not fallo,
+                      "identidad_verificada": identidad}
         _guardar_indice(idx)
         return ruta

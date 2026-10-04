@@ -216,6 +216,37 @@ class ESPN(_Base):
 
 
 class UFC(_Base):
+    def test_ficha_verificada_reintenta_negativo_y_reutiliza_sin_red(self):
+        fotos._guardar_indice({"jean silva": {"archivo": None, "fuente": None,
+            "consultado": fotos.time.time(), "version_retratos": fotos.VERSION_RETRATOS,
+            "prioridad_revisada": True}})
+        url = "https://ufc.com/images/2026-09/SILVA_JEAN_09-12.png"
+        with mock.patch.object(fotos, "url_ufc", return_value=url) as ufc, \
+                mock.patch.object(fotos, "url_espn", return_value=fotos.AMBIGUO) as espn, \
+                mock.patch.object(fotos.requests, "get", return_value=PNG):
+            ruta = fotos.foto("Jean Silva")
+            self.assertIsNotNone(ruta)
+            self.assertEqual(ruta.read_bytes(), PNG.content)
+        ufc.assert_called_once_with("Jean Silva")
+        espn.assert_not_called()
+        with mock.patch.object(fotos.requests, "get", side_effect=AssertionError("red")), \
+                mock.patch.object(fotos, "url_ufc", side_effect=AssertionError("red")):
+            self.assertEqual(fotos.foto("Jean Silva"), ruta)
+
+    def test_nuevo_negativo_verificado_conserva_el_plazo(self):
+        with mock.patch.object(fotos, "url_ufc", return_value=None) as ufc:
+            self.assertIsNone(fotos.foto("Jean Silva"))
+            self.assertIsNone(fotos.foto("Jean Silva"))
+        ufc.assert_called_once()
+
+    def test_delgado_verifica_su_nombre_oficial_completo(self):
+        url = "https://ufc.com/images/2026-09/DELGADO_JOSE_MIGUEL_09-12.png"
+        with mock.patch.object(fotos.requests, "get", return_value=_ufc("Jose Miguel Delgado", url)) as get:
+            self.assertEqual(fotos.url_ufc("Jose Delgado"), url)
+        self.assertTrue(get.call_args.args[0].endswith("/athlete/jose-miguel-delgado"))
+        with mock.patch.object(fotos.requests, "get", return_value=_ufc("Jose Delgado", url)):
+            self.assertIsNone(fotos.url_ufc("Jose Delgado"))
+
     consultar_ufc = True
 
     def test_josh_tiene_retrato_oficial_y_reemplaza_la_foto_de_prensa(self):
