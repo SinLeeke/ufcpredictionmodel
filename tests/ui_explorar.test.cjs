@@ -29,13 +29,47 @@ test('cada peleador P4P muestra su categoría junto al nombre, aunque no sea cam
   assert.doesNotMatch(html, /rk-oro|Campeón/);
 });
 
-test('un campeón conserva el sello y no duplica la división debajo del nombre', () => {
+test('un campeón del P4P dice de qué peso es y no repite la división en otra etiqueta', () => {
   const html = contexto.filaRanking({nombre:'Alexander Volkanovski', puesto:2,
     division:division('Featherweight'), campeon:{clave:'Featherweight', division:'Peso pluma'}}, p4p);
   assert.match(html, /rk-oro/);
-  assert.match(html, /class="rk-categoria">Peso pluma<\/span>/);
-  assert.match(html, /class="rk-rotulo">Campeón<\/small>/);
-  assert.equal((html.match(/Peso pluma/g) || []).length, 1);
+  assert.match(html, /class="rk-rotulo">Campeón peso pluma<\/small>/);
+  assert.doesNotMatch(html, /rk-categoria/);
+  assert.equal((html.match(/peso pluma/gi) || []).length, 1);
+  const welter = contexto.filaRanking({nombre:'Islam Makhachev', puesto:1, division:{clave:'Welterweight', nombre:'Peso welter'},
+    campeon:{clave:'Welterweight', division:'Peso welter', interino:false}}, p4p);
+  assert.match(welter, /class="rk-rotulo">Campeón peso wélter<\/small>/);
+});
+
+test('una campeona dice «Campeona», con su peso en el P4P y sin él en su división', () => {
+  const p4pF = {clave:"Women's Pound-for-Pound", nombre:"Women's Pound-for-Pound", p4p:true, genero:'F'};
+  const mosca = {clave:"Women's Flyweight", nombre:"Women's Flyweight", p4p:false, genero:'F'};
+  const campeon = {clave:"Women's Flyweight", division:"Women's Flyweight", interino:false};
+  assert.match(contexto.filaRanking({nombre:'Valentina Shevchenko', puesto:1, campeon,
+    division:{clave:"Women's Flyweight", nombre:"Women's Flyweight"}}, p4pF), /class="rk-rotulo">Campeona peso mosca<\/small>/);
+  assert.match(contexto.filaRanking({nombre:'Valentina Shevchenko', puesto:0, campeon}, mosca), /class="rk-rotulo">Campeona<\/small>/);
+  assert.match(contexto.filaRanking({nombre:'X', puesto:0, campeon:{...campeon, interino:true}}, mosca), /Campeona interina/);
+  // Un campeón de otro peso que además figura en una segunda división muestra solo la otra.
+  const doble = contexto.filaRanking({nombre:'Ilia Topuria', puesto:2, division:null,
+    divisiones:[division('Featherweight'), division('Lightweight')], campeon:{clave:'Lightweight', division:'Ligero'}}, p4p);
+  assert.match(doble, /Campeón peso ligero/);
+  assert.match(doble, /class="rk-categoria">Peso pluma<\/span>/);
+});
+
+test('sin division en la respuesta (servidor viejo) se busca por identidad exacta en la misma captura', () => {
+  const EXP = vm.runInContext('EXP', contexto);   // const de explorar.js: no es propiedad del contexto
+  EXP.rankings = {divisiones:[p4p,
+    {clave:'Featherweight', nombre:'Peso pluma', peleadores:[{nombre:'Jean Silva', perfil_ufc:'https://www.ufc.com/athlete/jean-silva', puesto:1}]},
+    {clave:'Lightweight', nombre:'Ligero', peleadores:[{nombre:'Jean Silva', perfil_ufc:'https://www.ufc.com/athlete/otro-jean-silva', puesto:3}]}]};
+  try {
+    const html = contexto.filaRanking({nombre:'Jean Silva', perfil_ufc:'https://www.ufc.com/athlete/jean-silva', puesto:5}, p4p);
+    assert.match(html, /class="rk-categoria">Peso pluma<\/span>/);          // el homónimo de Ligero no cuenta
+    // Sin ficha ni ID no se adivina por el nombre.
+    assert.match(contexto.filaRanking({nombre:'Jean Silva', puesto:5}, p4p), /División no disponible/);
+    // Con la respuesta actual, una lista vacía se respeta: el servidor ya decidió.
+    assert.match(contexto.filaRanking({nombre:'Jean Silva', perfil_ufc:'https://www.ufc.com/athlete/jean-silva', puesto:5,
+      division:null, divisiones:[]}, p4p), /División no disponible/);
+  } finally { EXP.rankings = null; }
 });
 
 test('dos divisiones verificadas se muestran juntas sin escoger una por orden', () => {

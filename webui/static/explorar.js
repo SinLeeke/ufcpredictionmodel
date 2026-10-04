@@ -46,14 +46,34 @@ const fotoCampeon = nombre => {
   return `<span class="rk-oct" aria-hidden="true"><span class="rk-lona"><span class="retrato rk-foto" data-foto="${esc(nombre)}">${
     url ? `<img src="${url}" alt="" decoding="async">` : SILUETA}</span></span></span>`;
 };
-const rotuloCampeon = c => c ? `Campeón${c.interino ? ' interino' : ''}` : '';
+// «Campeón» o «Campeona» según la división (la del cinturón o la que se mira).
+// En el libra por libra el rótulo dice además de qué peso: «Campeón peso
+// wélter», «Campeona peso mosca». Dentro de la división sobra, ya se está ahí.
+function rotuloCampeon(c, d, conPeso) {
+  const mujer = c?.clave ? esMujeres({clave: c.clave}) : esMujeres(d);
+  const base = (mujer ? 'Campeona' : 'Campeón') + (c?.interino ? (mujer ? ' interina' : ' interino') : '');
+  return conPeso && (c?.clave || c?.division)
+    ? `${base} peso ${pesoCorto({clave: c.clave, nombre: c.division}).toLowerCase()}` : base;
+}
 
+// Divisiones de una fila. El servidor las manda resueltas (division y
+// divisiones); si una versión vieja no las trae, se buscan en esta misma
+// captura por identidad exacta (ficha UFC o ID de UFCStats), nunca por nombre:
+// sin identidad, «División no disponible» antes que el peso de un homónimo.
+function divisionesRanking(p) {
+  if (p.division) return [p.division];
+  if (Array.isArray(p.divisiones) && (p.divisiones.length || 'division' in p)) return p.divisiones;
+  const mismo = r => (p.perfil_ufc && r.perfil_ufc) ? r.perfil_ufc === p.perfil_ufc : !!(p.id && r.id === p.id);
+  return (EXP.rankings?.divisiones || []).filter(d => !esP4P(d) && (d.peleadores || []).some(mismo));
+}
 // En el P4P la categoría viene de las divisiones de esta misma captura. Si
 // aparecen dos, se dicen las dos: ni el orden ni un combate antiguo permiten
-// adivinar cuál es la actual. No se cruza de nuevo por nombre en el navegador.
+// adivinar cuál es la actual. La del cinturón ya la dice el rótulo de campeón.
 function categoriasRanking(p) {
-  const divisiones = p.division ? [p.division] : Array.isArray(p.divisiones) ? p.divisiones : [];
-  return divisiones.length ? divisiones.map(d => pesoTitulo(d)).join(' / ') : 'División no disponible';
+  const divisiones = divisionesRanking(p);
+  if (!divisiones.length) return 'División no disponible';
+  const resto = p.campeon?.clave ? divisiones.filter(d => d.clave !== p.campeon.clave) : divisiones;
+  return resto.map(d => pesoTitulo(d)).join(' / ');
 }
 
 function filaRanking(p, d) {
@@ -62,17 +82,16 @@ function filaRanking(p, d) {
   const estrella = p4p ? p.puesto === 1 : p.puesto === 0;
   const oro = !!p.campeon || (!p4p && p.puesto === 0);
   const puesto = !p4p && p.puesto === 0 ? 'C' : esc(p.puesto);
-  // En el libra por libra el rótulo dice de qué división es campeón; en la
-  // división sobra, porque ya se está mirando esa división.
   let rotulo = '';
-  if (p4p && p.campeon) rotulo = rotuloCampeon(p.campeon);
-  else if (!p4p && p.puesto === 0) rotulo = rotuloCampeon(p.campeon) || 'Campeón';
+  if (p4p && p.campeon) rotulo = rotuloCampeon(p.campeon, d, true);
+  else if (!p4p && p.puesto === 0) rotulo = rotuloCampeon(p.campeon, d, false);
   else if (estrella) rotulo = 'Número uno libra por libra';
+  const categoria = p4p ? categoriasRanking(p) : '';
   const href = p.id ? '#peleador-' + esc(p.id) : '#buscar-' + encodeURIComponent(p.nombre);
   return `<li class="rk-fila${estrella ? ' rk-estrella' : ''}${oro ? ' rk-oro' : ''}">
     <span class="rk-num"${puesto === 'C' ? ' aria-hidden="true"' : ''}>${puesto}</span>
     ${estrella ? fotoCampeon(p.nombre) : ''}
-    <div class="rk-txt"><div class="rk-identidad"><a class="rk-nombre" href="${href}"><span class="rk-nombre-txt">${esc(p.nombre)}</span>${banderaRanking(p)}</a>${p4p ? `<span class="rk-categoria">${esc(categoriasRanking(p))}</span>` : ''}</div>${rotulo ? `<small class="rk-rotulo">${rotulo}</small>` : ''}</div>
+    <div class="rk-txt"><div class="rk-identidad"><a class="rk-nombre" href="${href}"><span class="rk-nombre-txt">${esc(p.nombre)}</span>${banderaRanking(p)}</a>${categoria ? `<span class="rk-categoria">${esc(categoria)}</span>` : ''}</div>${rotulo ? `<small class="rk-rotulo">${rotulo}</small>` : ''}</div>
     <span class="ranking-ir" aria-hidden="true">${ico('ir')}</span></li>`;
 }
 
@@ -86,7 +105,8 @@ async function cargarRankings() {
   $('#ranking-lista').innerHTML = esqueletoRanking();
   try {
     EXP.rankings = await api('/api/rankings');
-    $('#rankings-fecha').innerHTML = `Captura del ${esc(fechaExplorar(EXP.rankings.fecha))} · <a href="https://www.ufc.com/rankings" target="_blank" rel="noopener">Fuente oficial UFC</a>. Las posiciones corresponden a esa fecha.`;
+    $('#rankings-fecha').innerHTML = `<span class="rk-sello">Captura · ${esc(fechaExplorar(EXP.rankings.fecha))}</span>
+      <span>Las posiciones son las de esa fecha. <a href="https://www.ufc.com/rankings" target="_blank" rel="noopener">Fuente oficial UFC</a></span>`;
     pintarMenuRanking();
     pintarRanking(true);
   } catch (e) {

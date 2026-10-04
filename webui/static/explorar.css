@@ -22,10 +22,33 @@
 .ranking-layout{--rk-sesgo:6px;--rk-oct:polygon(29.29% 0,70.71% 0,100% 29.29%,100% 70.71%,70.71% 100%,29.29% 100%,0 70.71%,0 29.29%);
   display:grid;grid-template-columns:220px minmax(0,780px);gap:44px}
 [data-estilo="juez"] .ranking-layout{--rk-sesgo:0px}   /* el papel no se inclina */
+/* La portada: el título y sus dos líneas en un solo panel con su regla. A la
+   izquierda qué es; a la derecha, separada por un filete, de cuándo es la
+   captura, con la fecha en un sello de tinta inclinado como los de la cabecera. */
+.rk-portada{max-width:none;margin:8px 0 30px;padding:22px 26px 20px;background:var(--sup);border-top:3px solid var(--txt)}
+.rk-portada h1{margin:0 0 16px}
+.rk-portada-lineas{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,auto);gap:10px 26px;align-items:center;
+  padding-top:14px;border-top:1px solid var(--linea)}
+.rk-portada-lineas p{margin:0;max-width:65ch}
+.rk-captura{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding-left:26px;border-left:1px solid var(--linea);
+  font-size:13.5px;line-height:1.4;color:var(--tenue)}
+.rk-captura:empty{display:none}
+.rk-captura a{color:var(--txt2);text-underline-offset:3px;white-space:nowrap}
+.rk-captura a:hover{color:var(--txt)}
+.rk-sello{flex:none;padding:5px 13px 4px;font:800 12.5px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;
+  font-variant-numeric:tabular-nums;background:var(--txt);color:var(--sup);
+  clip-path:polygon(var(--rk-sesgo,6px) 0,100% 0,calc(100% - var(--rk-sesgo,6px)) 100%,0 100%)}
+[data-estilo="juez"] .rk-sello{--rk-sesgo:0px;font-family:var(--maquina);letter-spacing:-.03em}
+[data-estilo="juez"] .rk-portada{border-top-color:var(--forma)}
 .ranking-pesos{position:sticky;top:145px;align-self:start;min-width:0}
 .rk-grupo+.rk-grupo{margin-top:26px}
-.rk-grupo-titulo{margin:0;padding:10px 0 9px;border-top:3px solid var(--txt);font:800 13px/1 var(--display);
-  letter-spacing:.08em;text-transform:uppercase;color:var(--txt)}
+/* Título de cada grupo: una franja de canal (tinta con texto hueso) bajo la
+   regla de 3 px, igual en los dos temas, como la barra de la cabecera. En el
+   oscuro la regla queda hueso y separa la franja del fondo; la división activa
+   va en hueso, así que no se confunden. */
+.rk-grupo-titulo{margin:0;padding:9px 14px 8px;border-top:3px solid var(--txt);background:var(--cab-bg);color:var(--cab-txt);
+  font:800 13px/1 var(--display);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+[data-estilo="juez"] .rk-grupo-titulo{background:var(--forma);border-top-color:var(--forma);color:var(--sup)}
 .rk-menu button{display:flex;width:100%;justify-content:flex-start;border:0;border-bottom:1px solid var(--linea);padding:12px 14px;
   text-align:left;font:700 18px/1.15 var(--display);letter-spacing:.02em;text-transform:uppercase;background:transparent;color:var(--txt2)}
 .rk-menu button.activo{color:var(--txt)}
@@ -223,7 +246,13 @@
   .rk-copia{display:none}
   .rk-grupo{display:flex;align-items:center;gap:4px;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}
   .rk-grupo+.rk-grupo{margin-top:10px}
-  .rk-grupo-titulo{flex:none;border-top:0;padding:0 10px 0 0}
+  /* La franja pasa a ser el rótulo de la fila y se queda pegada a la izquierda
+     mientras se recorren los pesos de ese grupo. */
+  .rk-grupo-titulo{position:sticky;left:0;z-index:1;flex:none;align-self:stretch;display:grid;place-items:center;
+    min-height:44px;border-top:0;padding:0 12px;margin-bottom:0}
+  .rk-portada{padding:18px 16px 16px}
+  .rk-portada-lineas{grid-template-columns:minmax(0,1fr)}
+  .rk-captura{padding:10px 0 0;border-left:0;border-top:1px solid var(--linea)}
   .rk-menu button{flex:none;width:auto;min-height:44px;white-space:nowrap;padding:11px 14px;font-size:16px;border:1px solid var(--linea)}
   .rk-menu button.activo{background:var(--txt);color:var(--sup);border-color:var(--txt)}
   .perfil-cab{grid-template-columns:minmax(0,1fr) 170px;gap:20px;padding:20px}

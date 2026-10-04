@@ -294,11 +294,15 @@
 
 <!-- ========================= CARGAR ======================== -->
 <section id="tab-rankings" class="panel">
-  <div class="explorar-cab">
+  <!-- La portada de la sección: el título y sus dos líneas (qué es y de qué
+       fecha es la captura) en un solo bloque de cartel, con su regla. -->
+  <header class="explorar-cab rk-portada">
     <h1>Rankings oficiales UFC</h1>
-    <p>Campeones y aspirantes, peso por peso. Elige un peleador para explorar su trayectoria.</p>
-    <p id="rankings-fecha" class="nota"></p>
-  </div>
+    <div class="rk-portada-lineas">
+      <p>Campeones y aspirantes, peso por peso. Elige un peleador para explorar su trayectoria.</p>
+      <p id="rankings-fecha" class="rk-captura"></p>
+    </div>
+  </header>
   <div class="ranking-layout">
     <nav id="ranking-pesos" class="ranking-pesos" aria-label="Divisiones de peso"></nav>
     <div id="ranking-lista"></div>
