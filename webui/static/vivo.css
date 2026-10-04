@@ -1,0 +1,163 @@
+/* La misma gráfica de transmisión, con una paleta categórica ya medida.
+   El color identifica la casa; su nombre y el trazo siguen siendo la señal. */
+:root{
+  --vivo-color-1:#00897c;--vivo-color-2:#6b4cc7;--vivo-color-3:#c25a12;
+  --vivo-color-4:#b03a8c;--vivo-color-5:#8a7000;--vivo-color-6:#3b6fc4;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-tema="claro"]){
+    --vivo-color-1:#1fa592;--vivo-color-2:#8f78ea;--vivo-color-3:#d6711f;
+    --vivo-color-4:#d466b0;--vivo-color-5:#b08a10;--vivo-color-6:#5f8fe0;
+  }
+}
+:root[data-tema="oscuro"]{
+  --vivo-color-1:#1fa592;--vivo-color-2:#8f78ea;--vivo-color-3:#d6711f;
+  --vivo-color-4:#d466b0;--vivo-color-5:#b08a10;--vivo-color-6:#5f8fe0;
+}
+.vivo{margin:0 0 30px;background:var(--sup);border-top:3px solid var(--txt);min-width:0}
+.vivo-cab{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:16px 22px;border-bottom:1px solid var(--linea)}
+.vivo-cab h2{margin:0;font:800 30px/1.05 var(--display);text-transform:uppercase;letter-spacing:.01em}
+.vivo-sello{padding:5px 8px;background:var(--marca);color:var(--sobre-marca);font:800 13px/1 var(--display);letter-spacing:.07em;text-transform:uppercase}
+.vivo-sello.simulado{background:var(--alerta-sup);color:var(--alerta);border:2px solid var(--alerta);padding:3px 6px}
+.vivo-evento{font:700 16px/1.2 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
+.vivo-refrescar{margin-left:auto;padding:10px 14px;min-height:44px;border:1.5px solid var(--txt);border-radius:0;background:transparent;color:var(--txt);font:800 14px/1 var(--display);text-transform:uppercase;cursor:pointer}
+.vivo-refrescar:focus-visible,.vivo-tiempo:focus-visible,.vivo-programa summary:focus-visible{outline:2px solid var(--marca);outline-offset:3px}
+.vivo-refrescar:disabled{color:var(--tenue);border-color:var(--linea);cursor:wait}
+.vivo #vivo-contenido{padding:22px;min-width:0}
+.vivo-cara{display:grid;grid-template-columns:minmax(0,1fr) 44px minmax(0,1fr);align-items:center;gap:16px}
+.vivo-esquina{display:grid;grid-template-columns:100px minmax(0,1fr);align-items:center;gap:16px;min-width:0}
+.vivo-esquina.b{grid-template-columns:minmax(0,1fr) 100px;text-align:right}
+.vivo-esquina.b .retrato{grid-column:2;grid-row:1}
+.vivo-esquina.b>div{grid-column:1;grid-row:1}
+.vivo .retrato{width:100px;aspect-ratio:4/3;align-self:end;border-bottom:3px solid var(--txt)}
+.vivo-esquina-rotulo{font:800 12.5px/1 var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--tenue)}
+.vivo-esquina h3{margin:6px 0;font:800 clamp(24px,2.4vw,34px)/1.05 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
+.vivo-bandera{display:inline-block;vertical-align:middle;object-fit:contain;margin:0 5px 0 0}
+.vivo-campeon{font:700 13px/1.3 var(--texto);color:var(--txt2)}
+.vivo-versus{font:800 20px/1 var(--display);color:var(--tenue);text-align:center}
+.vivo-estado{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:16px;font:800 14px/1.2 var(--display);text-transform:uppercase;letter-spacing:.04em}
+.vivo-estado span+span{color:var(--tenue)}
+.vivo-motivo{max-width:75ch;margin:8px auto 0;color:var(--txt2);font-size:14px;text-align:center}
+.vivo-marca-controles{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:8px 12px;margin-top:16px}
+.vivo-marcar{padding:10px 12px;min-height:44px;border:1px solid var(--txt2);border-radius:0;background:transparent;color:var(--txt);font:700 14px/1.2 var(--display);cursor:pointer}
+.vivo-marcar[hidden]{display:none}
+.vivo-marcar:focus-visible{outline:2px solid var(--marca);outline-offset:3px}
+.vivo-marcar:disabled{color:var(--tenue);border-color:var(--linea);cursor:wait}
+.vivo-marca-controles>p{flex-basis:100%;max-width:75ch;margin:0;color:var(--tenue);font-size:12px;text-align:center}
+.vivo-resolucion{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 12px;margin-top:12px;color:var(--txt);font-size:14px}
+.vivo-resolucion>small{flex-basis:100%;text-align:center;color:var(--txt2);font-size:13px}
+.vivo-programa .vivo-resolucion{grid-column:1/-1;justify-content:start;margin-top:0;font:400 13px/1.4 var(--texto);text-transform:none}
+.vivo-aviso{padding:12px 16px;margin:22px 0 0;border:1px solid var(--alerta);color:var(--alerta);background:var(--alerta-sup);max-width:none}
+.vivo-aviso.error{border-color:var(--error);background:var(--error-sup);color:var(--error)}
+.vivo-grafico{margin:30px 0 0;min-width:0;border-top:3px solid var(--txt);padding-top:16px}
+.vivo-grafico figcaption{font:800 22px/1.1 var(--display);text-transform:uppercase;overflow-wrap:anywhere}
+.vivo-grafico-nota{margin:8px 0 16px;color:var(--txt2);font-size:14px;max-width:75ch}
+.vivo-trazo{min-width:0;touch-action:pan-y;cursor:crosshair}
+.vivo-trazo svg{display:block;width:100%;height:auto;overflow:hidden}
+.vivo-eje line{stroke:var(--linea);stroke-width:1;vector-effect:non-scaling-stroke}
+.vivo-eje text,.vivo-hora{fill:var(--txt2);font:600 15px var(--texto);font-variant-numeric:tabular-nums}
+.vivo-eje .vivo-eje-cuota{font-size:12px;fill:var(--tenue)}
+.vivo-linea{fill:none;stroke-width:2.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vivo-linea.prediccion{stroke-dasharray:5 4}
+.vivo-conector{fill:none;stroke-width:1;vector-effect:non-scaling-stroke}
+.vivo-directa{fill:var(--txt);font:700 14px var(--texto)}
+.vivo-cursor{stroke:var(--txt2);stroke-width:1;stroke-dasharray:3 4;vector-effect:non-scaling-stroke;pointer-events:none}
+.vivo-leyenda{display:flex;flex-wrap:wrap;gap:8px 22px;padding:0;margin:12px 0 16px;list-style:none;color:var(--txt2);font-size:14px}
+.vivo-leyenda li{display:flex;align-items:center;gap:8px}
+.vivo-muestra{width:24px;border-top:3px solid;flex:none}
+.vivo-muestra.punteada{border-top-style:dashed}
+.vivo-inspector{display:grid;grid-template-columns:auto minmax(80px,1fr);gap:4px 16px;align-items:center;border-top:1px solid var(--linea);padding-top:12px}
+.vivo-inspector[hidden]{display:none}
+.vivo-inspector label{font:800 14px/1.2 var(--display);text-transform:uppercase}
+.vivo-inspector input{width:100%;min-width:0;min-height:44px;margin:0;accent-color:var(--marca);cursor:ew-resize}
+.vivo-inspector input:focus-visible{outline:2px solid var(--marca);outline-offset:3px}
+#vivo-inspector-ayuda{grid-column:1/-1;margin:0;color:var(--tenue);font-size:13px;max-width:75ch}
+.vivo-lectura{grid-column:1/-1;display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;margin-top:8px;padding:12px 16px;background:var(--sup2);font-variant-numeric:tabular-nums}
+.vivo-lectura>time{font:800 16px/1.5 var(--display)}
+.vivo-lectura ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px 22px;list-style:none;margin:0;padding:0}
+.vivo-lectura li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;font-size:13px;align-items:baseline}
+.vivo-lectura li b{overflow-wrap:anywhere;font-weight:600}
+.vivo-lectura li span{font-variant-numeric:tabular-nums;white-space:nowrap}
+.vivo-cuotas{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:22px;margin-top:30px;border-top:3px solid var(--txt);padding-top:16px}
+.vivo-cuotas>div{min-width:0}
+.vivo-tabla{width:100%;table-layout:fixed;border-collapse:collapse;font-size:14px}
+.vivo-tabla caption{text-align:left;font:800 19px/1.1 var(--display);text-transform:uppercase;padding-bottom:12px;white-space:normal;overflow-wrap:anywhere}
+.vivo-tabla th,.vivo-tabla td{padding:10px 8px;white-space:normal;overflow-wrap:anywhere;border-bottom:1px solid var(--linea);vertical-align:top}
+.vivo-tabla thead th{font:800 13px/1.2 var(--display);text-align:right;border-bottom:2px solid var(--txt);color:var(--txt2)}
+.vivo-tabla thead th:first-child,.vivo-tabla tbody th{text-align:left}
+.vivo-tabla th:first-child{width:34%}
+.vivo-tabla th:last-child{width:19%}
+.vivo-tabla tbody th{font-weight:400}
+.vivo-tabla tbody th b{display:block;font-weight:600}
+.vivo-tabla small{display:block;font-size:12px;color:var(--tenue);margin-top:3px}
+.vivo-tabla td{text-align:right;font-variant-numeric:tabular-nums}
+.vivo-tabla td>b{display:block;font:800 22px/1.1 var(--display);white-space:nowrap}
+.vivo-tabla time{font-size:13px;color:var(--txt2);white-space:nowrap}
+.vivo-mejor{display:inline-block;margin-top:4px;border-bottom:2px solid var(--txt);font:800 12px/1 var(--display);text-transform:uppercase;color:var(--txt)}
+.vivo-prediccion>p{margin:12px 0 0;color:var(--txt2);font-size:13px;max-width:65ch}
+.vivo-vacio{color:var(--tenue);margin:12px 0}
+.vivo-programa{margin-top:30px;border-top:1px solid var(--linea);border-bottom:1px solid var(--linea)}
+.vivo-programa summary{padding:12px 0;min-height:44px;cursor:pointer;font:800 16px/1.3 var(--display);text-transform:uppercase}
+.vivo-programa summary>span{color:var(--tenue)}
+.vivo-programa ol{list-style:none;margin:0;padding:0}
+.vivo-programa li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 16px;padding:12px 0;border-top:1px solid var(--linea);font-size:14px}
+.vivo-programa li>b{font-weight:600;overflow-wrap:anywhere}
+.vivo-programa li>b span{font-weight:400;color:var(--tenue)}
+.vivo-programa li>span{font:800 13px/1.3 var(--display);text-transform:uppercase;text-align:right}
+.vivo-programa li>small{grid-column:1/-1;color:var(--tenue);font-size:13px}
+.vivo-programa li.actual{background:var(--sup2);padding-inline:12px}
+.vivo-nota{color:var(--txt2);font-size:14px;margin:22px 0 0;max-width:75ch}
+.vivo-refresco{color:var(--tenue);font-size:12px;margin:8px 0 0;font-variant-numeric:tabular-nums}
+.vivo-anuncio{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+[data-estilo="juez"] .vivo{border-top:3px solid var(--forma)}
+[data-estilo="juez"] .vivo-esquina h3,[data-estilo="juez"] .vivo-tabla td>b{font-family:var(--maquina);font-weight:700;letter-spacing:-.02em}
+[data-estilo="juez"] .vivo-esquina h3{font-size:clamp(20px,2vw,28px)}
+[data-estilo="juez"] .vivo-grafico,[data-estilo="juez"] .vivo-cuotas{border-top-color:var(--forma)}
+@media (hover:hover) and (pointer:fine){
+  .vivo-refrescar:hover:not(:disabled){background:var(--txt);color:var(--sup)}
+  .vivo-marcar:hover:not(:disabled){background:var(--txt);color:var(--sup)}
+  .vivo-programa summary:hover{color:var(--marca)}
+}
+@media (max-width:900px){
+  .vivo-cuotas{grid-template-columns:minmax(0,1fr)}
+  .vivo-prediccion{border-top:1px solid var(--linea);padding-top:16px}
+  .vivo-esquina,.vivo-esquina.b{grid-template-columns:minmax(0,1fr);gap:12px}
+  .vivo-esquina .retrato,.vivo-esquina.b .retrato{grid-column:1;grid-row:1;justify-self:start}
+  .vivo-esquina>div,.vivo-esquina.b>div{grid-column:1;grid-row:2}
+  .vivo-esquina.b .retrato{justify-self:end}
+}
+@media (max-width:560px){
+  .vivo-cab{gap:8px 12px;padding:16px}
+  .vivo-cab h2{font-size:26px;flex:1 1 auto}
+  .vivo-evento{flex:1 1 50%;font-size:15px}
+  .vivo-refrescar{margin-left:0;padding-inline:12px}
+  .vivo #vivo-contenido{padding:16px}
+  .vivo-cara{grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr);gap:8px;align-items:start}
+  .vivo-versus{font-size:16px;margin-top:30px}
+  .vivo-esquina h3{font-size:24px}
+  .vivo .retrato{width:90px}
+  .vivo-campeon{font-size:12px}
+  .vivo-grafico{margin-top:22px}
+  .vivo-trazo svg{height:auto}
+  .vivo-directa{display:none}
+  .vivo-conector{display:none}
+  .vivo-eje text,.vivo-hora{font-size:13px}
+  .vivo-eje .vivo-eje-cuota{font-size:11px}
+  .vivo-leyenda{gap:8px 16px;font-size:13px}
+  .vivo-inspector{grid-template-columns:minmax(0,1fr)}
+  .vivo-inspector input{grid-column:1}
+  .vivo-lectura{grid-template-columns:minmax(0,1fr);padding:12px;gap:8px}
+  .vivo-lectura ul{grid-template-columns:minmax(0,1fr)}
+  .vivo-tabla th,.vivo-tabla td{padding:10px 4px}
+  .vivo-tabla td>b{font-size:20px}
+  .vivo-tabla th:first-child{width:30%}
+  .vivo-tabla th:last-child{width:19%}
+  .vivo-tabla thead th{font-size:12px}
+  .vivo-programa li{grid-template-columns:minmax(0,1fr);gap:6px}
+  .vivo-programa li>span{text-align:left}
+  [data-estilo="juez"] .vivo-esquina h3{font-size:20px}
+  [data-estilo="juez"] .vivo-tabla td>b{font-size:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  .vivo .retrato img,.vivo .retrato svg{transition:none}
+}
