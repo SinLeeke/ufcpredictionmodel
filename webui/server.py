@@ -70,6 +70,18 @@ def perfil_peleador(identidad: str):
     return d
 
 
+@app.get("/api/peleadores/{identidad}/pelea")
+def pelea_del_historial(identidad: str, fecha: str, rival: str):
+    """Una pelea del historial como se veía ese día (webui/historial.py)."""
+    from webui import historial
+    try:
+        return historial.pelea(identidad, fecha, rival[:120])
+    except historial.NoEncontrada as e:
+        raise HTTPException(404, str(e)) from None
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(400, str(e)) from None
+
+
 @app.get("/api/rankings")
 def rankings_oficiales():
     from webui import catalogo

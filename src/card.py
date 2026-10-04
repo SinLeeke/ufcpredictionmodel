@@ -741,7 +741,8 @@ def _imprimir_consenso(consenso: list[dict], con_cuotas: bool,
 def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
                  detalle: bool = False, devolver_todo: bool = False,
                  progreso: Callable[[dict], None] | None = None,
-                 corte=None):
+                 corte=None, modelos_corte: dict | None = None,
+                 carpeta_salida: Path | None = None):
     """
     Predice una cartelera completa. Si reports=True, además de la tabla CSV
     genera un reporte visual (donut + barras) por pelea en outputs/ (Plotly vía
@@ -762,6 +763,14 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
     ELO, oposición y modelos con SOLO lo anterior a esa fecha (src/corte.py), y
     al final el resultado real de cada pelea, que se lee después de predecir y
     no entra a ningún cálculo. Sin corte, nada de esto cambia.
+
+    modelos_corte: los modelos ya resueltos para ese corte (mismo dict que
+    corte.modelos_a_fecha), para quien no puede esperar a que se entrene uno.
+    Con "ganador" None la pelea se predice con la heurística y quien llama debe
+    descartar esas probabilidades (lo hace webui/historial.py).
+
+    carpeta_salida: dónde va la tabla de la cartelera en vez de outputs/ (el
+    detalle de una pelea del historial la deja en una carpeta temporal).
     """
     def avisar(etapa, detalle, completadas=0, total=None):
         if progreso is not None:
@@ -789,7 +798,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         fecha_corte = CT.corte_efectivo(list(zip(card["fighter_a"], card["fighter_b"])), pedida)
         avisar("preparando", f"Repetición: preparando un modelo que no vio nada desde el "
                              f"{fecha_corte:%d-%m-%Y}…")
-        modelos = CT.modelos_a_fecha(fecha_corte, avisar=lambda txt: avisar("preparando", txt))
+        modelos = modelos_corte or CT.modelos_a_fecha(fecha_corte, avisar=lambda txt: avisar("preparando", txt))
         model, method_model = modelos["ganador"], modelos["metodo"]
         method6_model, method6_cols = modelos["metodo6"] or (None, None)
         hasta = CT.base_hasta()
@@ -1118,7 +1127,7 @@ def predict_card(card_csv: str | Path = DEFAULT_CARD, reports: bool = True,
         if metodos:
             _imprimir_metodo(metodos)
 
-    out_dir = C.OUTPUTS / event
+    out_dir = (Path(carpeta_salida) if carpeta_salida is not None else C.OUTPUTS) / event
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / "tabla_predicciones.csv"
     DB.to_csv(pd.DataFrame(rows), out, index=False)

@@ -340,7 +340,8 @@ def base_hasta() -> pd.Timestamp | None:
 # --------------------------------------------------------------------------- #
 # Los modelos al día del corte
 # --------------------------------------------------------------------------- #
-def modelos_a_fecha(fecha, avisar: Callable[[str], None] | None = None) -> dict:
+def modelos_a_fecha(fecha, avisar: Callable[[str], None] | None = None,
+                    entrenar: bool = True) -> dict | None:
     """
     Modelos que NO vieron ninguna pelea desde `fecha`.
 
@@ -350,11 +351,16 @@ def modelos_a_fecha(fecha, avisar: Callable[[str], None] | None = None) -> dict:
     mismos hiperparámetros (modelado/train_model.ajustar_modelos), y queda en
     models/corte/ para no repetirlo. La firma de features.csv invalida esa copia
     cuando la base se actualiza.
+
+    entrenar=False devuelve None en vez de entrenar: lo usa el detalle de una
+    pelea del historial, que no puede dejar al usuario esperando minutos por
+    un clic. Nunca cae en el de producción si ese vio peleas desde el corte.
     """
     fecha = pd.Timestamp(fecha).normalize()
     avisar = avisar or (lambda _txt: None)
     if not DB.exists(C.FEATURES_CSV):
-        return _modelos_produccion(None)
+        # Sin features.csv no se puede comprobar hasta dónde vio el modelo.
+        return _modelos_produccion(None) if entrenar else None
     df = DB.read_csv(C.FEATURES_CSV)
     df["date"] = pd.to_datetime(df["date"])
     fin = df["date"].max()
@@ -371,6 +377,8 @@ def modelos_a_fecha(fecha, avisar: Callable[[str], None] | None = None) -> dict:
                 return guardado["modelos"]
         except Exception:                                   # noqa: BLE001
             pass                                            # copia rota: se rehace
+    if not entrenar:
+        return None
 
     previo = df[df["date"] < fecha]
     from modelado.train_model import ajustar_modelos, ventana
@@ -586,6 +594,41 @@ def _cuotas_metodo(fila: dict, a_es_rojo: bool) -> list | None:
     return cuotas if np.isfinite(sobre) and SOBRERREDONDEO_SOSPECHOSO <= sobre <= 1.40 else None
 
 
+def fila_historica(r, kaggle: dict | None = None) -> dict:
+    """
+    Una pelea de la base (fila de _peleas) como fila de cartelera, sin el
+    resultado: esquinas orientadas sin mirarlo, cuotas de cierre de Kaggle (o
+    BestFightOdds) y el título solo si Kaggle lo marca. La usan la repetición
+    de un evento y el detalle de una pelea del historial (webui/historial.py).
+    """
+    kaggle = _kaggle() if kaggle is None else kaggle
+    a, b = orientar(r.fighter_a, r.fighter_b, r.date, kaggle)
+    fila = {"fighter_a": a, "fighter_b": b, "segment": "Estelar" if r.estelar else ""}
+    k = kaggle.get((r.date, r.par))
+    if k is not None:
+        a_es_rojo = canonical_key(k["R_fighter"]) == canonical_key(a)
+        ca, cb = (k.get("R_odds"), k.get("B_odds")) if a_es_rojo else (k.get("B_odds"), k.get("R_odds"))
+        if _cuota_valida(ca) and _cuota_valida(cb):
+            fila["odds_a"], fila["odds_b"] = _decimal(ca), _decimal(cb)
+        metodo = _cuotas_metodo(k, a_es_rojo)
+        if metodo:
+            from src.card import COL_METODO
+            fila.update(dict(zip(COL_METODO, map(_decimal, metodo))))
+        titulo = k.get("title_bout")
+        if isinstance(titulo, (bool, np.bool_)):
+            fila["es_titulo"] = bool(titulo)
+            fila["titulo_fuente"] = "dataset Kaggle"
+    if "odds_a" not in fila:
+        try:
+            from src import bfo_odds
+            cuotas = bfo_odds.cuotas_de(a, b, r.date)
+        except Exception:                                   # noqa: BLE001
+            cuotas = None
+        if cuotas and all(_cuota_valida(c) for c in cuotas):
+            fila["odds_a"], fila["odds_b"] = map(_decimal, cuotas)
+    return fila
+
+
 def cartelera_de_evento(evento: str, fecha: str) -> Path:
     """
     Arma cards/historico_<fecha>_<evento>.csv con las peleas de un evento de la
@@ -601,33 +644,7 @@ def cartelera_de_evento(evento: str, fecha: str) -> Path:
     if sub.empty:
         raise ValueError(f"No encontré «{evento}» del {fecha} en la base local.")
     kaggle = _kaggle()
-    filas = []
-    for r in sub.itertuples():
-        a, b = orientar(r.fighter_a, r.fighter_b, r.date, kaggle)
-        fila = {"fighter_a": a, "fighter_b": b, "segment": "Estelar" if r.estelar else ""}
-        k = kaggle.get((r.date, r.par))
-        if k is not None:
-            a_es_rojo = canonical_key(k["R_fighter"]) == canonical_key(a)
-            ca, cb = (k.get("R_odds"), k.get("B_odds")) if a_es_rojo else (k.get("B_odds"), k.get("R_odds"))
-            if _cuota_valida(ca) and _cuota_valida(cb):
-                fila["odds_a"], fila["odds_b"] = _decimal(ca), _decimal(cb)
-            metodo = _cuotas_metodo(k, a_es_rojo)
-            if metodo:
-                from src.card import COL_METODO
-                fila.update(dict(zip(COL_METODO, map(_decimal, metodo))))
-            titulo = k.get("title_bout")
-            if isinstance(titulo, (bool, np.bool_)):
-                fila["es_titulo"] = bool(titulo)
-                fila["titulo_fuente"] = "dataset Kaggle"
-        if "odds_a" not in fila:
-            try:
-                from src import bfo_odds
-                cuotas = bfo_odds.cuotas_de(a, b, r.date)
-            except Exception:                               # noqa: BLE001
-                cuotas = None
-            if cuotas and all(_cuota_valida(c) for c in cuotas):
-                fila["odds_a"], fila["odds_b"] = map(_decimal, cuotas)
-        filas.append(fila)
+    filas = [fila_historica(r, kaggle) for r in sub.itertuples()]
     # Como en Betano: preliminares arriba, la estelar al final.
     filas.sort(key=lambda f: f["segment"] == "Estelar")
     destino = C.ROOT / "cards" / f"historico_{dia:%Y-%m-%d}_{_slug(evento)}.csv"
