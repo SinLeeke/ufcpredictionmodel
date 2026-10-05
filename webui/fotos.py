@@ -220,8 +220,8 @@ def _get_ufc(url: str, **kw) -> requests.Response:
             _ultima_ufc = time.monotonic()
 
 
-def url_ufc(nombre: str) -> str | None:
-    """Retrato de estudio de una ficha UFC con nombre completo comprobado."""
+def _ficha_ufc(nombre: str):
+    """(sopa, identidad) de la ficha oficial si su h1 es EXACTAMENTE el nombre; si no, None."""
     slug, identidad = PERFILES_UFC.get(_norm(nombre), (_norm(nombre).replace(" ", "-"), nombre))
     try:
         r = _get_ufc(f"{UFC_BASE}/athlete/{slug}")
@@ -235,6 +235,15 @@ def url_ufc(nombre: str) -> str | None:
     titulo = s.select_one("h1.hero-profile__name")
     if not titulo or _norm(titulo.get_text(" ", strip=True)) != _norm(identidad):
         return None
+    return s, identidad
+
+
+def url_ufc(nombre: str) -> str | None:
+    """Retrato de estudio de una ficha UFC con nombre completo comprobado."""
+    ficha = _ficha_ufc(nombre)
+    if not ficha:
+        return None
+    s, identidad = ficha
     # La imagen social de la ficha es el recorte de busto, mientras la del hero
     # puede incluir el cuerpo entero. Se verifica su archivo antes de aceptarla.
     meta = s.select_one('meta[property="og:image"]')
@@ -247,6 +256,26 @@ def url_ufc(nombre: str) -> str | None:
         src = urljoin(UFC_BASE, imagen.get("src", ""))
         if _retrato_ufc(src, identidad):
             return src
+    return None
+
+
+def url_ufc_cuerpo(nombre: str) -> str | None:
+    """Retrato de estudio de CUERPO ENTERO (estilo athlete_bio_full_body) de la ficha.
+
+    Es el mismo archivo de estudio que el headshot del evento, pero a 1038x3324 y
+    con fondo transparente; el headshot que sirve url_ufc() es un recorte de
+    520x325. Misma exigencia de identidad: h1 exacto y nombre completo en el
+    archivo (_retrato_ufc). Sin ese estilo en la ficha, None.
+    """
+    ficha = _ficha_ufc(nombre)
+    if not ficha:
+        return None
+    s, identidad = ficha
+    for imagen in s.select("img"):
+        for atributo in ("src", "data-src"):
+            src = urljoin(UFC_BASE, imagen.get(atributo, "") or "")
+            if "/athlete_bio_full_body/" in src and _retrato_ufc(src, identidad):
+                return src
     return None
 
 
@@ -456,7 +485,9 @@ def foto(nombre: str) -> Path | None:
 # --------------------------------------------------------------------------- #
 # Retrato de alta resolución (perfil, listado de Peleadores y Rankings)
 # --------------------------------------------------------------------------- #
-VERSION_ALTA = 1
+# 2: la calidad alta pasó del headshot del evento (520x325) al retrato de estudio
+# de cuerpo entero de la ficha; las entradas de la versión 1 se rehacen una vez.
+VERSION_ALTA = 2
 
 
 def transparente(contenido: bytes) -> bool:
@@ -531,8 +562,12 @@ def foto_alta(nombre: str) -> Path | None:
         if ahora - _fallo_red.get("alta:" + clave, 0) < ESPERA_TRAS_FALLO_RED_SEG:
             return base
         try:
-            fuente = e.get("url") if e.get("fuente") == "ufc" and _retrato_ufc(e.get("url") or "", identidad) else None
-            fuente = fuente or url_ufc(nombre)
+            # Preferido: el cuerpo entero de la ficha (original sin estilo). Respaldo:
+            # el headshot de siempre. Si el original no valida, se usa el derivado.
+            fuente = url_ufc_cuerpo(nombre)
+            if not fuente:
+                fuente = e.get("url") if e.get("fuente") == "ufc" and _retrato_ufc(e.get("url") or "", identidad) else None
+                fuente = fuente or url_ufc(nombre)
             if not fuente or fuente == AMBIGUO:
                 idx["alta:" + clave] = {"archivo": None, "url": None, "consultado": ahora, "version": VERSION_ALTA}
                 _guardar_indice(idx)

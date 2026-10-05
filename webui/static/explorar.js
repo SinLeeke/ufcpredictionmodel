@@ -1,5 +1,5 @@
 /* Rankings importados y catálogo local. La navegación no consume los scrapers. */
-const EXP = { rankings: null, division: 0, q: '', offset: 0, request: 0, cuotas: null, pedidoHistorial: 0,
+const EXP = { rankings: null, division: 0, q: '', tramo: '', offset: 0, request: 0, cuotas: null, pedidoHistorial: 0,
   perfil: null, origenPerfil: null };
 const pesosEs = {"Men's Pound-for-Pound":'Libra por libra · hombres', "Women's Pound-for-Pound":'Libra por libra · mujeres',
   'Flyweight':'Mosca','Bantamweight':'Gallo','Featherweight':'Pluma','Lightweight':'Ligero',
@@ -144,8 +144,8 @@ function pintarMenuRanking() {
   }
 }
 
-// Recorta la copia al botón activo con la inclinación de 12° de la marca en
-// el borde derecho (el estilo C la pone en 0°: el papel no se inclina).
+// Recorta la copia al botón activo con el sesgo de --rk-sesgo (6 px) en
+// el borde derecho (el estilo C lo pone en 0: el papel no se inclina).
 function marcarDivision(animar) {
   const nav = $('#ranking-pesos'), copia = nav.querySelector('.rk-copia');
   nav.querySelectorAll('.rk-menu:not(.rk-copia) button').forEach(b => {
@@ -327,7 +327,7 @@ async function buscarPeleadores(mas=false) {
   $('#catalogo-lista').setAttribute('aria-busy', 'true');
   $('#catalogo-mas').disabled = true;
   try {
-    const d = await api(`/api/peleadores?q=${encodeURIComponent(EXP.q)}&offset=${EXP.offset}&limite=40`);
+    const d = await api(`/api/peleadores?q=${encodeURIComponent(EXP.q)}&offset=${EXP.offset}&limite=40&tramo=${encodeURIComponent(EXP.tramo)}`);
     if (seq !== EXP.request) return;
     const lista = $('#catalogo-lista');
     const anteriores = mas ? lista.querySelectorAll('.catalogo-fila').length : 0;
@@ -341,10 +341,12 @@ async function buscarPeleadores(mas=false) {
     const fantasmas = flip ? Array.from(lista.querySelectorAll('.catalogo-fila[data-id]'), li =>
       [li.dataset.id, li.cloneNode(true), li.getBoundingClientRect()]) : [];
     if (mas) $('#catalogo-lista ul').insertAdjacentHTML('beforeend',rows);
-    else $('#catalogo-lista').innerHTML = rows ? `<ul class="catalogo-lista">${rows}</ul>` : '<p>No encontré ese nombre. Prueba con el apellido.</p>';
+    else $('#catalogo-lista').innerHTML = rows ? `<ul class="catalogo-lista">${rows}</ul>` : '<p>No encontré peleadores con estos filtros. Prueba otro apellido o elige Todos.</p>';
     EXP.offset += d.peleadores.length;
     EXP.catalogoCargado = true;
-    $('#catalogo-total').textContent = `${miles(d.total)} ${d.total === 1 ? 'peleador encontrado' : 'peleadores encontrados'}`;
+    $('#catalogo-total').textContent = EXP.tramo
+      ? `${miles(d.total)} ${d.total === 1 ? 'peleador' : 'peleadores'} con apellido de la ${EXP.tramo[0]} a la ${EXP.tramo[2]}`
+      : `${miles(d.total)} ${d.total === 1 ? 'peleador encontrado' : 'peleadores encontrados'}`;
     $('#catalogo-mas').classList.toggle('oculto', EXP.offset >= d.total);
     const nuevas = Array.from(lista.querySelectorAll('.catalogo-fila')).slice(anteriores);
     fotosAlVerse(lista, '.catalogo-fila');
@@ -358,6 +360,15 @@ $('#form-buscar-peleador').onsubmit = e => { e.preventDefault(); buscarPeleadore
 let buscarTimer;
 $('#buscar-peleador').oninput = () => { clearTimeout(buscarTimer); buscarTimer = setTimeout(() => buscarPeleadores(),250); };
 $('#catalogo-mas').onclick = () => buscarPeleadores(true);
+$('#catalogo-tramos').querySelectorAll('button').forEach(boton => {
+  boton.onclick = () => {
+    clearTimeout(buscarTimer);
+    EXP.tramo = boton.dataset.tramo;
+    $('#catalogo-tramos').querySelectorAll('button').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.tramo === EXP.tramo)));
+    return buscarPeleadores();
+  };
+});
 
 const medidaPerfil = (m,k,porcentaje=false) => m?.[k] == null ? '—' : porcentaje ? pct(m[k],0) : fmt(m[k],2);
 function listaMetricas(m,items) {
@@ -424,7 +435,7 @@ function activarPerfil(origen = null) {
   cargarFotos(perfil);
   perfil.querySelectorAll('.hist-abrir').forEach(b => b.onclick = () => {
     const h = EXP.perfil?.historial?.[Number(b.dataset.hist)];
-    if (h) abrirPeleaHistorial(EXP.perfil, h);
+    if (h) abrirPeleaHistorial(EXP.perfil, h, b.dataset.hist);
   });
   const detalle = perfil.querySelector('.perfil-desplegable');
   detalle?.querySelector('summary').addEventListener('click', e => {
@@ -539,9 +550,13 @@ function vistaHistorialPelea(d) {
     <section class="hist-seccion hist-final"><h3>Cómo terminó</h3>${resultadoHistorialPelea(p, d.resultado, conModelo)}</section>`;
 }
 
-async function abrirPeleaHistorial(perfil, h) {
+async function abrirPeleaHistorial(perfil, h, origenHist = null) {
   const pedido = ++EXP.pedidoHistorial;
-  modal(cabHistorial(h, perfil), {clase: 'modal-historial', alCerrar: () => {
+  modal(cabHistorial(h, perfil), {clase: 'modal-historial', devolverFoco: () => {
+    // Se busca la fila vigente: un re-render puede haber reemplazado el botón.
+    return origenHist !== null && EXP.perfil?.id === perfil.id
+      ? $('#perfil-vista').querySelector(`.hist-abrir[data-hist="${origenHist}"]`) : null;
+  }, alCerrar: () => {
     delete raizDoc.dataset.historialAbierto;
     EXP.pedidoHistorial++;                 // una respuesta tardía ya no pinta nada
   }});
@@ -649,18 +664,260 @@ $$('.tab').forEach(b=>b.addEventListener('click',()=>{
   if (b.dataset.tab === 'peleadores' && !location.hash.startsWith('#peleador-')) buscarPeleadores();
 }));
 
+/* =========================== COMPARAR CUOTAS =========================== */
+// Las fuentes de la capa de cuotas, en el orden en que se ofrecen. Cualquier
+// otra clave del estado (p. ej. "simulada", que existe para EN VIVO) se ignora:
+// no es una fuente que se pueda consultar desde aquí.
+const FUENTES_CUOTAS = ['betano', 'bfo', 'odds_api', 'polymarket'];
+// Si /api/mercado/estado no responde, quedan las dos que se consultan a la red:
+// sin estado no se puede saber si Betano o Polymarket tienen algo leído.
+const FUENTES_RESPALDO = [{clave:'bfo', nombre:'BestFightOdds', tipo:'casa'},
+  {clave:'odds_api', nombre:'The Odds API', tipo:'casa'}];
+// Betano y Polymarket no se consultan al pulsar: se leen de lo que la app ya
+// trae (Cargar, EN VIVO). Su texto de estado no puede decir "consulta completada".
+const FUENTES_LOCALES = new Set(['betano', 'polymarket']);
+const NOMBRE_PROVEEDOR = {betano:'Betano', bfo:'BestFightOdds', odds_api:'The Odds API', polymarket:'Polymarket'};
+// "odds-api" es el nombre viejo: sigue en capturas guardadas antes del cambio.
+const claveProveedor = p => p === 'odds-api' ? 'odds_api' : String(p ?? '');
+const esMercadoPrediccion = tipo => tipo === 'mercado_prediccion';
+// Polymarket no es una casa de apuestas y no se le dice así en ninguna parte.
+const tipoFuenteTexto = tipo => esMercadoPrediccion(tipo) ? 'Mercado de predicción' : 'Casa de apuestas';
+const tipoDeCuotas = d => d.tipo || (claveProveedor(d.proveedor) === 'polymarket' ? 'mercado_prediccion' : 'casa');
+const horaCL = iso => {
+  const t = iso ? new Date(iso) : null;
+  return t && !Number.isNaN(t.getTime())
+    ? t.toLocaleString('es-CL', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : null;
+};
+
+function estadoFuenteTexto(f) {
+  if (f.estado === 'consultando') return 'Consultando estado…';
+  if (f.estado === 'desconocido') return 'Estado desconocido';
+  const ok = horaCL(f.ultimo_ok);
+  return [f.activa ? 'Activa' : 'Inactiva', ok ? `último OK ${ok}` : 'sin datos aún', f.motivo ? String(f.motivo) : '']
+    .filter(Boolean).join(' · ');
+}
+
+function estadoFuenteCorto(f) {
+  if (f.estado) return estadoFuenteTexto(f);
+  const t = f.ultimo_ok ? new Date(f.ultimo_ok) : null;
+  const ok = t && !Number.isNaN(t.getTime())
+    ? (t.toDateString() === new Date().toDateString()
+      ? t.toLocaleTimeString('es-CL', {hour:'2-digit', minute:'2-digit', hourCycle:'h23'})
+      : t.toLocaleDateString('es-CL', {day:'2-digit', month:'2-digit', year:'2-digit'})) : null;
+  return [f.activa ? 'Activa' : 'Inactiva', ok].filter(Boolean).join(' · ');
+}
+
+// Del estado de la capa a las opciones de «Fuente». Las inactivas se ofrecen
+// igual (puede haber una captura guardada), con su estado a la vista.
+function fuentesDesdeEstado(e) {
+  const porClave = new Map((Array.isArray(e?.fuentes) ? e.fuentes : [])
+    .filter(f => f && f.clave).map(f => [claveProveedor(f.clave), f]));
+  return FUENTES_CUOTAS.filter(c => porClave.has(c)).map(c => {
+    const f = porClave.get(c);
+    return {clave:c, nombre:String(f.nombre || NOMBRE_PROVEEDOR[c]),
+      tipo: f.tipo || (c === 'polymarket' ? 'mercado_prediccion' : 'casa'),
+      activa: !!f.activa, motivo: f.motivo || null, ultimo_ok: f.ultimo_ok || null};
+  });
+}
+
+// Listbox propio con el patrón APG «select-only combobox». El foco nunca sale
+// del combobox: la opción resaltada se anuncia con aria-activedescendant, así
+// Escape devuelve todo a como estaba sin mover el foco. Las opciones se arman
+// con createElement para que el estado (texto del servidor) nunca sea HTML.
+function crearListboxFuente({raiz, combo, lista, rotulo, alCambiar = () => {}}) {
+  const st = {opciones:[], nodos:[], valor:null, activa:-1, abierta:false, buffer:'', tBuffer:0};
+  const PAGINA = 10;              // RePág / AvPág saltan como en el patrón APG
+  const ESPERA_BUSQUEDA = 500;    // ms entre letras para seguir la misma búsqueda
+  const normal = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const indice = clave => st.opciones.findIndex(o => o.clave === clave);
+  const span = (clase, texto) => { const s = document.createElement('span'); s.className = clase; s.textContent = texto; return s; };
+
+  function pintarCombo() {
+    const o = st.opciones[indice(st.valor)];
+    combo.replaceChildren(...(o ? [span('fuente-combo-nombre', o.nombre),
+      span('fuente-combo-estado', `${tipoFuenteTexto(o.tipo)} · ${estadoFuenteCorto(o)}`)] : []));
+  }
+  function marcar() {
+    st.nodos.forEach((n, i) => {
+      n.setAttribute('aria-selected', String(st.opciones[i].clave === st.valor));
+      n.classList.toggle('activa', st.abierta && i === st.activa);
+    });
+    if (st.abierta && st.nodos[st.activa]) combo.setAttribute('aria-activedescendant', st.nodos[st.activa].id);
+    else combo.removeAttribute('aria-activedescendant');
+  }
+  function mover(i, desplazar = true) {
+    if (!st.opciones.length) return;
+    st.activa = Math.max(0, Math.min(st.opciones.length - 1, i));
+    marcar();
+    const n = st.nodos[st.activa];
+    if (desplazar && typeof n.scrollIntoView === 'function') n.scrollIntoView({block:'nearest'});
+  }
+  function abrir(i = indice(st.valor), {teclado = false} = {}) {
+    if (!st.opciones.length) return;
+    st.abierta = true;
+    combo.setAttribute('aria-expanded', 'true');
+    raiz.setAttribute('data-abierta', '');
+    // Lo que se hace con el teclado no se anima (DESIGN.md, Movimiento).
+    if (teclado) raiz.setAttribute('data-sin-movimiento', ''); else raiz.removeAttribute('data-sin-movimiento');
+    mover(i < 0 ? 0 : i);
+  }
+  function cerrar({teclado = false} = {}) {
+    if (!st.abierta) return;
+    st.abierta = false; st.buffer = '';
+    combo.setAttribute('aria-expanded', 'false');
+    if (teclado) raiz.setAttribute('data-sin-movimiento', ''); else raiz.removeAttribute('data-sin-movimiento');
+    raiz.removeAttribute('data-abierta');
+    marcar();
+  }
+  function elegir(i) {
+    const o = st.opciones[i];
+    if (!o || o.clave === st.valor) return;
+    st.valor = o.clave;
+    pintarCombo(); marcar(); alCambiar(o);
+  }
+  // Búsqueda por letra: la misma letra repetida recorre las que empiezan con
+  // ella (b → Betano, b → BestFightOdds); varias letras seguidas buscan el prefijo.
+  function buscar(letra) {
+    const ahora = Date.now();
+    if (ahora - st.tBuffer > ESPERA_BUSQUEDA) st.buffer = '';
+    st.tBuffer = ahora; st.buffer += normal(letra);
+    const repetida = [...st.buffer].every(c => c === st.buffer[0]);
+    const prefijo = repetida ? st.buffer[0] : st.buffer;
+    const desde = st.abierta ? st.activa : indice(st.valor);
+    const n = st.opciones.length;
+    const inicio = repetida || prefijo.length === 1 ? desde + 1 : Math.max(desde, 0);
+    for (let k = 0; k < n; k++) {
+      const i = (inicio + k) % n;
+      if (normal(st.opciones[i].nombre).startsWith(prefijo)) return i;
+    }
+    return -1;
+  }
+
+  combo.addEventListener('keydown', e => {
+    const n = st.opciones.length;
+    if (!n || e.ctrlKey || e.metaKey) return;
+    const imprimible = String(e.key || '').length === 1 && e.key !== ' ' && !e.altKey;
+    if (!st.abierta) {
+      if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); abrir(undefined, {teclado:true}); }
+      else if (e.key === 'Home') { e.preventDefault(); abrir(0, {teclado:true}); }
+      else if (e.key === 'End') { e.preventDefault(); abrir(n - 1, {teclado:true}); }
+      else if (imprimible) { const i = buscar(e.key); abrir(i < 0 ? undefined : i, {teclado:true}); }
+      return;
+    }
+    // Una flecha o tecla de navegación termina la búsqueda por letras: así el
+    // espacio que venga después vuelve a elegir en vez de seguir buscando.
+    if (!imprimible && e.key !== ' ') st.buffer = '';
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); mover(st.activa + 1); break;
+      case 'ArrowUp':
+        e.preventDefault();
+        if (e.altKey) { elegir(st.activa); cerrar({teclado:true}); } else mover(st.activa - 1);
+        break;
+      case 'Home': e.preventDefault(); mover(0); break;
+      case 'End': e.preventDefault(); mover(n - 1); break;
+      case 'PageUp': e.preventDefault(); mover(st.activa - PAGINA); break;
+      case 'PageDown': e.preventDefault(); mover(st.activa + PAGINA); break;
+      case 'Escape': e.preventDefault(); cerrar({teclado:true}); combo.focus(); break;
+      // Tab elige y deja que el foco siga su camino: no se previene.
+      case 'Tab': elegir(st.activa); cerrar({teclado:true}); break;
+      case 'Enter': e.preventDefault(); elegir(st.activa); cerrar({teclado:true}); break;
+      case ' ':
+        e.preventDefault();
+        // Con una búsqueda en curso el espacio es parte del nombre ("the odds").
+        if (st.buffer && Date.now() - st.tBuffer <= ESPERA_BUSQUEDA) { const i = buscar(' '); if (i >= 0) mover(i); }
+        else { elegir(st.activa); cerrar({teclado:true}); }
+        break;
+      default:
+        if (imprimible) { const i = buscar(e.key); if (i >= 0) mover(i); }
+    }
+  });
+  combo.addEventListener('click', () => { if (st.abierta) cerrar(); else abrir(); });
+  // Al salir el foco (clic afuera, otra ventana) se cierra sin cambiar nada.
+  combo.addEventListener('blur', () => cerrar());
+  // El clic en una opción no debe quitarle el foco al combobox.
+  lista.addEventListener('mousedown', e => e.preventDefault());
+  document.addEventListener('pointerdown', e => { if (st.abierta && !raiz.contains(e.target)) cerrar(); });
+  // Un <label> no apunta a un div: el clic en «Fuente» lleva el foco a mano.
+  if (rotulo) rotulo.addEventListener('click', () => combo.focus());
+
+  return {
+    fijar(opciones, preferida = 'bfo') {
+      st.opciones = opciones.slice();
+      if (indice(st.valor) < 0) st.valor = indice(preferida) >= 0 ? preferida : st.opciones[0]?.clave ?? null;
+      st.nodos = st.opciones.map((o, i) => {
+        const n = document.createElement('div');
+        n.id = `${lista.id}-${o.clave}`;
+        n.className = 'fuente-op';
+        n.setAttribute('role', 'option');
+        n.setAttribute('data-clave', o.clave);
+        n.append(span('fuente-op-nombre', o.nombre), span('fuente-op-tipo', tipoFuenteTexto(o.tipo)),
+          span('fuente-op-estado', estadoFuenteTexto(o)));
+        n.insertAdjacentHTML('beforeend', ico('ok', 'fuente-op-marca'));
+        n.addEventListener('click', () => { elegir(i); cerrar(); combo.focus(); });
+        // El puntero mueve la opción resaltada: nunca dos filas marcadas a la vez.
+        n.addEventListener('pointermove', () => { if (st.abierta && st.activa !== i) mover(i, false); });
+        return n;
+      });
+      lista.replaceChildren(...st.nodos);
+      if (st.abierta) st.activa = Math.min(Math.max(st.activa, 0), st.opciones.length - 1);
+      pintarCombo(); marcar();
+    },
+    valor: () => st.valor,
+    opcion: () => st.opciones[indice(st.valor)] || null,
+  };
+}
+
+const FUENTE_CUOTAS = crearListboxFuente({raiz:$('#fuente-sel'), combo:$('#fuente-cuotas'),
+  lista:$('#fuente-cuotas-lista'), rotulo:$('#lbl-fuente-cuotas')});
+FUENTE_CUOTAS.fijar(FUENTES_RESPALDO.map(f => ({...f, estado:'consultando'})));
+let pedidoFuentes = 0;
+async function cargarFuentesCuotas() {
+  const n = ++pedidoFuentes;
+  let lista = [];
+  try { lista = fuentesDesdeEstado(await api('/api/mercado/estado')); } catch { lista = []; }
+  if (n !== pedidoFuentes) return;      // llegó tarde: ya hay una respuesta más nueva
+  FUENTE_CUOTAS.fijar(lista.length ? lista : FUENTES_RESPALDO.map(f => ({...f, estado:'desconocido'})));
+}
+cargarFuentesCuotas();
+// Al volver a Datos el estado puede haber cambiado (EN VIVO sigue leyendo).
+$$('.tab').forEach(b => { if (b.dataset.tab === 'datos') b.addEventListener('click', cargarFuentesCuotas); });
+
+function textoEstadoCuotas(d) {
+  const prov = claveProveedor(d.proveedor);
+  const conservada = d.cartelera_conservada === false ? ' Esta captura solo conserva precios; no tiene la cartelera anunciada de ese día.' : '';
+  if (FUENTES_LOCALES.has(prov)) {
+    const visto = d.actualizado ? new Date(d.actualizado).toLocaleString('es-CL') : null;
+    const estado = `${NOMBRE_PROVEEDOR[prov]} · ${visto ? `última cuota vista ${visto}` : 'todavía no hay una cuota vista'}`
+      + `${d.desactualizado ? ' · puede estar desactualizada' : ''}`;
+    return `${estado}${estado.endsWith('.') ? '' : '.'} Se lee de lo que la app ya tiene, sin ir a la red.`;
+  }
+  return `${d.desactualizado ? 'Sin conexión: última captura disponible' : 'Captura guardada'} · ${new Date(d.capturado).toLocaleString('es-CL')} · ${d.cache ? 'reutilizada sin consultar la fuente' : 'consulta completada'}.${conservada}`;
+}
+
+// Cuotas decimales > 50 que el servidor no pasa al predictor por ambigüedad: se
+// dicen en el estado para que una pelea no desaparezca sin explicación.
+function notaDescartadas(d, hayEventos) {
+  const n = Array.isArray(d.descartadas) ? d.descartadas.length : 0;
+  if (!n) return '';
+  const peleas = n === 1 ? '1 pelea' : `${n} peleas`;
+  return hayEventos ? ` ${peleas} sin cuota utilizable: precio demasiado extremo para el predictor.`
+    : ` Se descartaron todas las peleas de la captura (${peleas}): precio demasiado extremo para el predictor.`;
+}
+
 function pintarCuotas(d) {
   EXP.cuotas = d;
+  // Polymarket es un mercado de predicción: los rótulos de abajo no le dicen "casa".
+  const mercado = esMercadoPrediccion(tipoDeCuotas(d));
   const completos = d.carteleras || [];
-  const lista = completos.length ? completos.map(e=>({...e,oficial:true})) : d.eventos;
+  const lista = completos.length ? completos.map(e=>({...e,oficial:true})) : (d.eventos || []);
   $('#cuotas-historial').classList.add('oculto'); $('#cuotas-lista').classList.remove('oculto');
-  $('#cuotas-estado').textContent = `${d.desactualizado ? 'Sin conexión: última captura disponible' : 'Captura guardada'} · ${new Date(d.capturado).toLocaleString('es-CL')} · ${d.cache ? 'reutilizada sin consultar la fuente' : 'consulta completada'}.${d.cartelera_conservada === false ? ' Esta captura solo conserva precios; no tiene la cartelera anunciada de ese día.' : ''}`;
-  $('#cuotas-lista').innerHTML = lista.length ? `<label for="evento-cuotas">Cartelera</label><select id="evento-cuotas">${lista.map((e,i)=>`<option value="${i}">${esc(e.titulo)} · ${esc(fechaExplorar(e.fecha))}</option>`).join('')}</select><div id="cuotas-detalle"></div>` : '<p>No hay eventos con cuotas disponibles en esta captura.</p>';
+  $('#cuotas-estado').textContent = textoEstadoCuotas(d) + notaDescartadas(d, lista.length > 0);
+  $('#cuotas-lista').innerHTML = lista.length ? `<label for="evento-cuotas">Cartelera</label><select id="evento-cuotas">${lista.map((e,i)=>`<option value="${i}">${esc(e.titulo)} · ${esc(fechaExplorar(e.fecha))}</option>`).join('')}</select><div id="cuotas-detalle"></div>` : (notaDescartadas(d, false) ? '<p>Todas las peleas de esta captura se descartaron por tener un precio demasiado extremo; no es que falte la cartelera.</p>' : '<p>No hay eventos con cuotas disponibles en esta captura.</p>');
   const detalle = i => {
     const e=lista[i];
     const books = new Map([...new Map(e.peleas.flatMap(p=>Object.entries(p.casas).map(([key,c])=>[key,c.casa])))].sort(([a,na],[b,nb])=>e.peleas.filter(p=>p.casas[b]).length-e.peleas.filter(p=>p.casas[a]).length || na.localeCompare(nb)));
     $('#cuotas-detalle').innerHTML = `<section class="cuotas-evento"><h3>${esc(e.titulo)}</h3><p class="nota">${esc(fechaExplorar(e.fecha))} · ${e.peleas.length} peleas ${e.oficial ? 'anunciadas' : 'con cuotas'}</p>
-      <label for="casa-cuotas-${i}">Casa para esta cartelera</label><select id="casa-cuotas-${i}">${[...books].map(([k,n])=>`<option value="${esc(k)}">${esc(n)}</option>`).join('')}<option value="">Solo modelo, sin cuotas</option></select>
+      <label for="casa-cuotas-${i}">${mercado ? 'Mercado' : 'Casa'} para esta cartelera</label><select id="casa-cuotas-${i}">${[...books].map(([k,n])=>`<option value="${esc(k)}">${esc(n)}</option>`).join('')}<option value="">Solo modelo, sin cuotas</option></select>
       <ul>${e.peleas.map(p=>`<li>${esc(p.a)} <span>vs</span> ${esc(p.b)}</li>`).join('')}</ul>
       <button class="primario" data-predecir-cuotas="${i}">${e.oficial ? 'Predecir cartelera completa' : 'Predecir con estas cuotas'}</button><p class="nota" id="cobertura-cuotas-${i}"></p></section>`;
     cobertura(e,i);
@@ -669,7 +926,7 @@ function pintarCuotas(d) {
   };
   const cobertura = (e,i) => { const b=$(`#casa-cuotas-${i}`).value; const n=e.peleas.filter(p=>p.casas[b]).length;
     $('#cuotas-detalle ul').innerHTML=e.peleas.map(p=>`<li><div>${esc(p.a)} <span>vs</span> ${esc(p.b)}</div><small>${p.casas[b] ? `${fmt(p.casas[b].a,2)} / ${fmt(p.casas[b].b,2)}` : 'Sin cuota'}</small></li>`).join('');
-    $(`#cobertura-cuotas-${i}`).textContent=e.oficial ? `Se muestran las ${e.peleas.length} peleas. ${n} con cuota; ${e.peleas.length-n} solo con el modelo.` : `Esta casa cubre ${n} de ${e.peleas.length} peleas.`; };
+    $(`#cobertura-cuotas-${i}`).textContent=e.oficial ? `Se muestran las ${e.peleas.length} peleas. ${n} con cuota; ${e.peleas.length-n} solo con el modelo.` : `${mercado ? 'Este mercado' : 'Esta casa'} cubre ${n} de ${e.peleas.length} peleas.`; };
   const predecir = async i=>{
     const b=$('#cuotas-detalle button'); b.disabled=true;
     try { await post('/api/cartelera/cuotas',{snapshot:d.snapshot,evento:lista[i].id,casa:$(`#casa-cuotas-${i}`).value,oficial:!!lista[i].oficial}); irA('cartelera'); }
@@ -678,13 +935,18 @@ function pintarCuotas(d) {
   if (lista.length) { $('#evento-cuotas').onchange=e=>detalle(Number(e.target.value)); detalle(0); }
 }
 $('#btn-consultar-cuotas').onclick = async()=>{
-  const b=$('#btn-consultar-cuotas'); b.disabled=true; $('#cuotas-estado').textContent='Consultando la fuente…';
+  const b=$('#btn-consultar-cuotas');
+  const clave = FUENTE_CUOTAS.valor() || 'bfo';
+  b.disabled=true;
+  $('#cuotas-estado').textContent = FUENTES_LOCALES.has(clave)
+    ? `Leyendo las cuotas de ${NOMBRE_PROVEEDOR[clave]} que la app ya tiene…` : 'Consultando la fuente…';
   try {
-    if ($('#fuente-cuotas').value === 'odds-api') {
+    if (clave === 'odds_api') {
       const c=await api('/api/cuotas/configuracion');
       if (!c.odds_api_configurada) { $('#cuotas-estado').textContent='The Odds API requiere una cuenta gratuita. Configura la clave en el servidor para usarla; BestFightOdds funciona sin cuenta.'; return; }
     }
-    pintarCuotas(await api('/api/cuotas?proveedor='+encodeURIComponent($('#fuente-cuotas').value)));
+    pintarCuotas(await api('/api/cuotas?proveedor='+encodeURIComponent(clave)));
+    cargarFuentesCuotas();               // el último OK de la fuente pudo cambiar
   } catch(e) { $('#cuotas-estado').textContent=e.message; } finally { b.disabled=false; }
 };
 $('#btn-historial-cuotas').onclick = async()=>{
@@ -692,7 +954,7 @@ $('#btn-historial-cuotas').onclick = async()=>{
   try {
     const d=await api('/api/cuotas/historial');
     $('#cuotas-lista').classList.add('oculto'); $('#cuotas-historial').classList.remove('oculto');
-    $('#cuotas-historial').innerHTML='<h3>Capturas conservadas</h3><p class="nota">Se abren desde SQLite. Al predecir una captura de otro día, se respeta esa fecha para las estadísticas.</p>' + (d.capturas.length ? '<ul>'+d.capturas.map(c=>`<li><button class="secundario" data-captura="${esc(c.snapshot)}">${esc({bfo:'BestFightOdds','odds-api':'The Odds API',betano:'Betano'}[c.proveedor] || c.proveedor)} · ${esc(new Date(c.capturado).toLocaleString('es-CL'))}${c.fecha_fuente ? ' · histórica' : ''}</button></li>`).join('')+'</ul>' : '<p>Todavía no hay capturas guardadas.</p>');
+    $('#cuotas-historial').innerHTML='<h3>Capturas conservadas</h3><p class="nota">Se abren desde SQLite. Al predecir una captura de otro día, se respeta esa fecha para las estadísticas.</p>' + (d.capturas.length ? '<ul>'+d.capturas.map(c=>`<li><button class="secundario" data-captura="${esc(c.snapshot)}">${esc(NOMBRE_PROVEEDOR[claveProveedor(c.proveedor)] || c.proveedor)} · ${esc(new Date(c.capturado).toLocaleString('es-CL'))}${c.fecha_fuente ? ' · histórica' : ''}</button></li>`).join('')+'</ul>' : '<p>Todavía no hay capturas guardadas.</p>');
     $$('[data-captura]').forEach(btn=>btn.onclick=async()=>{
       btn.disabled=true;
       try { pintarCuotas(await api('/api/cuotas/capturas/'+encodeURIComponent(btn.dataset.captura))); }

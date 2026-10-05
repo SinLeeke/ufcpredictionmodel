@@ -231,6 +231,39 @@ Todos leen de caché/SQLite y responden al instante: **ninguno espera a la
 red**. El polling corre en hilos de fondo (uno por fuente, arrancados en el
 lifespan de `webui/server.py`).
 
+`GET /api/mercado/estado` trae SIEMPRE las cuatro fuentes (`betano`, `bfo`,
+`odds_api`, `polymarket`), aunque estén inactivas (`activa: false` con `motivo`,
+p. ej. `odds_api` sin clave). Polymarket tiene `tipo: "mercado_prediccion"`.
+
+#### «Comparar cuotas»: `GET /api/cuotas?proveedor=<clave>`
+
+`proveedor` ∈ `betano | bfo | odds_api | polymarket` (`odds-api` sigue valiendo
+como alias legado). Desconocido → HTTP 400. Respuesta:
+
+```json
+{"snapshot": "<id>", "proveedor": "betano", "tipo": "casa" | "mercado_prediccion",
+ "capturado": "ISO", "actualizado": "ISO | null", "cache": false, "desactualizado": false,
+ "eventos": [{"id", "titulo", "fecha", "fuente",
+              "peleas": [{"id", "a", "b", "casas": {"<clave_casa>": {"casa", "a", "b"}}}]}],
+ "carteleras": []}
+```
+
+- Cuotas en **decimal**. `bfo` y `odds_api` salen de `cuotas_fuentes.consultar`
+  (con red y caché de 30 min) y conservan sus extras (`carteleras`,
+  `cartelera_actualizada`, `cartelera_conservada`); su `actualizado` es el
+  `capturado`.
+- `betano` y `polymarket` salen de `capa.peleas()` (`src/cuotas/comparar.py`):
+  solo SQLite, **cero peticiones de red**. Se queda con las cotizaciones de esa
+  fuente, agrupadas por evento + fecha; la clave de casa es la de la fuente
+  (`betano` / `polymarket`). Betano: americana → decimal. Polymarket: `1/p`, sin
+  margen. `actualizado` = la cotización más reciente vista; `desactualizado` =
+  la fuente está inactiva; `carteleras` siempre `[]`. Sin cuotas de esa fuente:
+  200 con `eventos: []`.
+- Cada respuesta queda como captura en `cuotas_snapshots`; si la última de esa
+  fuente tiene el mismo sha256 se reutiliza (no se duplican filas). Se abre con
+  `/api/cuotas/capturas/{id}`, `/api/cuotas/historial?proveedor=` y se carga con
+  `POST /api/cartelera/cuotas` (`oficial: false`) igual que las de BFO.
+
 Detalles de los parámetros:
 
 - `peleas?evento=`: sin distinguir mayúsculas, el texto tiene que estar dentro

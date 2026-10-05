@@ -50,6 +50,10 @@ comandos: cada uno se cambia solo a la raíz del proyecto antes de correr nada.
 scripts\lanzar_ui.bat
 ```
 
+Para probar el gráfico «Mercado en vivo» con cuotas inventadas, abre
+`scripts\simular_en_vivo.bat` con doble clic; instrucciones en
+`scripts\simular_en_vivo.txt`.
+
 Ver la [sección 17](#17-la-interfaz-web).
 
 ---

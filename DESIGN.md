@@ -364,7 +364,7 @@ La profundidad principal sale de tres cosas: el tono (fondo → superficie →
 superficie 2), las **reglas gruesas** (3 px de tinta sobre cada panel, roja bajo la
 cabecera y sobre el pie) y la inversión (el sello Probado, la pestaña activa y el aviso
 flotante van en tinta o hueso sólidos). El modal se separa con un velo de tinta al 66 %.
-La jaula añade una sombra suave de arena y sus acolchados tienen luces y sombras.
+La jaula no proyecta sombra (se quitó el drop-shadow de arena: contradecía «sin sombras difusas»); sus acolchados conservan luces y sombras pintadas.
 El conjunto de combate tiene una sombra tenue; los datos conservan superficies planas.
 
 ### Named Rules
@@ -430,6 +430,14 @@ métodos y datos finales se presentan en una columna lateral, debajo en pantalla
 estrechas. La coestelar sin título usa una tarjeta normal con su rótulo.
 Sin foto oficial, una silueta de peleador; nunca la foto de otro.
 
+### Rankings
+La cabecera muestra el nombre del peso y una franja inclinada Hombres o Mujeres:
+`rk-genero`, con fondo `var(--txt)` y texto `var(--sup)`. Sobre el menú de divisiones
+hay una copia en tinta invertida (`rk-copia`), recortada al botón activo con
+`clip-path`; al cambiar de peso el recorte viaja con `--dur-viaje` y `--ease-in-out`. La
+inclinación usa `--rk-sesgo` de 6 px; en estilo C vale 0 px. En pantalla angosta,
+cada grupo del menú tiene scroll propio y trae a la vista la división activa.
+
 ### Fondo de la foto (`.foto-cartel`)
 Fuera del combate (perfil y listado de Peleadores), la foto va en un cartel que es el
 propio octágono regular de la jaula, igual que el marco del campeón en Rankings: un
@@ -439,6 +447,15 @@ inclinados 12°. La foto se recorta con la lona y la llena (cabeza arriba del ce
 el peleador nunca se sale de la figura. El campeón usa la variante `.oro` (`--oro-*` y
 el metal de la baranda de los títulos en el filete). Sin rojo ni azul: esos colores son
 de las esquinas.
+
+La respuesta de la foto trae `X-Fondo`; `fotos.fondo()` devuelve `transparente` si el
+archivo tiene canal alfa (PNG o WebP) y `opaco` en los demás casos, incluido JPEG.
+`app.js` lo copia a `data-fondo` en `.retrato` al recibir la imagen. El estilo usa
+`object-position: 50% 18%` para el retrato opaco y `50% 0` para el transparente.
+Este último encuadre corresponde a la foto alta de cuerpo entero (`foto_alta` /
+`url_ufc_cuerpo`): al recortarla dentro de la lona conserva visibles la cabeza y el
+torso. `identidad_visual.py` aporta metadatos de identidad, no decide este fondo;
+`explorar.js` usa el mismo `retrato()` de `app.js` para perfil y catálogo.
 
 Dentro de la lona, el bloque arranca a 10,5 cqw del borde y la barra mide el 84 % del
 ancho, centrada: la franja de ancho completo de la línea pintada va de y = 32 a y = 68
@@ -481,6 +498,17 @@ con su regla de tinta:
   columna también: los títulos y las reglas de tinta quedan alineados aunque Próximas
   lleve el botón Estelar/Todas.
 
+### Movimiento de cuotas
+Sin evento en curso, la sección queda en modo manual: ofrece el selector de peleas
+con cuotas guardadas. Al elegir una, muestra evento y fecha, esquinas, tabla de cuotas
+por casa y predicción y el gráfico con las lecturas almacenadas; sin elección el
+gráfico queda vacío. El título dice «Movimiento de cuotas» y el sello indica «En vivo»
+o «En vivo apagado» según la opción de cabecera. EN VIVO encendido confirma Betano
+cada 10 s y la línea avanza con cada lectura; apagado, avanza con refrescos completos
+(cada 10 min) y otras fuentes disponibles. Durante un evento en curso cambia a
+«Mercado en vivo»: no hay selector, y aparecen controles para marcar peleas terminadas
+y el estado del programa.
+
 ### Repetición
 La cartelera de una noche que ya pasó, predicha con lo que se sabía antes de ese día.
 Habla como la repetición de la tele:
@@ -509,6 +537,30 @@ orden de las esquinas nunca dice quién ganó. En el celular los nombres se apil
 los dos retratos. Las fotos se piden al acercarse a la pantalla. El CSV propio queda
 plegado dentro de **Guardadas**, donde las carteleras con fecha pasada tienen
 **Repetir**.
+
+### Modal de una pelea del historial
+Desde una fila del historial del perfil se abre un modal con evento y fecha, el
+enfrentamiento en el orden de las esquinas sin mirar quién ganó, el octágono, las
+estadísticas y el pronóstico reconstruidos con datos disponibles hasta el día
+anterior. «Cómo terminó» aparece aparte; si no hay resultado local se indica. Si
+falta el modelo ciego a esa fecha en `models/corte/`, el servidor lo entrena al abrir
+con solo peleas anteriores y lo conserva para esa fecha. Si no hay `features.csv` o
+datos suficientes, muestra las estadísticas recortadas, explica el motivo y deja
+la probabilidad no disponible; la heurística no se presenta como modelo. El cuerpo
+empieza con `aria-busy="true"` y un esqueleto «Reconstruyendo…»; tras 2,5 s informa
+si está entrenando. Un error reemplaza el cuerpo por el motivo y quita el estado de
+carga. El modal recibe y devuelve el foco según el componente común, se cierra con
+Escape y, mientras está abierto, oculta Combinada.
+
+### Cancelar la carga
+El botón «Cancelar» está arriba a la derecha del panel de avance de Cartelera. Es
+secundario, de 40 px de alto (44 px en móvil); desaparece si la carga terminó con
+error o el panel está en estado `lista`. Antes del modelo detiene la carga en el
+próximo aviso de progreso; durante el modelo pide confirmación. Al aceptar, el diario
+revierte los archivos y cachés escritos, restaura informes y estado de la cartelera,
+y un aviso dice «no se guardó nada y todo quedó como estaba». Mientras espera, el
+botón dice «Cancelando…», queda desactivado y el panel/progreso pasa a tenue. Un paso
+largo de entrenamiento termina antes de que se complete la cancelación.
 
 ### Acta de la pelea (estilo C)
 La hoja con su marco impreso de doble filete y las perforaciones de la carpeta. Arriba,
@@ -567,6 +619,13 @@ combates animan su altura al abrir y cerrar.
   llegar al final.
 - **Pestañas**: la etiqueta hueso viaja de la pestaña vieja a la nueva (300 ms,
   ease-in-out), como el rótulo que se desliza en la gráfica de la tele.
+- **Viajes compartidos** (`--dur-viaje: 300ms`; `MOV.viaje: 300`): la etiqueta de
+  pestañas, el recorte del menú de Rankings y la foto del listado al perfil viajan
+  con la misma duración y `--ease-in-out`. Es aparte de `--dur-press` (160 ms),
+  `--dur-entrada` (240 ms), `--dur-salida` (160 ms), `--dur-modal-in` (200 ms),
+  `--dur-modal-out` (140 ms), `--dur-conteo` (560 ms) y `--dur-brillo` (700 ms);
+  `MOV` refleja esos valores en milisegundos y también define escalón (28 ms, máximo
+  12 filas) y desplazamiento (8 px).
 - **Cartelera nueva**: las cifras de la barra de información corren hasta su valor y los
   zócalos de "Qué apostar" se descubren de izquierda a derecha (70 ms de desfase).
 - **Inicio**, una vez por visita: la foto de portada se asienta y su titular se barre de

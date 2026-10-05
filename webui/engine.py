@@ -760,7 +760,7 @@ def cargar(origen: str, consulta: str = "", csv_path: Path | None = None,
                 ruta = csv_path
                 titulo = ruta.stem if ruta is not None else ""
                 cuotas_en = None
-                if origen == "betano":
+                if origen == "betano" and not fuente_cuotas:
                     ruta, titulo = bajar_cuotas(consulta, destino=ruta, fecha=fecha, progreso=avance,
                                                 diferidos=diferidos)
                     cuotas_en = time.time()

@@ -11,6 +11,9 @@ kagglehub>=0.3
 fastapi>=0.110
 uvicorn>=0.27
 python-multipart>=0.0.9
+# Solo para las pruebas: fastapi.testclient lo exige. Sin él, los tests de la
+# API fallan al importar en vez de correr.
+httpx>=0.27
 # Lee el .env de la raíz (ODDS_API_KEY y compañía). Opcional: sin él solo se
 # leen las variables de entorno ya definidas.
 python-dotenv>=1.0

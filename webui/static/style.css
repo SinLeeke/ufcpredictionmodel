@@ -704,7 +704,8 @@ td .pelea-debut{display:block;width:fit-content;margin-top:5px}
    en el padre obligaba a repintar toda la escena en cada cuadro del armado.
    Tampoco puede ir en la reja misma: su clip-path se aplica después del filtro
    y se comería la sombra. La reja es la silueta, así que la sombra es igual. */
-.reja-sombra{position:absolute;inset:0;filter:drop-shadow(0 8px 8px rgba(0,0,0,.16))}
+/* Sin drop-shadow: la regla del proyecto prohíbe sombras difusas; la jaula se separa de la lona por su propia baranda. */
+.reja-sombra{position:absolute;inset:0}
 /* Tres capas recortadas en octágono, de afuera hacia adentro: la reja de
    alambre, la baranda acolchada y la lona. El corte de cada capa se achica en
    0,414 × lo que la capa se mete, para que los chaflanes queden paralelos. */
@@ -1810,6 +1811,14 @@ pre#log:empty::before{content:"Acá aparece lo que va haciendo cada tarea, líne
    cuerpo menor y menos margen junto a la regla, para que quepa lo más posible. */
 [data-estilo="juez"] .cartelera-activa{font-size:14px}
 [data-estilo="juez"] .reloj-caja{font-size:12.5px}
+/* Desborde de unos px a 1440: a máquina el texto del reloj (Courier Prime 700) es
+   más ancho que en condensada, y con una cartelera de Betano + EN VIVO la caja de
+   la cartelera ya está en su mínimo (solo regla y relleno), así que ya no hay quien
+   ceda y .cabecera-acciones (flex:none) se sale de la ventana. Ahora el reloj es
+   lo que cede, con puntos suspensivos, igual que cede el nombre de la cartelera. */
+[data-estilo="juez"] .cabecera-acciones{flex:0 1 auto;min-width:0}
+[data-estilo="juez"] .reloj-caja{min-width:0}
+[data-estilo="juez"] #reloj{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 [data-estilo="juez"] .cartelera-caja{padding-left:10px}
 [data-estilo="juez"] .pie{border-top:5px double var(--forma)}
 
@@ -2312,6 +2321,9 @@ p.cons-error{color:var(--alerta)}
 .cons-detalle{position:fixed;z-index:8;inset:auto;margin:0;width:min(460px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;
   background:var(--sup);color:var(--txt);border:1.5px solid var(--txt);border-top-width:3px;padding:8px 14px 12px;text-align:left}
 .cons-detalle[hidden]{display:none}
+/* El panel recibe foco (tabindex=0) para poder desplazarlo con teclado: el anillo
+   va hacia adentro, porque hacia afuera se saldría del margen de la ventana. */
+.cons-detalle:focus-visible{outline:2px solid var(--txt);outline-offset:-4px}
 .cons-tabla{width:100%;table-layout:fixed;border-collapse:collapse;font-size:14px}
 .cons-tabla th,.cons-tabla td{padding:6px 6px;border-bottom:1px solid var(--linea);text-align:left;vertical-align:baseline}
 .cons-tabla th:first-child{padding-left:0}
@@ -2387,6 +2399,11 @@ p.cons-error{color:var(--alerta)}
    retrato opaco (X-Fondo: opaco), que trae más aire arriba, baja un poco más. */
 .foto-cartel .retrato img{object-fit:cover;object-position:50% 10%}
 .foto-cartel [data-fondo="opaco"] img{object-position:50% 18%}
+/* La foto alta es el retrato de estudio de cuerpo entero (1038x3324, alfa). Con
+   cover en el cuadrado el ancho llena la lona y la imagen sobra hacia abajo:
+   anclarla ARRIBA deja la cabeza y el torso (el tercio superior) y corta las
+   piernas. Un headshot ancho (520x325) no se mueve: su alto ya calza. */
+.foto-cartel [data-fondo="transparente"] img{object-position:50% 0}
 .foto-cartel.oro{--fc-fondo:var(--oro-fondo);--fc-hilo:var(--oro-hilo);color:var(--oro-tinta)}
 .foto-cartel.oro::before{background:var(--titulo-metal)}
 @media(forced-colors:active){.foto-cartel::before{forced-color-adjust:none;background:CanvasText}

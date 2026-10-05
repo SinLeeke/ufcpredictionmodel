@@ -326,6 +326,13 @@
         <button class="primario" type="submit">Buscar</button>
       </div>
     </form>
+    <div id="catalogo-tramos" class="catalogo-tramos" role="group" aria-label="Filtrar por apellido">
+      <button type="button" data-tramo="" aria-pressed="true">Todos</button>
+      <button type="button" data-tramo="A-F" aria-pressed="false">A–F</button>
+      <button type="button" data-tramo="G-L" aria-pressed="false">G–L</button>
+      <button type="button" data-tramo="M-R" aria-pressed="false">M–R</button>
+      <button type="button" data-tramo="S-Z" aria-pressed="false">S–Z</button>
+    </div>
     <p id="catalogo-total" class="nota" role="status"></p>
     <div id="catalogo-lista"></div>
     <button id="catalogo-mas" class="secundario oculto">Ver más peleadores</button>
@@ -339,16 +346,27 @@
     <section class="caja caja-cuotas" aria-labelledby="tit-cuotas">
       <div class="caja-cab"><h2 id="tit-cuotas">Comparar cuotas</h2></div>
       <p class="nota">La cartelera completa viene de las peleas anunciadas; las cuotas se añaden donde estén disponibles.
-        BestFightOdds funciona sin cuenta. Cada consulta queda guardada con su fecha.
-        Elige una casa: las cuotas de una pelea siempre pertenecen a la misma.
+        Hay cuatro fuentes. Betano, BestFightOdds y The Odds API son casas de apuestas; Polymarket es un mercado
+        de predicción, no una casa. Betano, BestFightOdds y Polymarket funcionan sin cuenta; The Odds API pide una
+        clave gratuita. BestFightOdds y The Odds API se consultan al pulsar y cada consulta queda guardada con su
+        fecha; Betano y Polymarket muestran lo último que la app ya leyó.
+        Elige una casa o el mercado: las cuotas de una pelea siempre pertenecen a la misma.
         Esta integración usa el mercado de ganador.</p>
       <div class="cuotas-controles">
-        <label for="fuente-cuotas">Fuente</label>
-        <select id="fuente-cuotas"><option value="bfo">BestFightOdds</option><option value="odds-api">The Odds API</option></select>
+        <!-- «Fuente» es un listbox propio (patrón APG «select-only combobox») y no
+             un <select>: el nativo no muestra el estado de cada fuente en dos
+             líneas ni deja estilar la opción resaltada. Lo llena explorar.js
+             desde /api/mercado/estado. -->
+        <label id="lbl-fuente-cuotas">Fuente</label>
+        <div id="fuente-sel" class="fuente-sel">
+          <div id="fuente-cuotas" class="fuente-combo" role="combobox" tabindex="0" aria-haspopup="listbox"
+            aria-expanded="false" aria-controls="fuente-cuotas-lista" aria-labelledby="lbl-fuente-cuotas"><span class="fuente-combo-nombre">BestFightOdds</span></div>
+          <div id="fuente-cuotas-lista" class="fuente-lista" role="listbox" aria-labelledby="lbl-fuente-cuotas" tabindex="-1"></div>
+        </div>
         <button id="btn-consultar-cuotas" class="primario">Consultar cuotas</button>
         <button id="btn-historial-cuotas" class="secundario">Ver capturas guardadas</button>
       </div>
-      <p id="cuotas-estado" class="nota" role="status">La consulta es manual, con caché compartida de 30 minutos.</p>
+      <p id="cuotas-estado" class="nota" role="status">La consulta es manual. BestFightOdds y The Odds API comparten una caché de 30 minutos; Betano y Polymarket muestran lo que la app ya leyó.</p>
       <div id="cuotas-lista"></div>
       <div id="cuotas-historial" class="oculto"></div>
     </section>

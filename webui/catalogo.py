@@ -85,6 +85,7 @@ def _leer():
             rows.sort(key=lambda r: r["date"], reverse=True)
         por_pelea = _agrupar_estadisticas(stats) if len(stats) else {}
         career = DB.read_json(CAREER) if DB.exists(CAREER) else {}
+        import unicodedata
         indice = []
         for r in fichas.values():
             ambiguo = len(nombres[r['name']]) > 1
@@ -93,19 +94,33 @@ def _leer():
                 'peso': PESOS.get(h[0]['weight_class'], h[0]['weight_class']) if h else None,
                 'peleas': len(h) if not ambiguo else None,
                 'ultima': h[0]['date'] if h else None, 'nacimiento': r.get('dob')}
-            indice.append((normalize_name(r['name']), r['id'], fila))
+            palabras = str(r['name']).split()
+            while palabras and palabras[-1].casefold() in {'jr.', 'jr', 'sr.', 'ii', 'iii', 'iv'}:
+                palabras.pop()
+            # Conservar letras no latinas evita clasificar una inicial que
+            # la búsqueda de texto eliminaría al convertir el nombre a ASCII.
+            apellido = ''.join(c for c in unicodedata.normalize('NFD', palabras[-1] if palabras else '')
+                if not unicodedata.combining(c)).lower()
+            indice.append((normalize_name(r['name']), r['id'], fila, apellido))
         _busqueda = tuple(sorted(indice, key=lambda entrada: entrada[:2]))
         _catalogo = fichas, nombres, historial, por_pelea, career
         _firma = firma
         return _catalogo
 
 
-def buscar(q="", limite=40, offset=0):
+def buscar(q="", limite=40, offset=0, tramo=""):
+    if tramo and tramo not in ('A-F', 'G-L', 'M-R', 'S-Z'):
+        raise ValueError('Tramo de apellido inválido')
     with _lock:
         _leer()
         indice = _busqueda
     consulta = normalize_name(q)
-    rows = [r for normalizado, _, r in indice if not consulta or consulta in normalizado]
+    filtrados = [entrada for entrada in indice if not consulta or consulta in entrada[0]]
+    if tramo:
+        desde, hasta = tramo.lower().split('-')
+        filtrados = [entrada for entrada in filtrados if desde <= entrada[3][:1] <= hasta]
+        filtrados.sort(key=lambda entrada: (entrada[3], entrada[0], entrada[1]))
+    rows = [entrada[2] for entrada in filtrados]
     from webui import identidad_visual as I
     seleccion = [dict(r) for r in rows[offset:offset + limite]]
     campeones = campeones_por_id()

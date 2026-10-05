@@ -266,7 +266,7 @@ function soltarModalActual() {
 // Entra con el velo fundiéndose y la caja creciendo apenas desde el centro (es
 // un modal: no sale de ningún botón). Sale más rápido de lo que entra. Con el
 // teclado (Esc, o Enter sobre un botón) abre y cierra al instante.
-function modal(html, { clase = '', alCerrar = null } = {}) {
+function modal(html, { clase = '', alCerrar = null, devolverFoco = null } = {}) {
   const m = $('#modal');
   // Si se abre mientras el anterior todavía sale, esa salida se corta: al
   // terminar habría escondido el modal nuevo.
@@ -274,7 +274,7 @@ function modal(html, { clase = '', alCerrar = null } = {}) {
   delete m.dataset.cerrando;
   if (m.classList.contains('oculto')) focoAntesDelModal = document.activeElement;
   soltarModalActual();
-  modalActual = { clase, alCerrar };
+  modalActual = { clase, alCerrar, devolverFoco };
   if (clase) m.classList.add(clase);
   $('#modal-cuerpo').innerHTML = html;
   // El título del modal es su primer encabezado: es lo que lee un lector de
@@ -297,8 +297,10 @@ function cerrarModal(alInstante = false) {
   const fin = () => {
     m.classList.add('oculto'); delete m.dataset.cerrando;
     $$('body > *').forEach(e => { e.inert = false; });
+    // El origen puede haberse reemplazado mientras el modal estaba abierto.
+    const devolverFoco = modalActual.devolverFoco;
     soltarModalActual();
-    focoAntesDelModal?.focus?.();
+    (devolverFoco?.() || focoAntesDelModal)?.focus?.();
   };
   if (alInstante || porTeclado) { m.getAnimations({ subtree: true }).forEach(a => a.cancel()); fin(); return; }
   m.dataset.cerrando = '1';
@@ -1126,25 +1128,48 @@ function pintarConsenso({ animar = true } = {}) {
   if (antes) resaltarCambios(raiz, antes);
 }
 
+// --- Posición del detalle del mercado (función pura: la prueba la carga sola) ---
 // La capa superior del popover no se recorta por la jaula ni por la altura que
-// anima un details. Si no cabe debajo, queda arriba del botón; una lista larga
-// se desplaza dentro del panel, sin salirse de una ventana de 390 px.
+// anima un details. Se mide el panel con su ancho natural, se fija el ancho ya
+// angostado y se vuelve a medir: al angostarse, el texto baja y el alto cambia.
 function situarDetalleConsenso(boton, panel) {
-  const margen = 12, separacion = 5;
-  const ancho = document.documentElement.clientWidth;
-  const alto = window.innerHeight;
-  panel.style.maxHeight = Math.max(0, alto - margen * 2) + 'px';
+  const viewport = { ancho: document.documentElement.clientWidth, alto: window.innerHeight };
+  // Medir sin límite de alto deja el scroll interno en 0 si todo cabe: se guarda
+  // y se restaura para que quien recorre una tabla larga no vuelva arriba.
+  const scroll = panel.scrollTop;
+  panel.style.width = ''; panel.style.maxHeight = '';
+  const natural = panel.getBoundingClientRect();
   const ancla = boton.getBoundingClientRect();
-  const caja = panel.getBoundingClientRect();
+  const { ancho } = calcularPosicionPopover({ ancla, panel: { ancho: natural.width, alto: natural.height }, viewport });
+  panel.style.width = ancho + 'px';
+  const medida = panel.getBoundingClientRect();
+  const pos = calcularPosicionPopover({ ancla, panel: { ancho, alto: medida.height }, viewport });
+  panel.style.maxHeight = pos.altoMax + 'px';
+  panel.style.left = pos.left + 'px';
+  panel.style.top = pos.top + 'px';
+  panel.dataset.direccion = pos.lado;
+  panel.scrollTop = scroll;
+}
+
+// Entradas: rect del disparador {top,bottom,left,width}, tamaño natural del
+// panel {ancho,alto} y el viewport {ancho,alto}. Salida: dónde ponerlo. Siempre
+// entero dentro del viewport con `margen` de aire: se angosta al ancho disponible
+// (a 390 px no cabe el de 460), se abre debajo del disparador y, si no cabe,
+// arriba; si tampoco cabe entero en ninguno, toma el lado con más espacio y
+// altoMax lo hace desplazarse por dentro en vez de salirse de la pantalla.
+function calcularPosicionPopover({ ancla, panel, viewport, margen = 12, separacion = 5 }) {
+  const ancho = Math.max(0, Math.min(panel.ancho, viewport.ancho - margen * 2));
+  const abajo = viewport.alto - margen - (ancla.bottom + separacion);
   const arriba = ancla.top - separacion - margen;
-  const abajo = alto - ancla.bottom - separacion - margen;
-  const haciaArriba = caja.height > abajo && arriba > abajo;
-  const x = Math.max(margen, Math.min(ancla.left + (ancla.width - caja.width) / 2,
-    ancho - margen - caja.width));
-  const y = haciaArriba ? ancla.top - separacion - caja.height : ancla.bottom + separacion;
-  panel.style.left = x + 'px';
-  panel.style.top = Math.max(margen, Math.min(y, alto - margen - caja.height)) + 'px';
-  panel.dataset.direccion = haciaArriba ? 'arriba' : 'abajo';
+  const lado = panel.alto <= abajo || (panel.alto > arriba && abajo >= arriba) ? 'abajo' : 'arriba';
+  const altoMax = Math.max(0, Math.min(panel.alto, viewport.alto - margen * 2, lado === 'abajo' ? abajo : arriba));
+  const y = lado === 'abajo' ? ancla.bottom + separacion : ancla.top - separacion - altoMax;
+  const x = ancla.left + ancla.width / 2 - ancho / 2;
+  return {
+    ancho, altoMax, lado,
+    left: Math.max(margen, Math.min(x, viewport.ancho - margen - ancho)),
+    top: Math.max(margen, Math.min(y, viewport.alto - margen - altoMax)),
+  };
 }
 
 // El detalle por fuente se abre de tres maneras: al pasar el mouse (vistazo),
@@ -1187,10 +1212,23 @@ function cerrarDetallesConsenso() {
   MERCADO.hover = null;
   abiertos.forEach(id => detalleConsenso(id, false, { fijar:true }));
 }
+// El último botón que abrió un detalle: a él vuelve el foco al cerrarlo.
+// Se guarda su id (aria-controls), no el nodo: los refrescos de cuotas repintan
+// la cartelera con innerHTML y el nodo viejo queda desconectado.
+let disparadorConsenso = null;
+function botonVigenteConsenso() {
+  if (!disparadorConsenso) return null;
+  if (disparadorConsenso.isConnected !== false) return disparadorConsenso;
+  const id = disparadorConsenso.getAttribute?.('aria-controls') ?? disparadorConsenso.ariaControls;
+  const nuevo = id ? $('#cartelera-contenido')?.querySelector(`[aria-controls="${CSS.escape(id)}"]`) : null;
+  if (nuevo) disparadorConsenso = nuevo;
+  return nuevo;
+}
 document.addEventListener('click', (e) => {
   const b = e.target.closest?.('[data-cons-boton]');
   if (b) {
     const id = b.dataset.consBoton;
+    disparadorConsenso = b;
     // Si estaba abierto solo por el mouse, el clic lo deja fijo en vez de cerrarlo.
     const fijo = MERCADO.abiertas.has(id);
     clearTimeout(esperaConsenso);
@@ -1202,13 +1240,21 @@ document.addEventListener('click', (e) => {
     detalleConsenso(id, !fijo, { fijar:true });
     return;
   }
-  // Un clic fuera cierra los que quedaron fijos (no si es dentro del detalle).
-  if (!e.target.closest?.('.consenso')) cerrarDetallesConsenso();
+  // Un clic fuera del botón y del detalle cierra los que quedaron fijos. Si el
+  // foco estaba en el panel y el clic cae en algo que no recibe foco, vuelve al
+  // disparador en vez de perderse en <body>.
+  if (e.target.closest?.('.cons-detalle')) return;
+  const habia = MERCADO.abiertas.size || MERCADO.hover != null;
+  const disparador = botonVigenteConsenso();
+  cerrarDetallesConsenso();
+  if (habia && disparador && !e.target.closest?.('a,button,input,select,textarea,summary,[tabindex]'))
+    disparador.focus({ preventScroll:true });
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (document.querySelector('#modal:not(.oculto)')) return;
-  const dentro = document.activeElement?.closest?.('.consenso')?.querySelector('[data-cons-boton]');
+  const dentro = document.activeElement?.closest?.('.consenso')?.querySelector('[data-cons-boton]')
+    || botonVigenteConsenso();
   const habia = MERCADO.abiertas.size || MERCADO.hover != null;
   cerrarDetallesConsenso();
   if (habia) dentro?.focus({ preventScroll:true });
@@ -1246,7 +1292,9 @@ document.addEventListener('pointerout', (e) => {
 // Al desplazar la página o cambiar el tamaño, el panel sigue a su botón. El
 // rAF agrupa las lecturas; no se recalcula el layout por cada evento de scroll.
 let reposicionConsenso = false;
-function recolocarDetallesConsenso() {
+function recolocarDetallesConsenso(e) {
+  // El scroll del propio panel no mueve al botón: reposicionar rompería su recorrido.
+  if (e?.target?.closest?.('.cons-detalle')) return;
   if (reposicionConsenso || (!MERCADO.abiertas.size && MERCADO.hover == null)) return;
   reposicionConsenso = true;
   requestAnimationFrame(() => {
@@ -1891,7 +1939,7 @@ function cuerpoConsenso(p) {
         aria-label="Cuotas por fuente de ${esc(p.a)} frente a ${esc(p.b)}"><span>Consenso del mercado</span><small>${n} ${n === 1 ? 'cuota' : 'cuotas'}</small><svg class="cons-flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"/></svg></button>
       ${lado('b', p.b)}
     </div>
-    <div class="cons-detalle" id="${id}" popover="manual" role="region" aria-label="Cuotas por fuente"${abierta ? '' : ' hidden'}>${detalleCuotas(p, c.pelea)}</div>${
+    <div class="cons-detalle" id="${id}" popover="manual" role="region" tabindex="0" aria-label="Cuotas por fuente"${abierta ? '' : ' hidden'}>${detalleCuotas(p, c.pelea)}</div>${
       MERCADO.error ? '<p class="cons-vacio cons-error">No pude actualizar las cuotas. Se conserva la última captura disponible.</p>' : ''}`;
 }
 

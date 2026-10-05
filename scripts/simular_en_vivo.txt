@@ -1,0 +1,28 @@
+SIMULAR EL MERCADO EN VIVO
+
+Este lanzador abre una cartelera ficticia para probar el gráfico «Mercado en
+vivo» / «Movimiento de cuotas», sin esperar a un evento real.
+
+Abre scripts\simular_en_vivo.bat con doble clic. Se abrirá
+http://127.0.0.1:8010. En Inicio aparece arriba la sección «Mercado en vivo»
+con el sello «Datos simulados». Pulsa «Actualizar» para consultar de nuevo.
+El programa muestra las peleas de la cartelera; toca una pelea para verla y usa
+«Marcar terminada» en esa fila cuando quieras avanzar. La línea de cuotas avanza
+cada 10 segundos. El selector «Pelea» no aparece mientras haya un evento en
+curso.
+
+Verás un evento falso «en curso», con cuatro peleas de peleadores reales,
+cuotas inventadas que cambian cada 10 segundos y un Polymarket simulado. Cada
+pelea recorre un ciclo de 20 minutos; al terminar la estelar, el ciclo empieza
+de nuevo.
+
+Las cuotas simuladas viven solo en memoria y nunca se escriben en la base de
+datos. El servidor simulado y la UI normal comparten data/ufc.db y las cachés;
+evita usar ambas a la vez para cargar carteleras. Puedes mantener la UI normal
+abierta en http://127.0.0.1:8000, pero sus lecturas y escrituras locales usan
+esos mismos datos compartidos.
+
+Problemas comunes:
+- Si el puerto 8010 está ocupado, cierra el otro programa o instancia que lo
+  usa y vuelve a abrir el .bat.
+- Si faltan dependencias, ejecuta scripts\instalar.bat y vuelve a intentarlo.

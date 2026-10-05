@@ -432,6 +432,13 @@ ORIGINAL = "https://ufc.com/images/2025-01/MAKHACHEV_ISLAM_L_BELT_01-18.png"
 class AltaResolucion(_Base):
     """Retrato de estudio de UFC a resolución completa para perfil, listado y Rankings."""
 
+    def setUp(self):
+        super().setUp()
+        # Estas pruebas cubren el respaldo del headshot: sin cuerpo entero en la ficha.
+        p = mock.patch.object(fotos, "url_ufc_cuerpo", return_value=None)
+        p.start()
+        self.addCleanup(p.stop)
+
     def test_original_sin_estilo_y_marcas_de_estudio_tras_el_nombre_completo(self):
         self.assertEqual(fotos.original_ufc(ESTILO), ORIGINAL)
         self.assertTrue(fotos._retrato_ufc(ORIGINAL, "Islam Makhachev"))
@@ -534,6 +541,68 @@ class Endpoint(_Base):
         with mock.patch.object(fotos.requests, "get") as get:
             self.assertIsNone(fotos.foto("../../config"))
         get.assert_not_called()
+
+
+
+
+CUERPO = "https://ufc.com/images/styles/athlete_bio_full_body/s3/2025-03/PEREIRA_ALEX_L.png?itok=zz"
+CUERPO_ORIG = "https://ufc.com/images/2025-03/PEREIRA_ALEX_L.png"
+HEAD = "https://ufc.com/images/2025-10/PEREIRA_ALEX_10-04.png"
+
+
+def _ficha(nombre="Alex Pereira", *imgs):
+    cuerpo = "".join(f'<img class="image-style-athlete-bio-full-body" src="{u}">' for u in imgs)
+    return _Resp(text=f'<h1 class="hero-profile__name">{nombre}</h1>{cuerpo}')
+
+
+class AltaCuerpoEntero(_Base):
+    """foto_alta prefiere el cuerpo entero de la ficha y cae al headshot."""
+    consultar_ufc = True
+
+    def test_url_ufc_cuerpo_elige_el_full_body_y_valida_el_nombre(self):
+        with mock.patch.object(fotos.requests, "get", return_value=_ficha("Alex Pereira", CUERPO)):
+            self.assertEqual(fotos.url_ufc_cuerpo("Alex Pereira"), CUERPO)
+        self.assertEqual(fotos.original_ufc(CUERPO), CUERPO_ORIG)
+        # el archivo es de otro peleador: no se acepta
+        otro = "https://ufc.com/images/styles/athlete_bio_full_body/s3/2025-03/ANKALAEV_MAGOMED_L.png?itok=1"
+        with mock.patch.object(fotos.requests, "get", return_value=_ficha("Alex Pereira", otro)):
+            self.assertIsNone(fotos.url_ufc_cuerpo("Alex Pereira"))
+        # el h1 de la ficha es de otro (homónimo): tampoco
+        with mock.patch.object(fotos.requests, "get", return_value=_ficha("Alex Perez", CUERPO)):
+            self.assertIsNone(fotos.url_ufc_cuerpo("Alex Pereira"))
+        # sin estilo full body en la ficha
+        with mock.patch.object(fotos.requests, "get", return_value=_ficha("Alex Pereira", HEAD)):
+            self.assertIsNone(fotos.url_ufc_cuerpo("Alex Pereira"))
+
+    def test_foto_alta_baja_el_original_del_cuerpo_entero(self):
+        # foto() (el retrato base) baja el headshot por su cuenta: se anula para medir
+        # solo lo que pide foto_alta.
+        with mock.patch.object(fotos, "foto", return_value=None),                 mock.patch.object(fotos, "url_ufc_cuerpo", return_value=CUERPO),                 mock.patch.object(fotos, "url_ufc", return_value=HEAD),                 mock.patch.object(fotos.requests, "get", return_value=_Resp(content=_png(6), tipo="image/png")) as get:
+            ruta = fotos.foto_alta("Alex Pereira")
+        self.assertEqual(fotos._indice()["alta:alex pereira"]["url"], CUERPO_ORIG)
+        self.assertIn(CUERPO_ORIG, [c.args[0] for c in get.call_args_list])
+        # con cuerpo entero no se debe pedir el headshot (ni su original) a la red
+        pedidas = [c.args[0] for c in get.call_args_list]
+        self.assertNotIn(HEAD, pedidas)
+        self.assertNotIn(fotos.original_ufc(HEAD), pedidas)
+        self.assertTrue(ruta.name.startswith("alta_"))
+
+    def test_sin_cuerpo_entero_cae_al_headshot(self):
+        with mock.patch.object(fotos, "url_ufc_cuerpo", return_value=None),                 mock.patch.object(fotos, "url_ufc", return_value=HEAD),                 mock.patch.object(fotos.requests, "get", return_value=_Resp(content=_png(6), tipo="image/png")):
+            fotos.foto_alta("Alex Pereira")
+        self.assertEqual(fotos._indice()["alta:alex pereira"]["url"], HEAD)
+
+    def test_version_alta_invalida_entradas_viejas(self):
+        self.assertGreaterEqual(fotos.VERSION_ALTA, 2)
+        with mock.patch.object(fotos, "url_ufc_cuerpo", return_value=CUERPO) as cuerpo,                 mock.patch.object(fotos, "url_ufc", return_value=HEAD),                 mock.patch.object(fotos.requests, "get", return_value=_Resp(content=_png(6), tipo="image/png")):
+            fotos.foto_alta("Alex Pereira")
+            idx = fotos._indice()
+            idx["alta:alex pereira"]["version"] = 1
+            idx["alta:alex pereira"]["url"] = HEAD
+            fotos._guardar_indice(idx)
+            fotos.foto_alta("Alex Pereira")
+        self.assertEqual(cuerpo.call_count, 2)
+        self.assertEqual(fotos._indice()["alta:alex pereira"]["url"], CUERPO_ORIG)
 
 
 if __name__ == "__main__":

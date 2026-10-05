@@ -56,9 +56,11 @@ app = FastAPI(title="UFC Predictor UI", docs_url=None, redoc_url=None, lifespan=
 # Cartelera
 # --------------------------------------------------------------------------- #
 @app.get("/api/peleadores")
-def buscar_peleadores(q: str = "", limite: int = 40, offset: int = 0):
+def buscar_peleadores(q: str = "", limite: int = 40, offset: int = 0, tramo: str = ""):
     from webui import catalogo
-    return catalogo.buscar(q[:100], min(max(limite, 1), 100), max(0, offset))
+    if tramo and tramo not in ('A-F', 'G-L', 'M-R', 'S-Z'):
+        raise HTTPException(status_code=400, detail="Tramo de apellido inválido")
+    return catalogo.buscar(q[:100], min(max(limite, 1), 100), max(0, offset), tramo=tramo)
 
 
 @app.get("/api/peleadores/{identidad}")
@@ -95,14 +97,39 @@ def configuracion_cuotas():
     return {"odds_api_configurada": bool(C.ODDS_API_KEY), "ttl_seg": 1800}
 
 
+_PROVEEDORES = ("betano", "bfo", "odds_api", "polymarket")
+
+
+def _proveedor(valor: str) -> str:
+    # "odds-api" es el nombre legado (y el que queda en la columna `proveedor`
+    # de las capturas viejas); la UI nueva usa "odds_api".
+    clave = "odds_api" if valor == "odds-api" else valor
+    if clave not in _PROVEEDORES:
+        raise HTTPException(400, "Proveedor desconocido")
+    return clave
+
+
+def _presentar_captura(d: dict) -> dict:
+    from src import cartelera_completa
+    clave = "odds_api" if d.get("proveedor") == "odds-api" else d.get("proveedor")
+    tipo = d.get("tipo") or ("mercado_prediccion" if clave == "polymarket" else "casa")
+    return cartelera_completa.resumen({**d, "proveedor": clave, "tipo": tipo,
+                                       "actualizado": d.get("actualizado", d.get("capturado"))})
+
+
 @app.get("/api/cuotas")
 def consultar_cuotas(proveedor: str = "bfo"):
     from src import cuotas_fuentes
-    from src import cartelera_completa
+    clave = _proveedor(proveedor)
+    if clave in ("betano", "polymarket"):
+        # Solo SQLite: Betano es pasivo y Polymarket ya lo consulta su hilo.
+        from src.cuotas import comparar
+        return _presentar_captura(comparar.consultar(clave))
     try:
-        return cartelera_completa.resumen(cuotas_fuentes.consultar(proveedor))
+        d = cuotas_fuentes.consultar("odds-api" if clave == "odds_api" else clave)
     except ValueError as e:
         raise HTTPException(502, str(e)) from None
+    return _presentar_captura(d)
 
 
 # --------------------------------------------------------------------------- #
@@ -175,14 +202,20 @@ class CargaCuotas(BaseModel):
 @app.get("/api/cuotas/historial")
 def historial_cuotas(proveedor: str | None = None):
     from src import cuotas_fuentes
-    return {"capturas": cuotas_fuentes.historial(proveedor)}
+    if proveedor == "odds_api":
+        proveedor = "odds-api"       # así quedó guardada en la columna
+    capturas = cuotas_fuentes.historial(proveedor)
+    for c in capturas:
+        if c["proveedor"] == "odds-api":
+            c["proveedor"] = "odds_api"
+    return {"capturas": capturas}
 
 
 @app.get("/api/cuotas/capturas/{identidad}")
 def captura_cuotas(identidad: str):
-    from src import cuotas_fuentes, cartelera_completa
+    from src import cuotas_fuentes
     try:
-        return cartelera_completa.resumen({**cuotas_fuentes.captura(identidad), "cache": True})
+        return _presentar_captura({**cuotas_fuentes.captura(identidad), "cache": True})
     except ValueError as e:
         raise HTTPException(404, str(e)) from None
 
@@ -202,7 +235,10 @@ def cargar_desde_cuotas(body: CargaCuotas):
         raise HTTPException(400, str(e)) from None
     # Una captura histórica no se predice con estadísticas actuales.
     corte = meta["fecha_fuente"][:10] if meta.get("fecha_fuente") else meta.get("corte")
-    engine.cargar(meta["proveedor"], titulo, ruta, corte=corte,
+    # Una captura de Betano se predice con SUS precios: con origen "betano" el
+    # motor volvería a bajar la cartelera y reemplazaría lo guardado.
+    origen = "betano_captura" if meta["proveedor"] == "betano" else meta["proveedor"]
+    engine.cargar(origen, titulo, ruta, corte=corte,
                   fuente_cuotas=meta, titulo_fuente=titulo)
     return {"ok": True}
 
